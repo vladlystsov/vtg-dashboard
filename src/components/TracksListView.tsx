@@ -9,21 +9,21 @@ interface TracksListViewProps {
 }
 
 export default function TracksListView({ tracks, onOpen, onDelete }: TracksListViewProps) {
+  const sorted = tracks
+    .slice()
+    .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0) || a.title.localeCompare(b.title));
+
   return (
-    <div className="albums-grid">
-      {tracks
-        .filter((t) => t.coverUrl || t.project)
-        .slice()
-        .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
-        .map((track) => (
-          <TrackRow key={track.id} track={track} onOpen={onOpen} onDelete={onDelete} />
-        ))}
+    <div className="deck-grid">
+      {sorted.map((track) => (
+        <DeckCard key={track.id} track={track} onOpen={onOpen} onDelete={onDelete} />
+      ))}
       {tracks.length === 0 && <div className="empty-state">Пока нет треков. Создайте первый!</div>}
     </div>
   );
 }
 
-function TrackRow({
+function DeckCard({
   track,
   onOpen,
   onDelete,
@@ -35,48 +35,49 @@ function TrackRow({
   const { profile } = useAuth();
   const isMine = track.createdBy === profile?.uid;
   const doneCount = (track.checklist || []).filter((c) => c.status === 'done' || c.status === 'verified').length;
+  const total = (track.checklist || []).length;
+  const progress = total ? Math.round((doneCount / total) * 100) : 0;
+
+  const artists = track.artists?.join(', ') || track.artistsString || (track as any).artist || '—';
 
   return (
-    <div className="album-track" onClick={() => onOpen(track)}>
-      <div className="album-track-num">
-        {track.trackNumber ? String(track.trackNumber).padStart(2, '0') : ''}
-      </div>
-      <div className="album-track-cover">
+    <div className="deck-card" onClick={() => onOpen(track)}>
+      <div className="deck-cover-wrap">
         {track.coverUrl ? (
-          <img src={track.coverUrl} alt={track.title} />
+          <img className="deck-cover-img" src={track.coverUrl} alt={track.title} />
         ) : (
-          <div className="album-track-cover-empty">VTG</div>
+          <div className="deck-cover-fallback">
+            <img className="fallback-img" src={`${import.meta.env.BASE_URL}logo_vtg_default.jpg`} alt="" />
+            <span className="deck-title-fallback">{track.title}</span>
+          </div>
         )}
-      </div>
-      <div className="album-track-info">
-        <div className="album-track-title">
-          {track.title}
-          {isMine && <span className="row-mine">Мой</span>}
+        <div className="deck-card-top">
+          <span className="deck-num">{track.trackNumber ? String(track.trackNumber).padStart(2, '0') : ''}</span>
+          {isMine && <span className="deck-mine">Мой</span>}
         </div>
-        <div className="album-track-artists">
-          {track.artists?.join(', ') || track.artistsString || (track as any).artist || '—'}
-          {track.feat && <span className="track-feat"> feat. {track.feat}</span>}
+        <button
+          className="deck-delete"
+          title="Удалить трек"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(track.id);
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div className="deck-body">
+        <div className="deck-title">{track.title}</div>
+        <div className="deck-artists">{artists}</div>
+        {track.feat && <div className="deck-feat">feat. {track.feat}</div>}
+        <div className="deck-project">{track.project}</div>
+        <div className="deck-progress">
+          <div className="progress-bar">
+            <div className={`progress-fill status-fill-${track.status}`} style={{ width: `${progress}%` }} />
+          </div>
+          <span className="deck-status">{STATUS_LABELS[track.status]}</span>
         </div>
-        <div className="album-track-proj">{track.project}</div>
       </div>
-      <div className="album-track-meta">
-        <span className={`album-track-status status-${track.status}`}>
-          {STATUS_LABELS[track.status]}
-        </span>
-        <span className="album-track-progress">
-          {doneCount}/{(track.checklist || []).length}
-        </span>
-      </div>
-      <button
-        className="row-delete"
-        title="Удалить трек"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(track.id);
-        }}
-      >
-        ×
-      </button>
     </div>
   );
 }

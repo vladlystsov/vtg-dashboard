@@ -193,8 +193,7 @@ export default function TrackForm({
     let coverUrl = initialTrack?.coverUrl;
     try {
       if (coverFile) {
-        const tempId = initialTrack?.id || 'temp-' + Date.now();
-        coverUrl = await withTimeout(uploadCover(coverFile, tempId), 20000, 'загрузка обложки');
+        coverUrl = await withTimeout(uploadCover(coverFile), 20000, 'обработка обложки');
       }
       const finalProject = (newProject || project || 'Без проекта').trim() || 'Без проекта';
 

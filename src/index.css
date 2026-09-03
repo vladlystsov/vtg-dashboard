@@ -440,6 +440,7 @@ body {
   padding: 10px;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
   min-height: 120px;
 }
@@ -552,6 +553,141 @@ body {
 .track-deadline {
   color: var(--crimson-red);
   font-weight: 500;
+}
+
+/* ===== Track card: portrait (deck/album card) ===== */
+.track-card-portrait {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--gray-200);
+  width: 100%;
+  max-width: 220px;
+}
+
+.track-card-cover-wrap {
+  position: relative;
+  aspect-ratio: 1 / 1.05;
+  width: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
+}
+
+.track-card-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.track-card-cover-fallback {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+}
+
+.track-card-cover-fallback .fallback-img,
+.deck-cover-fallback .fallback-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0.9;
+}
+
+.fallback-title,
+.deck-title-fallback {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  font-size: 12px;
+  color: #fff;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 4px 8px;
+  border-radius: 6px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.track-card-top {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.track-tracknum {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.track-card-portrait .priority-indicator {
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.track-card-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-card-portrait .track-title {
+  font-size: 14px;
+  margin-bottom: 0;
+}
+
+.track-card-portrait .track-artist {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.track-card-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-bottom: 6px;
+}
+
+.track-beatmakers {
+  color: var(--gray-400);
+}
+
+.track-card-portrait .track-progress {
+  margin-bottom: 8px;
+}
+
+.track-card-portrait .track-card-footer {
+  margin-top: auto;
+}
+
+/* deprecated old horizontal card internals kept for safety */
+.track-card-header,
+.track-beatmaker-line,
+.track-mix-line {
+  display: none;
 }
 
 /* ===== Tracks List ===== */
@@ -1171,6 +1307,196 @@ body {
 
 .album-track-progress {
   font-size: 12px;
+  color: var(--gray-500);
+}
+
+/* ===== Deck grid (tracks view, portrait cards) ===== */
+.deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 16px;
+}
+
+.deck-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s, transform 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.deck-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.deck-cover-wrap {
+  position: relative;
+  aspect-ratio: 1 / 1.05;
+  width: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
+}
+
+.deck-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.deck-cover-fallback {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+}
+
+.deck-logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+.deck-title-fallback {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  font-size: 12px;
+  color: #fff;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 4px 8px;
+  border-radius: 6px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.deck-card-top {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.deck-num {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.deck-mine {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--blue-500);
+  border-radius: 999px;
+  padding: 2px 8px;
+  width: fit-content;
+}
+
+.deck-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.deck-delete:hover {
+  background: var(--crimson-red);
+}
+
+.deck-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.deck-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deck-artists {
+  font-size: 12px;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deck-feat {
+  font-size: 12px;
+  color: var(--crimson-red);
+  font-weight: 600;
+}
+
+.deck-project {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deck-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.deck-progress .progress-bar {
+  flex: 1;
+}
+
+.status-fill-draft { background: linear-gradient(90deg, var(--gray-400), var(--gray-300)); }
+.status-fill-recording { background: linear-gradient(90deg, var(--blue-600), var(--blue-400)); }
+.status-fill-mixing { background: linear-gradient(90deg, var(--amber-500), var(--crimson-500)); }
+.status-fill-mastering { background: linear-gradient(90deg, var(--purple-500), var(--blue-400)); }
+.status-fill-ready { background: linear-gradient(90deg, var(--green-500), var(--green-500)); }
+
+.deck-status {
+  font-size: 11px;
+  font-weight: 700;
   color: var(--gray-500);
 }
 
