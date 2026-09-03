@@ -29,58 +29,57 @@ export default function TrackCard({ track, index, onOpen }: TrackCardProps) {
     <Draggable draggableId={track.id} index={index}>
       {(provided) => (
         <div
-          className="track-card track-card-portrait"
+          className="track-card"
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           onClick={() => onOpen(track)}
           style={{
             ...provided.draggableProps.style,
+            borderLeftColor: currentColumn?.color,
           }}
         >
-          <div className="track-card-cover-wrap">
-            {track.coverUrl ? (
-              <img className="track-card-cover-img" src={track.coverUrl} alt={track.title} />
-            ) : (
-              <div className="track-card-cover-fallback">
-                <img className="fallback-img" src={`${import.meta.env.BASE_URL}logo_vtg_default.jpg`} alt="" />
-                <span className="fallback-title">{track.title}</span>
-              </div>
-            )}
-            <div className="track-card-top">
-              <span className="track-tracknum">{track.trackNumber || ''}</span>
-              <span className={`priority-indicator priority-${track.priority}`} />
+          {track.coverUrl && (
+            <div className="track-card-cover-strip">
+              <img src={track.coverUrl} alt={track.title} />
             </div>
+          )}
+          <div className="track-card-header">
+            <div className={`priority-indicator priority-${track.priority}`} />
+            <span className="track-project">
+              {track.trackNumber ? `${track.trackNumber}. ` : ''}{track.project}
+            </span>
           </div>
-
-          <div className="track-card-body">
-            <h3 className="track-title">{track.title}</h3>
-            <div className="track-artist">{artists || '—'}</div>
-            {track.feat && <div className="track-feat">feat. {track.feat}</div>}
-            <div className="track-card-sub">
-              <span className="track-project">{track.project}</span>
-              {beatmakers && <span className="track-beatmakers">BT: {beatmakers}</span>}
+          <h3 className="track-title">{track.title}</h3>
+          <div className="track-meta">
+            <span className="track-artist">{artists || '—'}</span>
+            {track.feat && <span className="track-feat">feat. {track.feat}</span>}
+          </div>
+          {beatmakers && (
+            <div className="track-beatmaker-line">
+              <span className="track-beatmaker-label">BT:</span> {beatmakers}
             </div>
-
-            <div className="track-progress">
-              <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${progress}%` }} />
-              </div>
-              <span className="progress-text">
-                {doneCount}/{totalCount}
+          )}
+          {track.mixBy && (
+            <div className="track-mix-line">
+              <span className="track-mix-label">Mix:</span> {track.mixBy}
+            </div>
+          )}
+          <div className="track-progress">
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${progress}%` }} />
+            </div>
+            <span className="progress-text">
+              {doneCount}/{totalCount}
+            </span>
+          </div>
+          <div className="track-card-footer">
+            <span className="track-status">{STATUS_LABELS[track.status]}</span>
+            {nextDeadline && (
+              <span className="track-deadline">
+                ⏱ {format(new Date(nextDeadline.deadline!), 'dd.MM')}
               </span>
-            </div>
-
-            <div className="track-card-footer">
-              <span className="track-status" style={{ color: currentColumn?.color }}>
-                {STATUS_LABELS[track.status]}
-              </span>
-              {nextDeadline && (
-                <span className="track-deadline">
-                  ⏱ {format(new Date(nextDeadline.deadline!), 'dd.MM')}
-                </span>
-              )}
-            </div>
+            )}
           </div>
         </div>
       )}
