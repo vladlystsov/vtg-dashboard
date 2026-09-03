@@ -1508,6 +1508,136 @@ body {
   }
 }
 
+/* ===== Combobox (person selector) ===== */
+.combobox {
+  position: relative;
+}
+
+.combobox input {
+  width: 100%;
+}
+
+.combobox-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 30;
+}
+
+.combobox-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--gray-100);
+  padding: 9px 12px;
+  font-size: 14px;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.combobox-item:last-child {
+  border-bottom: none;
+}
+
+.combobox-item:hover {
+  background: var(--blue-50);
+}
+
+.combobox-create {
+  color: var(--blue-700);
+  font-weight: 600;
+}
+
+/* ===== Profile dropdown menu ===== */
+.profile-menu {
+  position: relative;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.user-info:hover {
+  background: var(--gray-100);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.user-chevron {
+  font-size: 10px;
+  color: var(--gray-400);
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+  overflow: hidden;
+}
+
+.dd-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--gray-100);
+  padding: 11px 14px;
+  font-size: 14px;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.dd-item:hover {
+  background: var(--gray-50);
+}
+
+.dd-item:last-child {
+  border-bottom: none;
+}
+
+.dd-logout {
+  color: var(--crimson-red);
+  font-weight: 600;
+}
+
+.btn-logout {
+  display: none;
+}
+
 /* ===== Error boundary ===== */
 .error-boundary {
   max-width: 520px;

@@ -25,47 +25,85 @@ interface PersonSelectorProps {
 }
 
 function PersonSelector({ label, options, value, onChange, placeholder }: PersonSelectorProps) {
-  const [newName, setNewName] = useState('');
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
 
-  const toggleOption = (name: string) => {
-    onChange(value.includes(name) ? value.filter((v) => v !== name) : [...value, name]);
+  const trimmed = query.trim().toLowerCase();
+  const filtered = Array.from(new Set(options)).filter(
+    (o) => !value.includes(o) && (!trimmed || o.toLowerCase().includes(trimmed))
+  );
+
+  const add = (name: string) => {
+    const t = name.trim();
+    if (!t || value.includes(t)) return;
+    onChange([...value, t]);
+    setQuery('');
   };
 
-  const addNew = () => {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    if (!value.includes(trimmed)) onChange([...value, trimmed]);
-    setNewName('');
+  const addExact = () => {
+    if (trimmed && !value.some((v) => v.toLowerCase() === trimmed)) {
+      onChange([...value, query.trim()]);
+    }
+    setQuery('');
+    setOpen(false);
   };
+
+  const remove = (name: string) => onChange(value.filter((v) => v !== name));
 
   return (
     <div className="form-group">
       <label>{label}</label>
-      <div className="person-tags">
-        {value.map((v) => (
-          <span className="person-tag" key={v}>
-            {v}
-            <button type="button" className="person-tag-x" onClick={() => toggleOption(v)}>×</button>
-          </span>
-        ))}
-      </div>
-      <div className="person-options">
-        {options.filter((o) => !value.includes(o)).map((o) => (
-          <label className="person-option" key={o}>
-            <input type="checkbox" onChange={() => toggleOption(o)} />
-            {o}
-          </label>
-        ))}
-      </div>
-      <div className="person-new">
+      <div
+        className="combobox"
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+      >
         <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNew(); } }}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); addExact(); }
+            else if (e.key === 'Escape') setOpen(false);
+          }}
           placeholder={placeholder}
         />
-        <button type="button" className="btn-add-inline" onClick={addNew}>+ Добавить</button>
+        {open && filtered.length > 0 && (
+          <div className="combobox-list">
+            {filtered.map((o) => (
+              <button
+                type="button"
+                key={o}
+                className="combobox-item"
+                onMouseDown={(e) => { e.preventDefault(); add(o); }}
+              >
+                {o}
+              </button>
+            ))}
+            {trimmed && !options.some((o) => o.toLowerCase() === trimmed) && (
+              <button
+                type="button"
+                className="combobox-item combobox-create"
+                onMouseDown={(e) => { e.preventDefault(); addExact(); }}
+              >
+                + Добавить «{query.trim()}»
+              </button>
+            )}
+          </div>
+        )}
       </div>
+      {value.length > 0 && (
+        <div className="person-tags">
+          {value.map((v) => (
+            <span className="person-tag" key={v}>
+              {v}
+              <button type="button" className="person-tag-x" onClick={() => remove(v)}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -32,13 +32,30 @@ export default function ProfileView() {
     setRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
   };
 
+  const handleSaveProfile = async () => {
+    setError('');
+    setSaving(true);
+    try {
+      await updateMyProfile(profile.uid, { artistName: artistName.trim() || profile.displayName, roles });
+      setMessage('Профиль сохранён.');
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось сохранить.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSubmitRequest = async () => {
     setError('');
     setSaving(true);
     try {
       await updateMyProfile(profile.uid, { artistName: artistName.trim() || profile.displayName, roles });
-      await createArtistRequest({ ...profile, artistName: artistName.trim() || profile.displayName, roles });
-      setMessage('Заявка на подтверждение артиста отправлена администратору.');
+      if (profile.artistVerified) {
+        setMessage('Профиль сохранён.');
+      } else {
+        await createArtistRequest({ ...profile, artistName: artistName.trim() || profile.displayName, roles });
+        setMessage('Заявка на подтверждение артиста отправлена администратору.');
+      }
     } catch (e: any) {
       setError(e?.message || 'Не удалось отправить заявку.');
     } finally {
@@ -97,7 +114,11 @@ export default function ProfileView() {
             </div>
           </div>
 
-          {!isOwnerOrAdmin && (
+          {isOwnerOrAdmin ? (
+            <button className="btn-primary" onClick={handleSaveProfile} disabled={saving}>
+              {saving ? 'Сохранение...' : 'Сохранить никнейм и роли'}
+            </button>
+          ) : (
             <button className="btn-primary" onClick={handleSubmitRequest} disabled={saving}>
               {saving ? 'Отправка...' : profile.artistVerified ? 'Обновить профиль' : 'Подать заявку на подтверждение'}
             </button>
