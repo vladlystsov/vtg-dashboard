@@ -22,7 +22,7 @@ export default function TeamView({ users, currentUid, canManage, onSetRole, trac
         {users.map((u) => {
           const createdByThem = tracks.filter((t) => t.createdBy === u.uid).length;
           const assignedToThem = tracks.filter((t) =>
-            t.checklist.some((c) => c.assignee === u.displayName)
+            (t.checklist || []).some((c) => c.assignee === u.displayName)
           ).length;
           return (
             <div className="team-member" key={u.uid}>

@@ -75,7 +75,14 @@ export default function App() {
 
   const members = Array.from(new Set([
     ...users.map((u) => u.artistName || u.displayName),
-    ...tracks.flatMap((t) => [...t.artists, ...t.beatmakers, t.mixBy, t.feat].filter(Boolean)),
+    ...tracks.flatMap((t) => [
+      ...(t.artists || []),
+      ...(t.beatmakers || []),
+      (t as any).artist,
+      (t as any).beatmaker,
+      t.mixBy as string,
+      t.feat as string,
+    ].filter(Boolean)),
   ])).filter(Boolean);
 
   const projects = Array.from(new Set(tracks.map((t) => t.project).filter((p) => p)));

@@ -10,15 +10,20 @@ interface TrackCardProps {
 }
 
 export default function TrackCard({ track, index, onOpen }: TrackCardProps) {
-  const doneCount = track.checklist.filter((c) => c.status === 'verified' || c.status === 'done').length;
-  const totalCount = track.checklist.length;
+  const checklist = track.checklist || [];
+  const doneCount = checklist.filter((c) => c.status === 'verified' || c.status === 'done').length;
+  const totalCount = checklist.length;
   const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
   const currentColumn = KANBAN_COLUMNS.find((c) => c.id === track.column);
 
-  const artists = track.artists?.length ? track.artists.join(', ') : track.artistsString || '';
-  const beatmakers = track.beatmakers?.length ? track.beatmakers.join(', ') : track.beatmakerString || '';
+  const artists = (track.artists || []).length
+    ? (track.artists || []).join(', ')
+    : track.artistsString || (track as any).artist || '';
+  const beatmakers = (track.beatmakers || []).length
+    ? (track.beatmakers || []).join(', ')
+    : track.beatmakerString || (track as any).beatmaker || '';
 
-  const nextDeadline = track.checklist.find((c) => c.deadline && c.status !== 'verified' && c.status !== 'done');
+  const nextDeadline = (checklist || []).find((c) => c.deadline && c.status !== 'verified' && c.status !== 'done');
 
   return (
     <Draggable draggableId={track.id} index={index}>

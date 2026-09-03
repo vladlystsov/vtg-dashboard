@@ -34,7 +34,7 @@ function TrackRow({
 }) {
   const { profile } = useAuth();
   const isMine = track.createdBy === profile?.uid;
-  const doneCount = track.checklist.filter((c) => c.status === 'done' || c.status === 'verified').length;
+  const doneCount = (track.checklist || []).filter((c) => c.status === 'done' || c.status === 'verified').length;
 
   return (
     <div className="album-track" onClick={() => onOpen(track)}>
@@ -54,7 +54,7 @@ function TrackRow({
           {isMine && <span className="row-mine">Мой</span>}
         </div>
         <div className="album-track-artists">
-          {track.artists?.join(', ') || track.artistsString || '—'}
+          {track.artists?.join(', ') || track.artistsString || (track as any).artist || '—'}
           {track.feat && <span className="track-feat"> feat. {track.feat}</span>}
         </div>
         <div className="album-track-proj">{track.project}</div>
@@ -64,7 +64,7 @@ function TrackRow({
           {STATUS_LABELS[track.status]}
         </span>
         <span className="album-track-progress">
-          {doneCount}/{track.checklist.length}
+          {doneCount}/{(track.checklist || []).length}
         </span>
       </div>
       <button
