@@ -19,9 +19,6 @@ export default function TrackCard({ track, index, onOpen }: TrackCardProps) {
   const artists = (track.artists || []).length
     ? (track.artists || []).join(', ')
     : track.artistsString || (track as any).artist || '';
-  const beatmakers = (track.beatmakers || []).length
-    ? (track.beatmakers || []).join(', ')
-    : track.beatmakerString || (track as any).beatmaker || '';
 
   const nextDeadline = (checklist || []).find((c) => c.deadline && c.status !== 'verified' && c.status !== 'done');
 
@@ -40,46 +37,38 @@ export default function TrackCard({ track, index, onOpen }: TrackCardProps) {
           }}
         >
           {track.coverUrl && (
-            <div className="track-card-cover-strip">
-              <img src={track.coverUrl} alt={track.title} />
+            <div className="track-card-thumb">
+              <img src={track.coverUrl} alt="" />
             </div>
           )}
-          <div className="track-card-header">
-            <div className={`priority-indicator priority-${track.priority}`} />
-            <span className="track-project">
-              {track.trackNumber ? `${track.trackNumber}. ` : ''}{track.project}
-            </span>
-          </div>
-          <h3 className="track-title">{track.title}</h3>
-          <div className="track-meta">
-            <span className="track-artist">{artists || '—'}</span>
-            {track.feat && <span className="track-feat">feat. {track.feat}</span>}
-          </div>
-          {beatmakers && (
-            <div className="track-beatmaker-line">
-              <span className="track-beatmaker-label">BT:</span> {beatmakers}
-            </div>
-          )}
-          {track.mixBy && (
-            <div className="track-mix-line">
-              <span className="track-mix-label">Mix:</span> {track.mixBy}
-            </div>
-          )}
-          <div className="track-progress">
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
-            </div>
-            <span className="progress-text">
-              {doneCount}/{totalCount}
-            </span>
-          </div>
-          <div className="track-card-footer">
-            <span className="track-status">{STATUS_LABELS[track.status]}</span>
-            {nextDeadline && (
-              <span className="track-deadline">
-                ⏱ {format(new Date(nextDeadline.deadline!), 'dd.MM')}
+          <div className="track-card-content">
+            <div className="track-card-header">
+              <div className={`priority-indicator priority-${track.priority}`} />
+              <span className="track-project">
+                {track.trackNumber ? `${track.trackNumber}. ` : ''}{track.project}
               </span>
-            )}
+            </div>
+            <h3 className="track-title">{track.title}</h3>
+            <div className="track-meta">
+              <span className="track-artist">{artists || '—'}</span>
+              {track.feat && <span className="track-feat">feat. {track.feat}</span>}
+            </div>
+            <div className="track-progress">
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${progress}%` }} />
+              </div>
+              <span className="progress-text">
+                {doneCount}/{totalCount}
+              </span>
+            </div>
+            <div className="track-card-footer">
+              <span className="track-status">{STATUS_LABELS[track.status]}</span>
+              {nextDeadline && (
+                <span className="track-deadline">
+                  {format(new Date(nextDeadline.deadline!), 'dd.MM')}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}

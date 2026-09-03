@@ -449,12 +449,16 @@ body {
 .track-card {
   background: #fff;
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 1px solid var(--gray-200);
   border-left: 4px solid var(--gray-400);
   box-shadow: var(--shadow-sm);
   cursor: grab;
   transition: box-shadow 0.2s, transform 0.2s;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .track-card:hover {
@@ -465,19 +469,27 @@ body {
   cursor: grabbing;
 }
 
-.track-card-cover-strip {
-  height: 56px;
-  margin: -12px -14px 10px -14px;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+.track-card-thumb {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
   overflow: hidden;
+  background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
+  align-self: flex-start;
 }
 
-.track-card-cover-strip img {
+.track-card-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center 35%;
   display: block;
+}
+
+.track-card-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .track-card-header {
@@ -1328,8 +1340,20 @@ body {
 /* ===== Deck grid (tracks view, portrait cards) ===== */
 .deck-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .deck-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .deck-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .deck-card {
