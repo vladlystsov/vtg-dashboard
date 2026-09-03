@@ -563,7 +563,7 @@ body {
 
 .track-list-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr auto;
   gap: 16px;
   align-items: center;
   background: #fff;
@@ -576,6 +576,21 @@ body {
 
 .track-list-row:hover {
   box-shadow: var(--shadow-md);
+}
+
+.row-delete {
+  background: none;
+  border: none;
+  color: var(--gray-300);
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+  transition: color 0.15s;
+}
+
+.row-delete:hover {
+  color: var(--crimson-red);
 }
 
 .row-title {
@@ -680,12 +695,43 @@ body {
   font-size: 16px;
 }
 
+.member-you {
+  font-weight: 500;
+  color: var(--blue-600);
+  font-size: 14px;
+}
+
 .member-role {
   font-size: 12px;
   color: var(--gray-500);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 2px 0;
+}
+
+.role-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.role-tag.member { background: var(--gray-100); color: var(--gray-600); }
+.role-tag.admin { background: var(--blue-100); color: var(--blue-700); }
+.role-tag.owner { background: rgba(220,38,38,0.1); color: var(--crimson-red); }
+
+.role-controls {
+  margin-top: 8px;
+}
+
+.role-select {
+  padding: 6px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .member-stats {
@@ -903,6 +949,12 @@ body {
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   position: sticky;
   bottom: 0;
+  flex-wrap: wrap;
+}
+
+.form-error {
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 /* Scrollbar */

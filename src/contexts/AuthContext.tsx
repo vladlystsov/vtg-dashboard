@@ -7,9 +7,10 @@ import {
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import type { UserProfile } from '../types/track';
+import type { UserProfile, UserRole } from '../types/track';
+import { countUsers, getAllUsers } from '../services/userService';
 
 interface AuthContextType {
   user: User | null;
@@ -40,13 +41,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const ref = doc(db, 'users', firebaseUser.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          setProfile(snap.data() as UserProfile);
+          let p = snap.data() as UserProfile;
+          if (p.role !== 'owner' && p.role !== 'admin') {
+            try {
+              const all = await getAllUsers();
+              const hasOwnerOrAdmin = all.some((u) => u.role === 'owner' || u.role === 'admin');
+              if (!hasOwnerOrAdmin) {
+                await updateDoc(ref, { role: 'owner' });
+                p = { ...p, role: 'owner' };
+              }
+            } catch {
+              // ignore
+            }
+          }
+          setProfile(p);
         } else {
+          let role: UserRole = 'member';
+          try {
+            const total = await countUsers();
+            if (total === 0) role = 'owner';
+          } catch {
+            role = 'member';
+          }
           const newProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Участник',
-            role: 'member',
+            role,
           };
           await setDoc(ref, newProfile);
           setProfile(newProfile);
@@ -65,11 +86,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, displayName: string) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    let role: UserRole = 'member';
+    try {
+      const total = await countUsers();
+      if (total === 0) role = 'owner';
+    } catch {
+      role = 'member';
+    }
     const newProfile: UserProfile = {
       uid: cred.user.uid,
       email,
       displayName,
-      role: 'member',
+      role,
     };
     await setDoc(doc(db, 'users', cred.user.uid), newProfile);
     setProfile(newProfile);

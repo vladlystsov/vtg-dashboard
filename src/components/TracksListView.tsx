@@ -5,9 +5,10 @@ import { useAuth } from '../contexts/AuthContext';
 interface TracksListViewProps {
   tracks: Track[];
   onOpen: (track: Track) => void;
+  onDelete: (id: string) => void;
 }
 
-export default function TracksListView({ tracks, onOpen }: TracksListViewProps) {
+export default function TracksListView({ tracks, onOpen, onDelete }: TracksListViewProps) {
   const { profile } = useAuth();
   return (
     <div className="tracks-list">
@@ -28,6 +29,16 @@ export default function TracksListView({ tracks, onOpen }: TracksListViewProps) 
               {track.checklist.filter((c) => c.status === 'done' || c.status === 'verified').length}/
               {track.checklist.length}
             </div>
+            <button
+              className="row-delete"
+              title="Удалить трек"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(track.id);
+              }}
+            >
+              ×
+            </button>
           </div>
         );
       })}

@@ -3,7 +3,8 @@ import Header from './Header';
 import KanbanBoard from './KanbanBoard';
 import TracksListView from './TracksListView';
 import TrackForm from './TrackForm';
-import type { Track } from '../types/track';
+import TeamView from './TeamView';
+import type { Track, UserProfile } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import {
   subscribeToTracks,
@@ -11,6 +12,7 @@ import {
   updateTrack,
   deleteTrack,
 } from '../services/trackService';
+import { subscribeToUsers, setUserRole } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
@@ -21,6 +23,7 @@ export default function App() {
   const { user, profile, loading } = useAuth();
   const isOnline = useNetwork();
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [view, setView] = useState<View>('board');
   const [showForm, setShowForm] = useState(false);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
@@ -28,6 +31,12 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToTracks((data) => setTracks(data));
+    return unsub;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToUsers((data) => setUsers(data));
     return unsub;
   }, [user]);
 
@@ -42,7 +51,6 @@ export default function App() {
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter((a) => a && a !== '—')));
   const beatmakers = Array.from(new Set(tracks.map((t) => t.beatmaker).filter((b) => b && b !== '—')));
   const projects = Array.from(new Set(tracks.map((t) => t.project).filter((p) => p)));
-  const users = [{ uid: profile?.uid || '', displayName: profile?.displayName || '' }];
 
   const handleOpenTrack = (track: Track) => {
     setEditingTrack(track);
@@ -78,7 +86,8 @@ export default function App() {
       setTracks((prev) => prev.filter((t) => t.id !== id));
     }
   };
-  void handleDelete;
+
+  const canManageUsers = profile?.role === 'owner' || profile?.role === 'admin';
 
   return (
     <div className="app">
@@ -100,25 +109,17 @@ export default function App() {
         )}
 
         {view === 'tracks' && (
-          <TracksListView tracks={tracks} onOpen={handleOpenTrack} />
+          <TracksListView tracks={tracks} onOpen={handleOpenTrack} onDelete={handleDelete} />
         )}
 
         {view === 'team' && (
-          <div className="team-view">
-            <h2>Команда VTG</h2>
-            <div className="team-members">
-              <div className="team-member">
-                <div className="member-avatar">{profile?.displayName?.[0] || 'У'}</div>
-                <div className="member-info">
-                  <div className="member-name">{profile?.displayName}</div>
-                  <div className="member-role">{profile?.role}</div>
-                  <div className="member-stats">
-                    Создано треков: {tracks.filter((t) => t.createdBy === profile?.uid).length}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <TeamView
+            users={users}
+            currentUid={profile?.uid || ''}
+            canManage={canManageUsers}
+            onSetRole={setUserRole}
+            tracks={tracks}
+          />
         )}
       </main>
 
@@ -128,7 +129,7 @@ export default function App() {
           artists={artists}
           beatmakers={beatmakers}
           projects={projects}
-          users={users}
+          users={users.map((u) => ({ uid: u.uid, displayName: u.displayName }))}
           onClose={() => {
             setShowForm(false);
             setEditingTrack(null);

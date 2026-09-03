@@ -37,10 +37,14 @@ export default function TrackForm({
     initialTrack?.checklist || CHECKLIST_TEMPLATES.map((t) => ({ ...t, id: uuidv4() }))
   );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showNewArtist, setShowNewArtist] = useState(false);
+  const [showNewBeatmaker, setShowNewBeatmaker] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
   const [newArtist, setNewArtist] = useState('');
   const [newBeatmaker, setNewBeatmaker] = useState('');
   const [newProject, setNewProject] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -66,6 +70,7 @@ export default function TrackForm({
   const handleSave = async () => {
     if (!title.trim()) return;
     setSaving(true);
+    setError('');
     const data = {
       title: title.trim(),
       artist: newArtist || artist || '—',
@@ -77,9 +82,14 @@ export default function TrackForm({
       checklist,
       createdBy: profile?.uid || '',
     };
-    await onSave(data, initialTrack?.id);
-    setSaving(false);
-    onClose();
+    try {
+      await onSave(data, initialTrack?.id);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Не удалось сохранить. Проверьте подключение и повторите.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -104,15 +114,25 @@ export default function TrackForm({
           <div className="form-row">
             <div className="form-group">
               <label>Артист</label>
-              {newArtist ? (
-                <input value={newArtist} onChange={(e) => setNewArtist(e.target.value)} />
+              {showNewArtist ? (
+                <>
+                  <input
+                    value={newArtist}
+                    onChange={(e) => setNewArtist(e.target.value)}
+                    placeholder="Введи имя артиста"
+                    autoFocus
+                  />
+                  <button className="btn-add-inline" onClick={() => { setShowNewArtist(false); setNewArtist(''); }}>
+                    ← Выбрать из списка
+                  </button>
+                </>
               ) : (
                 <>
                   <select value={artist} onChange={(e) => setArtist(e.target.value)}>
                     <option value="">Выберите артиста</option>
                     {artists.map((a) => <option key={a} value={a}>{a}</option>)}
                   </select>
-                  <button className="btn-add-inline" onClick={() => setArtist('__new__')}>
+                  <button className="btn-add-inline" onClick={() => setShowNewArtist(true)}>
                     + Новый артист
                   </button>
                 </>
@@ -120,15 +140,25 @@ export default function TrackForm({
             </div>
             <div className="form-group">
               <label>Битмейкер</label>
-              {newBeatmaker ? (
-                <input value={newBeatmaker} onChange={(e) => setNewBeatmaker(e.target.value)} />
+              {showNewBeatmaker ? (
+                <>
+                  <input
+                    value={newBeatmaker}
+                    onChange={(e) => setNewBeatmaker(e.target.value)}
+                    placeholder="Введи имя битмейкера"
+                    autoFocus
+                  />
+                  <button className="btn-add-inline" onClick={() => { setShowNewBeatmaker(false); setNewBeatmaker(''); }}>
+                    ← Выбрать из списка
+                  </button>
+                </>
               ) : (
                 <>
                   <select value={beatmaker} onChange={(e) => setBeatmaker(e.target.value)}>
                     <option value="">Выберите битмейкера</option>
                     {beatmakers.map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
-                  <button className="btn-add-inline" onClick={() => setBeatmaker('__new__')}>
+                  <button className="btn-add-inline" onClick={() => setShowNewBeatmaker(true)}>
                     + Новый битмейкер
                   </button>
                 </>
@@ -139,15 +169,25 @@ export default function TrackForm({
           <div className="form-row">
             <div className="form-group">
               <label>Проект / Альбом</label>
-              {newProject ? (
-                <input value={newProject} onChange={(e) => setNewProject(e.target.value)} />
+              {showNewProject ? (
+                <>
+                  <input
+                    value={newProject}
+                    onChange={(e) => setNewProject(e.target.value)}
+                    placeholder="Введи название проекта/альбома"
+                    autoFocus
+                  />
+                  <button className="btn-add-inline" onClick={() => { setShowNewProject(false); setNewProject(''); }}>
+                    ← Выбрать из списка
+                  </button>
+                </>
               ) : (
                 <>
                   <select value={project} onChange={(e) => setProject(e.target.value)}>
                     <option value="">Выберите проект</option>
                     {projects.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
-                  <button className="btn-add-inline" onClick={() => setProject('__new__')}>
+                  <button className="btn-add-inline" onClick={() => setShowNewProject(true)}>
                     + Новый проект
                   </button>
                 </>
@@ -253,6 +293,7 @@ export default function TrackForm({
         </div>
 
         <div className="modal-footer">
+          {error && <div className="error-msg form-error">{error}</div>}
           <button className="btn-secondary" onClick={onClose}>Отмена</button>
           <button className="btn-primary" onClick={handleSave} disabled={saving || !title.trim()}>
             {saving ? 'Сохранение...' : 'Сохранить'}
