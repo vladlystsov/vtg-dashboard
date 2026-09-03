@@ -15,12 +15,15 @@ import { v4 as uuidv4 } from 'uuid';
 
 const tracksRef = collection(db, 'tracks');
 
-export function subscribeToTracks(callback: (tracks: Track[]) => void) {
+export function subscribeToTracks(
+  callback: (tracks: Track[]) => void,
+  onError?: (e: Error) => void
+) {
   const q = query(tracksRef, orderBy('updatedAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
     const tracks = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Track));
     callback(tracks);
-  });
+  }, onError);
 }
 
 export async function createTrack(data: Omit<Track, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {

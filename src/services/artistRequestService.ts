@@ -13,11 +13,14 @@ import type { ArtistRequest, UserProfile, ArtistRole } from '../types/track';
 
 const requestsRef = collection(db, 'artistRequests');
 
-export function subscribeToRequests(callback: (reqs: ArtistRequest[]) => void) {
+export function subscribeToRequests(
+  callback: (reqs: ArtistRequest[]) => void,
+  onError?: (e: Error) => void
+) {
   const q = query(requestsRef, orderBy('createdAt', 'desc'));
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ArtistRequest)));
-  });
+  }, onError);
 }
 
 export async function createArtistRequest(profile: UserProfile): Promise<string> {

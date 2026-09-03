@@ -4,6 +4,7 @@ import './index.css'
 import { AuthProvider } from './contexts/AuthContext'
 import App from './components/App'
 import LoginPage from './components/LoginPage'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { useAuth } from './contexts/AuthContext'
 
 function Root() {
@@ -14,8 +15,10 @@ function Root() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <Root />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )

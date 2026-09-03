@@ -47,20 +47,20 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const unsub = subscribeToTracks((data) => setTracks(data));
+    const unsub = subscribeToTracks((data) => setTracks(data), (e) => console.error('tracks sub', e));
     return unsub;
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    const unsub = subscribeToUsers((data) => setUsers(data));
+    const unsub = subscribeToUsers((data) => setUsers(data), (e) => console.error('users sub', e));
     return unsub;
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
     if (isRoleAllowed) {
-      const unsub = subscribeToRequests((data) => setRequests(data));
+      const unsub = subscribeToRequests((data) => setRequests(data), (e) => console.error('requests sub', e));
       return unsub;
     }
   }, [user, isRoleAllowed]);

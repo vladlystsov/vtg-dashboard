@@ -4,11 +4,14 @@ import type { UserProfile, UserRole, ArtistRole } from '../types/track';
 
 const usersRef = collection(db, 'users');
 
-export function subscribeToUsers(callback: (users: UserProfile[]) => void) {
+export function subscribeToUsers(
+  callback: (users: UserProfile[]) => void,
+  onError?: (e: Error) => void
+) {
   return onSnapshot(usersRef, (snapshot) => {
     const users = snapshot.docs.map((d) => ({ ...d.data() } as UserProfile));
     callback(users);
-  });
+  }, onError);
 }
 
 export async function getAllUsers(): Promise<UserProfile[]> {
