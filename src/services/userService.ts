@@ -1,6 +1,6 @@
-import { collection, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import type { UserProfile, UserRole } from '../types/track';
+import type { UserProfile, UserRole, ArtistRole } from '../types/track';
 
 const usersRef = collection(db, 'users');
 
@@ -24,4 +24,17 @@ export async function countUsers(): Promise<number> {
 export async function setUserRole(uid: string, role: UserRole) {
   const ref = doc(db, 'users', uid);
   await updateDoc(ref, { role });
+}
+
+export async function updateMyProfile(
+  uid: string,
+  data: { artistName?: string; roles?: ArtistRole[] }
+) {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, data);
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const snap = await getDoc(doc(db, 'users', uid));
+  return snap.exists() ? (snap.data() as UserProfile) : null;
 }

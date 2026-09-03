@@ -3,21 +3,21 @@ import type { DropResult } from '@hello-pangea/dnd';
 import type { Track, KanbanColumn } from '../types/track';
 import { KANBAN_COLUMNS } from '../types/track';
 import TrackCard from './TrackCard';
-import { moveTrack } from '../services/trackService';
 
 interface KanbanBoardProps {
   tracks: Track[];
   onOpenTrack: (track: Track) => void;
+  onMove: (id: string, column: KanbanColumn) => Promise<void>;
 }
 
-export default function KanbanBoard({ tracks, onOpenTrack }: KanbanBoardProps) {
+export default function KanbanBoard({ tracks, onOpenTrack, onMove }: KanbanBoardProps) {
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
     if (destination.droppableId === source.droppableId) return;
 
     const newColumn = destination.droppableId as KanbanColumn;
-    moveTrack(draggableId, newColumn).catch(console.error);
+    onMove(draggableId, newColumn).catch(console.error);
   };
 
   return (

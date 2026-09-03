@@ -6,12 +6,18 @@ export type ChecklistStatus = 'pending' | 'in_progress' | 'done' | 'review' | 'v
 
 export type UserRole = 'member' | 'admin' | 'owner';
 
+export type ArtistRole = 'artist' | 'beatmaker' | 'mixer' | 'feat';
+
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
   role: UserRole;
   avatarUrl?: string;
+  artistName?: string;
+  isArtist?: boolean;
+  artistVerified?: boolean;
+  roles?: ArtistRole[];
 }
 
 export interface ChecklistItem {
@@ -28,9 +34,15 @@ export interface ChecklistItem {
 export interface Track {
   id: string;
   title: string;
-  artist: string;
-  beatmaker: string;
+  artists: string[];
+  beatmakers: string[];
+  mixBy: string;
+  feat: string;
+  artistsString?: string;
+  beatmakerString?: string;
   project: string;
+  trackNumber?: number;
+  coverUrl?: string;
   status: TrackStatus;
   column: KanbanColumn;
   checklist: ChecklistItem[];
@@ -40,7 +52,8 @@ export interface Track {
   priority: 'low' | 'medium' | 'high';
 }
 
-export const CHECKLIST_TEMPLATES: Omit<ChecklistItem, 'id'>[] = [  { label: 'Бит', status: 'pending' },
+export const CHECKLIST_TEMPLATES: Omit<ChecklistItem, 'id'>[] = [
+  { label: 'Бит', status: 'pending' },
   { label: 'Текст', status: 'pending' },
   { label: 'Запись', status: 'pending' },
   { label: 'Сведение', status: 'pending' },
@@ -68,12 +81,27 @@ export const STATUS_LABELS: Record<TrackStatus, string> = {
 
 export type TrackFormData = {
   title: string;
-  artist: string;
-  beatmaker: string;
+  artists: string[];
+  beatmakers: string[];
+  mixBy: string;
+  feat: string;
   project: string;
+  trackNumber?: number;
   status: TrackStatus;
   column: KanbanColumn;
   priority: Track['priority'];
   checklist: ChecklistItem[];
   createdBy: string;
 };
+
+export interface ArtistRequest {
+  id: string;
+  uid: string;
+  displayName: string;
+  email: string;
+  artistName: string;
+  roles: ArtistRole[];
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  reviewedBy?: string;
+}

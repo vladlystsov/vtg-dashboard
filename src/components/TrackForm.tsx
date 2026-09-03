@@ -3,11 +3,11 @@ import type { Track, ChecklistItem, KanbanColumn } from '../types/track';
 import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
+import { uploadCover } from '../services/fileService';
 
 interface TrackFormProps {
   initialTrack?: Track;
-  artists: string[];
-  beatmakers: string[];
+  members: string[];
   projects: string[];
   users: { uid: string; displayName: string }[];
   onClose: () => void;
@@ -16,10 +16,63 @@ interface TrackFormProps {
 
 const CHECKLIST_STATUS_ORDER: ChecklistItem['status'][] = ['pending', 'in_progress', 'done', 'review', 'verified'];
 
+interface PersonSelectorProps {
+  label: string;
+  options: string[];
+  value: string[];
+  onChange: (v: string[]) => void;
+  placeholder: string;
+}
+
+function PersonSelector({ label, options, value, onChange, placeholder }: PersonSelectorProps) {
+  const [newName, setNewName] = useState('');
+
+  const toggleOption = (name: string) => {
+    onChange(value.includes(name) ? value.filter((v) => v !== name) : [...value, name]);
+  };
+
+  const addNew = () => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    if (!value.includes(trimmed)) onChange([...value, trimmed]);
+    setNewName('');
+  };
+
+  return (
+    <div className="form-group">
+      <label>{label}</label>
+      <div className="person-tags">
+        {value.map((v) => (
+          <span className="person-tag" key={v}>
+            {v}
+            <button type="button" className="person-tag-x" onClick={() => toggleOption(v)}>×</button>
+          </span>
+        ))}
+      </div>
+      <div className="person-options">
+        {options.filter((o) => !value.includes(o)).map((o) => (
+          <label className="person-option" key={o}>
+            <input type="checkbox" onChange={() => toggleOption(o)} />
+            {o}
+          </label>
+        ))}
+      </div>
+      <div className="person-new">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNew(); } }}
+          placeholder={placeholder}
+        />
+        <button type="button" className="btn-add-inline" onClick={addNew}>+ Добавить</button>
+      </div>
+    </div>
+  );
+}
+
 export default function TrackForm({
   initialTrack,
-  artists,
-  beatmakers,
+  members,
   projects,
   users,
   onClose,
@@ -27,9 +80,12 @@ export default function TrackForm({
 }: TrackFormProps) {
   const { profile } = useAuth();
   const [title, setTitle] = useState(initialTrack?.title || '');
-  const [artist, setArtist] = useState(initialTrack?.artist || '');
-  const [beatmaker, setBeatmaker] = useState(initialTrack?.beatmaker || '');
+  const [artists, setArtists] = useState<string[]>(initialTrack?.artists || []);
+  const [beatmakers, setBeatmakers] = useState<string[]>(initialTrack?.beatmakers || []);
+  const [mixBy, setMixBy] = useState(initialTrack?.mixBy || '');
+  const [feat, setFeat] = useState(initialTrack?.feat || '');
   const [project, setProject] = useState(initialTrack?.project || '');
+  const [trackNumber, setTrackNumber] = useState<number | undefined>(initialTrack?.trackNumber || undefined);
   const [column, setColumn] = useState<KanbanColumn>(initialTrack?.column || 'ideas');
   const [priority, setPriority] = useState<Track['priority']>(initialTrack?.priority || 'medium');
   const [status, setStatus] = useState<Track['status']>(initialTrack?.status || 'draft');
@@ -37,12 +93,10 @@ export default function TrackForm({
     initialTrack?.checklist || CHECKLIST_TEMPLATES.map((t) => ({ ...t, id: uuidv4() }))
   );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [showNewArtist, setShowNewArtist] = useState(false);
-  const [showNewBeatmaker, setShowNewBeatmaker] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [newArtist, setNewArtist] = useState('');
-  const [newBeatmaker, setNewBeatmaker] = useState('');
   const [newProject, setNewProject] = useState('');
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(initialTrack?.coverUrl || null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -67,22 +121,47 @@ export default function TrackForm({
     updateChecklistItem(id, { status: next });
   };
 
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCoverFile(file);
+      setCoverPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSave = async () => {
     if (!title.trim()) return;
+    if (artists.length === 0) {
+      setError('Укажи хотя бы одного основного артиста.');
+      return;
+    }
+    if (feat.trim() && artists.length === 0) {
+      setError('Если указан feat, должен быть заполнен основной артист.');
+      return;
+    }
     setSaving(true);
     setError('');
-    const data = {
-      title: title.trim(),
-      artist: newArtist || artist || '—',
-      beatmaker: newBeatmaker || beatmaker || '—',
-      project: newProject || project || 'Без проекта',
-      status,
-      column,
-      priority,
-      checklist,
-      createdBy: profile?.uid || '',
-    };
+    let coverUrl = initialTrack?.coverUrl;
     try {
+      if (coverFile) {
+        const tempId = initialTrack?.id || 'temp-' + Date.now();
+        coverUrl = await uploadCover(coverFile, tempId);
+      }
+      const data = {
+        title: title.trim(),
+        artists,
+        beatmakers,
+        mixBy: mixBy.trim(),
+        feat: feat.trim(),
+        project: newProject || project || 'Без проекта',
+        trackNumber,
+        coverUrl,
+        status,
+        column,
+        priority,
+        checklist,
+        createdBy: profile?.uid || '',
+      };
       await onSave(data, initialTrack?.id);
       onClose();
     } catch (err: any) {
@@ -111,59 +190,40 @@ export default function TrackForm({
             />
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Артист</label>
-              {showNewArtist ? (
-                <>
-                  <input
-                    value={newArtist}
-                    onChange={(e) => setNewArtist(e.target.value)}
-                    placeholder="Введи имя артиста"
-                    autoFocus
-                  />
-                  <button className="btn-add-inline" onClick={() => { setShowNewArtist(false); setNewArtist(''); }}>
-                    ← Выбрать из списка
-                  </button>
-                </>
-              ) : (
-                <>
-                  <select value={artist} onChange={(e) => setArtist(e.target.value)}>
-                    <option value="">Выберите артиста</option>
-                    {artists.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                  <button className="btn-add-inline" onClick={() => setShowNewArtist(true)}>
-                    + Новый артист
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="form-group">
-              <label>Битмейкер</label>
-              {showNewBeatmaker ? (
-                <>
-                  <input
-                    value={newBeatmaker}
-                    onChange={(e) => setNewBeatmaker(e.target.value)}
-                    placeholder="Введи имя битмейкера"
-                    autoFocus
-                  />
-                  <button className="btn-add-inline" onClick={() => { setShowNewBeatmaker(false); setNewBeatmaker(''); }}>
-                    ← Выбрать из списка
-                  </button>
-                </>
-              ) : (
-                <>
-                  <select value={beatmaker} onChange={(e) => setBeatmaker(e.target.value)}>
-                    <option value="">Выберите битмейкера</option>
-                    {beatmakers.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                  <button className="btn-add-inline" onClick={() => setShowNewBeatmaker(true)}>
-                    + Новый битмейкер
-                  </button>
-                </>
-              )}
-            </div>
+          <PersonSelector
+            label="Артисты (основные) *"
+            options={members}
+            value={artists}
+            onChange={setArtists}
+            placeholder="Введи имя и нажми Enter"
+          />
+
+          <div className="form-group">
+            <label>Feat (гости)</label>
+            <input
+              type="text"
+              value={feat}
+              onChange={(e) => setFeat(e.target.value)}
+              placeholder="Например: Skif (feat)"
+            />
+          </div>
+
+          <PersonSelector
+            label="Битмейкеры"
+            options={members}
+            value={beatmakers}
+            onChange={setBeatmakers}
+            placeholder="Введи имя и нажми Enter"
+          />
+
+          <div className="form-group">
+            <label>Mix by (сведение)</label>
+            <input
+              type="text"
+              value={mixBy}
+              onChange={(e) => setMixBy(e.target.value)}
+              placeholder="Кто сводил"
+            />
           </div>
 
           <div className="form-row">
@@ -194,22 +254,32 @@ export default function TrackForm({
               )}
             </div>
             <div className="form-group">
-              <label>Доска</label>
-              <select value={column} onChange={(e) => setColumn(e.target.value as KanbanColumn)}>
-                {KANBAN_COLUMNS.map((c) => (
-                  <option key={c.id} value={c.id}>{c.title}</option>
-                ))}
-              </select>
+              <label>№ трека в альбоме</label>
+              <input
+                type="number"
+                min={1}
+                value={trackNumber ?? ''}
+                onChange={(e) => setTrackNumber(e.target.value ? Number(e.target.value) : undefined)}
+                placeholder="1"
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Обложка</label>
+            <div className="cover-upload">
+              {coverPreview && <img className="cover-preview" src={coverPreview} alt="Обложка" />}
+              <input type="file" accept="image/*" onChange={handleCoverChange} />
             </div>
           </div>
 
           <div className="form-row">
             <div className="form-group">
-              <label>Приоритет</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value as Track['priority'])}>
-                <option value="low">Низкий</option>
-                <option value="medium">Средний</option>
-                <option value="high">Высокий</option>
+              <label>Доска</label>
+              <select value={column} onChange={(e) => setColumn(e.target.value as KanbanColumn)}>
+                {KANBAN_COLUMNS.map((c) => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
               </select>
             </div>
             <div className="form-group">
@@ -222,6 +292,15 @@ export default function TrackForm({
                 <option value="ready">Готово</option>
               </select>
             </div>
+          </div>
+
+          <div className="form-group">
+            <label>Приоритет</label>
+            <select value={priority} onChange={(e) => setPriority(e.target.value as Track['priority'])}>
+              <option value="low">Низкий</option>
+              <option value="medium">Средний</option>
+              <option value="high">Высокий</option>
+            </select>
           </div>
         </div>
 
@@ -236,7 +315,7 @@ export default function TrackForm({
                     onClick={() => advanceStatus(item.id)}
                     title={`Статус: ${item.status}. Нажмите, чтобы продвинуть`}
                   >
-                    {item.status === 'verified' ? '✓' : item.status === 'done' ? '✓' : item.status === 'review' ? '?' : item.status === 'in_progress' ? '•' : '○'}
+                    {item.status === 'verified' || item.status === 'done' ? '✓' : item.status === 'review' ? '?' : item.status === 'in_progress' ? '•' : '○'}
                   </button>
                   <span className="checklist-label">{item.label}</span>
                   <button className="checklist-toggle" onClick={() => toggleExpand(item.id)}>
