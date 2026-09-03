@@ -31,5 +31,12 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isAdmin();
       allow delete: if false;
     }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.actorUid;
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
   }
 }

@@ -15,6 +15,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 const tracksRef = collection(db, 'tracks');
 
+function sanitize(data: Record<string, any>): Record<string, any> {
+  const clean: Record<string, any> = {};
+  for (const k of Object.keys(data)) {
+    const v = data[k];
+    if (v === undefined || v === null) continue;
+    clean[k] = v;
+  }
+  return clean;
+}
+
 export function subscribeToTracks(
   callback: (tracks: Track[]) => void,
   onError?: (e: Error) => void
@@ -28,25 +38,25 @@ export function subscribeToTracks(
 
 export async function createTrack(data: Omit<Track, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const now = new Date().toISOString();
-  const checklist = data.checklist.map((item) => ({
+  const checklist = (data.checklist || []).map((item) => ({
     ...item,
     id: item.id || uuidv4(),
   }));
-  const docRef = await addDoc(tracksRef, {
+  const docRef = await addDoc(tracksRef, sanitize({
     ...data,
     checklist,
     createdAt: now,
     updatedAt: now,
-  });
+  }));
   return docRef.id;
 }
 
 export async function updateTrack(id: string, data: Partial<Track>) {
   const ref = doc(db, 'tracks', id);
-  await updateDoc(ref, {
+  await updateDoc(ref, sanitize({
     ...data,
     updatedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 export async function deleteTrack(id: string) {

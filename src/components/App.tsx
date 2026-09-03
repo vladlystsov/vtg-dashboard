@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Header from './Header';
 import KanbanBoard from './KanbanBoard';
 import TracksListView from './TracksListView';
@@ -24,6 +24,11 @@ import {
   approveArtistRequest,
   rejectArtistRequest,
 } from '../services/artistRequestService';
+import {
+  subscribeToNotifications,
+  markAllNotificationsRead,
+} from '../services/notificationService';
+import type { AppNotification } from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
@@ -36,6 +41,8 @@ export default function App() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>('board');
   const [showForm, setShowForm] = useState(false);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
@@ -65,6 +72,30 @@ export default function App() {
     }
   }, [user, isRoleAllowed]);
 
+  useEffect(() => {
+    if (!user) return;
+    if (isRoleAllowed) {
+      const unsub = subscribeToNotifications((data) => setNotifications(data), (e) => console.error('notif sub', e));
+      return unsub;
+    }
+  }, [user, isRoleAllowed]);
+
+  const seenNotif = useRef<Set<string>>(new Set());
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isRoleAllowed || !profile) return;
+    const n = notifications[0];
+    if (!n) return;
+    if (seenNotif.current.has(n.id)) return;
+    seenNotif.current.add(n.id);
+    if (!(n.readBy || []).includes(profile.uid)) {
+      setToast(n.text);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 6000);
+    }
+  }, [notifications, isRoleAllowed, profile]);
+
   if (loading) {
     return <div className="loading-screen">Загрузка...</div>;
   }
@@ -86,6 +117,17 @@ export default function App() {
   ])).filter(Boolean);
 
   const projects = Array.from(new Set(tracks.map((t) => t.project).filter((p) => p)));
+
+  const existingNumbers: Record<string, number[]> = {};
+  for (const t of tracks) {
+    if (t.project && typeof t.trackNumber === 'number') {
+      if (!existingNumbers[t.project]) existingNumbers[t.project] = [];
+      existingNumbers[t.project].push(t.trackNumber);
+    }
+  }
+  for (const k of Object.keys(existingNumbers)) {
+    existingNumbers[k] = Array.from(new Set(existingNumbers[k])).sort((a, b) => a - b);
+  }
 
   const handleOpenTrack = (track: Track) => {
     setEditingTrack(track);
@@ -132,6 +174,19 @@ export default function App() {
 
   const handleMove = (id: string, col: KanbanColumn) => moveTrack(id, col);
 
+  const myUid = profile?.uid || '';
+  const unreadCount = isRoleAllowed
+    ? notifications.filter((n) => !(n.readBy || []).includes(myUid)).length
+    : 0;
+
+  const handleMarkAllRead = async () => {
+    if (!isRoleAllowed || notifications.length === 0) return;
+    await markAllNotificationsRead(notifications, myUid);
+    setNotifications((prev) => prev.map((n) => ({ ...n, readBy: Array.from(new Set([...(n.readBy || []), myUid])) })));
+  };
+
+  const handleOpenAdminRequest = () => setView('admin');
+
   return (
     <div className="app">
       <Header
@@ -142,6 +197,10 @@ export default function App() {
           setEditingTrack(null);
           setShowForm(true);
         }}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        onMarkAllRead={handleMarkAllRead}
+        onOpenAdminRequest={handleOpenAdminRequest}
       />
 
       <main className="app-main">
@@ -186,11 +245,14 @@ export default function App() {
         )}
       </main>
 
+      {toast && <div className="toast">{toast}</div>}
+
       {showForm && canUseBoard && (
         <TrackForm
           initialTrack={editingTrack || undefined}
           members={members}
           projects={projects}
+          existingNumbers={existingNumbers}
           users={users.map((u) => ({ uid: u.uid, displayName: u.displayName }))}
           onClose={() => {
             setShowForm(false);

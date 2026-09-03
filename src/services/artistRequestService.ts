@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { ArtistRequest, UserProfile, ArtistRole } from '../types/track';
+import { createNotification } from './notificationService';
 
 const requestsRef = collection(db, 'artistRequests');
 
@@ -34,6 +35,17 @@ export async function createArtistRequest(profile: UserProfile): Promise<string>
     createdAt: new Date().toISOString(),
   };
   const ref = await addDoc(requestsRef, data);
+  try {
+    await createNotification({
+      type: 'artist_request',
+      text: `Новая заявка на подтверждение артиста: ${data.artistName}`,
+      actorUid: profile.uid,
+      actorName: profile.displayName,
+      createdAt: data.createdAt,
+    });
+  } catch (e) {
+    console.error('notification create failed', e);
+  }
   return ref.id;
 }
 

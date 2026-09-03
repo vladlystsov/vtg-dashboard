@@ -9,6 +9,7 @@ interface TrackFormProps {
   initialTrack?: Track;
   members: string[];
   projects: string[];
+  existingNumbers?: Record<string, number[]>;
   users: { uid: string; displayName: string }[];
   onClose: () => void;
   onSave: (data: any, id?: string) => Promise<void>;
@@ -112,6 +113,7 @@ export default function TrackForm({
   initialTrack,
   members,
   projects,
+  existingNumbers = {},
   users,
   onClose,
   onSave,
@@ -185,14 +187,33 @@ export default function TrackForm({
         const tempId = initialTrack?.id || 'temp-' + Date.now();
         coverUrl = await uploadCover(coverFile, tempId);
       }
+      const finalProject = (newProject || project || 'Без проекта').trim() || 'Без проекта';
+
+      let finalNumber = trackNumber;
+      if (finalNumber === undefined || finalNumber === null) {
+        const used = new Set(existingNumbers[finalProject] || []);
+        let candidate = 1;
+        while (used.has(candidate)) candidate++;
+        finalNumber = candidate;
+      } else if (initialTrack?.project === finalProject && initialTrack?.trackNumber === finalNumber) {
+        // same number, no conflict (editing same track)
+      } else {
+        const used = new Set((existingNumbers[finalProject] || []).filter((n) => !(initialTrack && initialTrack.project === finalProject && initialTrack.trackNumber === n)));
+        if (used.has(finalNumber)) {
+          setError(`Трек №${finalNumber} уже есть в проекте «${finalProject}». Укажи другой номер.`);
+          setSaving(false);
+          return;
+        }
+      }
+
       const data = {
         title: title.trim(),
         artists,
         beatmakers,
         mixBy: mixBy.trim(),
         feat: feat.trim(),
-        project: newProject || project || 'Без проекта',
-        trackNumber,
+        project: finalProject,
+        trackNumber: finalNumber,
         coverUrl,
         status,
         column,
