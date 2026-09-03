@@ -15,14 +15,31 @@ import { v4 as uuidv4 } from 'uuid';
 
 const tracksRef = collection(db, 'tracks');
 
-function sanitize(data: Record<string, any>): Record<string, any> {
-  const clean: Record<string, any> = {};
-  for (const k of Object.keys(data)) {
-    const v = data[k];
-    if (v === undefined || v === null) continue;
-    clean[k] = v;
+function sanitize(data: any): any {
+  if (data === undefined || data === null) return undefined;
+  if (Array.isArray(data)) {
+    const out: any[] = [];
+    for (const v of data) {
+      const s = sanitize(v);
+      if (s !== undefined) out.push(s);
+    }
+    return out;
   }
-  return clean;
+  if (typeof data === 'object') {
+    const clean: Record<string, any> = {};
+    for (const k of Object.keys(data)) {
+      const s = sanitize((data as Record<string, any>)[k]);
+      if (s !== undefined) clean[k] = s;
+    }
+    return clean;
+  }
+  if (data === undefined || data === null) return undefined;
+  return data;
+}
+
+function cleanForFirestore(data: any): Record<string, any> {
+  const s = sanitize(data);
+  return (s && typeof s === 'object' ? s : {}) as Record<string, any>;
 }
 
 export function subscribeToTracks(
@@ -42,7 +59,7 @@ export async function createTrack(data: Omit<Track, 'id' | 'createdAt' | 'update
     ...item,
     id: item.id || uuidv4(),
   }));
-  const docRef = await addDoc(tracksRef, sanitize({
+  const docRef = await addDoc(tracksRef, cleanForFirestore({
     ...data,
     checklist,
     createdAt: now,
@@ -53,7 +70,7 @@ export async function createTrack(data: Omit<Track, 'id' | 'createdAt' | 'update
 
 export async function updateTrack(id: string, data: Partial<Track>) {
   const ref = doc(db, 'tracks', id);
-  await updateDoc(ref, sanitize({
+  await updateDoc(ref, cleanForFirestore({
     ...data,
     updatedAt: new Date().toISOString(),
   }));

@@ -21,14 +21,25 @@ export interface AppNotification {
 
 const notificationsRef = collection(db, 'notifications');
 
-function sanitize(data: Record<string, any>): Record<string, any> {
-  const clean: Record<string, any> = {};
-  for (const k of Object.keys(data)) {
-    const v = data[k];
-    if (v === undefined || v === null) continue;
-    clean[k] = v;
+function sanitize(data: any): any {
+  if (data === undefined || data === null) return undefined;
+  if (Array.isArray(data)) {
+    const out: any[] = [];
+    for (const v of data) {
+      const s = sanitize(v);
+      if (s !== undefined) out.push(s);
+    }
+    return out;
   }
-  return clean;
+  if (typeof data === 'object') {
+    const clean: Record<string, any> = {};
+    for (const k of Object.keys(data)) {
+      const s = sanitize((data as Record<string, any>)[k]);
+      if (s !== undefined) clean[k] = s;
+    }
+    return clean;
+  }
+  return data;
 }
 
 export function subscribeToNotifications(
@@ -42,7 +53,7 @@ export function subscribeToNotifications(
 }
 
 export async function createNotification(data: Omit<AppNotification, 'id' | 'readBy'>) {
-  return addDoc(notificationsRef, sanitize({ ...data, readBy: [] }));
+  return addDoc(notificationsRef, sanitize({ ...data, readBy: [] }) as any);
 }
 
 export async function markNotificationRead(id: string, uid: string, currentReadBy: string[] = []) {

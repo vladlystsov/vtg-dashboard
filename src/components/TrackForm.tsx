@@ -181,11 +181,20 @@ export default function TrackForm({
     }
     setSaving(true);
     setError('');
+
+    const withTimeout = <T,>(p: Promise<T>, ms = 15000, label = 'операция'): Promise<T> =>
+      Promise.race([
+        p,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Сохранение: превышен таймаут (${label}). Проверьте интернет/правила Firestore.`)), ms)
+        ),
+      ]);
+
     let coverUrl = initialTrack?.coverUrl;
     try {
       if (coverFile) {
         const tempId = initialTrack?.id || 'temp-' + Date.now();
-        coverUrl = await uploadCover(coverFile, tempId);
+        coverUrl = await withTimeout(uploadCover(coverFile, tempId), 20000, 'загрузка обложки');
       }
       const finalProject = (newProject || project || 'Без проекта').trim() || 'Без проекта';
 
@@ -221,7 +230,7 @@ export default function TrackForm({
         checklist,
         createdBy: profile?.uid || '',
       };
-      await onSave(data, initialTrack?.id);
+      await withTimeout(onSave(data, initialTrack?.id), 20000, 'сохранение в Firestore');
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Не удалось сохранить. Проверьте подключение и повторите.');
