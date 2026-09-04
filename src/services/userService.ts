@@ -1,4 +1,4 @@
-import { collection, onSnapshot, doc, updateDoc, getDocs, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, getDocs, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { UserProfile, UserRole, ArtistRole } from '../types/track';
 
@@ -40,4 +40,8 @@ export async function updateMyProfile(
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? (snap.data() as UserProfile) : null;
+}
+
+export async function deleteUser(uid: string) {
+  await deleteDoc(doc(db, 'users', uid));
 }

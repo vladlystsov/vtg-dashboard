@@ -19,6 +19,7 @@ import {
 import {
   subscribeToUsers,
   setUserRole,
+  deleteUser,
 } from '../services/userService';
 import {
   subscribeToRequests,
@@ -246,6 +247,7 @@ export default function App() {
   const handleMove = (id: string, col: KanbanColumn) => moveTrack(id, col);
 
   const myUid = profile?.uid || '';
+  const ownerCount = users.filter((u) => u.role === 'owner').length;
   const unreadCount = notifications.filter((n) => !(n.readBy || []).includes(myUid)).length;
 
   const handleMarkAllRead = async () => {
@@ -273,6 +275,12 @@ export default function App() {
     if (!confirm('Удалить все заявки из истории?')) return;
     setRequests([]);
     await clearRequestHistory();
+  };
+
+  const handleDeleteUser = async (uid: string, name: string) => {
+    if (!confirm(`Удалить «${name}» из команды? Это действие нельзя отменить.`)) return;
+    await deleteUser(uid);
+    setUsers((prev) => prev.filter((u) => u.uid !== uid));
   };
 
   return (
@@ -324,8 +332,10 @@ export default function App() {
             users={users}
             currentUid={profile?.uid || ''}
             currentUserRole={profile?.role}
+            ownerCount={ownerCount}
             canManage={isRoleAllowed}
             onSetRole={setUserRole}
+            onDeleteUser={handleDeleteUser}
             tracks={tracks}
           />
         )}
@@ -344,6 +354,7 @@ export default function App() {
             onClearRequests={handleClearRequests}
             currentUserRole={profile?.role}
             currentUid={profile?.uid}
+            ownerCount={ownerCount}
           />
         )}
       </main>

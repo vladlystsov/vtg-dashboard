@@ -14,7 +14,8 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
 export function getRoleOptionsFor(
   currentRole: UserRole | undefined,
   target: RoleTargetUser,
-  currentUid?: string
+  currentUid?: string,
+  ownerCount = 1
 ): { value: UserRole; label: string }[] {
   const isSelf = currentUid != null && target.uid === currentUid;
 
@@ -23,17 +24,28 @@ export function getRoleOptionsFor(
     return [];
   }
 
-  // Свой профиль (в т.ч. владелец может понизить себя на любую роль)
+  // Свой профиль
   if (isSelf) {
+    // Админ не может повысить себя до Владельца
+    if (currentRole === 'admin') {
+      return ROLE_OPTIONS.filter((o) => o.value !== 'owner');
+    }
+    // Владелец может понизить себя, но только если он не единственный владелец
+    if (currentRole === 'owner') {
+      if (ownerCount <= 1) {
+        return ROLE_OPTIONS.filter((o) => o.value === 'owner');
+      }
+      return ROLE_OPTIONS;
+    }
     return ROLE_OPTIONS;
   }
 
-  // Админ может назначить участника/админа, но не владельца
+  // Не свой профиль
   if (currentRole === 'admin') {
     return ROLE_OPTIONS.filter((o) => o.value !== 'owner');
   }
 
-  // Владелец может назначить любую роль другому (не владельцу)
+  // Владелец назначает любую роль другому (не владельцу)
   if (currentRole === 'owner') {
     return ROLE_OPTIONS;
   }
@@ -44,9 +56,20 @@ export function getRoleOptionsFor(
 export function canChangeRole(
   currentRole: UserRole | undefined,
   target: RoleTargetUser,
-  currentUid?: string
+  currentUid?: string,
+  ownerCount = 1
 ): boolean {
-  return getRoleOptionsFor(currentRole, target, currentUid).length > 0;
+  return getRoleOptionsFor(currentRole, target, currentUid, ownerCount).length > 0;
+}
+
+export function isSoleOwnerDemoting(
+  currentRole: UserRole | undefined,
+  target: RoleTargetUser,
+  currentUid?: string,
+  ownerCount = 1
+): boolean {
+  const isSelf = currentUid != null && target.uid === currentUid;
+  return !!(isSelf && currentRole === 'owner' && ownerCount <= 1);
 }
 
 export function canDenyArtist(

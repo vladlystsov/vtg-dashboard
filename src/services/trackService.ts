@@ -7,6 +7,7 @@ import {
   onSnapshot,
   query,
   orderBy,
+  getDocs,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -98,4 +99,102 @@ export async function bulkMoveTracks(moves: { id: string; column: KanbanColumn }
     });
   }
   await batch.commit();
+}
+
+export async function renameArtistInTracks(uid: string, oldName: string, newName: string) {
+  if (!uid || !oldName || !newName || oldName === newName) return;
+  const snapshot = await getDocs(tracksRef);
+  const oldKey = oldName.toLowerCase();
+  const batch = writeBatch(db);
+  let changed = 0;
+
+  for (const d of snapshot.docs) {
+    const t = d.data() as Track;
+    const artistUids = t.artistUids || [];
+    const beatmakerUids = t.beatmakerUids || [];
+    const mixByUids = t.mixByUids || [];
+
+    const patches: Record<string, any> = {};
+
+    if (artistUids.includes(uid)) {
+      const artists = (t.artists || []).slice();
+      let nameChanged = false;
+      artistUids.forEach((u, i) => {
+        if (u === uid) {
+          artists[i] = newName;
+          nameChanged = true;
+        }
+      });
+      if (!nameChanged) {
+        artists.forEach((a, i) => {
+          if ((a || '').toLowerCase() === oldKey) {
+            artists[i] = newName;
+            nameChanged = true;
+          }
+        });
+      }
+      if (nameChanged) patches.artists = artists;
+    } else if ((t.artists || []).some((a) => (a || '').toLowerCase() === oldKey)) {
+      patches.artists = (t.artists || []).map((a) => (a || '').toLowerCase() === oldKey ? newName : a);
+    }
+
+    if (beatmakerUids.includes(uid)) {
+      const beatmakers = (t.beatmakers || []).slice();
+      let nameChanged = false;
+      beatmakerUids.forEach((u, i) => {
+        if (u === uid) {
+          beatmakers[i] = newName;
+          nameChanged = true;
+        }
+      });
+      if (!nameChanged) {
+        beatmakers.forEach((b, i) => {
+          if ((b || '').toLowerCase() === oldKey) {
+            beatmakers[i] = newName;
+            nameChanged = true;
+          }
+        });
+      }
+      if (nameChanged) patches.beatmakers = beatmakers;
+    } else if ((t.beatmakers || []).some((b) => (b || '').toLowerCase() === oldKey)) {
+      patches.beatmakers = (t.beatmakers || []).map((b) => (b || '').toLowerCase() === oldKey ? newName : b);
+    }
+
+    if (mixByUids.includes(uid)) {
+      const mixBy = asArrayRaw(t.mixBy).slice();
+      let nameChanged = false;
+      mixByUids.forEach((u, i) => {
+        if (u === uid) {
+          mixBy[i] = newName;
+          nameChanged = true;
+        }
+      });
+      if (!nameChanged) {
+        mixBy.forEach((m, i) => {
+          if (((m as string) || '').toLowerCase() === oldKey) {
+            mixBy[i] = newName;
+            nameChanged = true;
+          }
+        });
+      }
+      if (nameChanged) patches.mixBy = mixBy;
+    } else if (asArrayRaw(t.mixBy).some((m) => ((m as string) || '').toLowerCase() === oldKey)) {
+      patches.mixBy = asArrayRaw(t.mixBy).map((m) => ((m as string) || '').toLowerCase() === oldKey ? newName : m);
+    }
+
+    if (Object.keys(patches).length > 0) {
+      batch.update(d.ref, cleanForFirestore({ ...patches, updatedAt: new Date().toISOString() }));
+      changed++;
+    }
+  }
+
+  if (changed > 0) {
+    await batch.commit();
+  }
+}
+
+function asArrayRaw(v: unknown): unknown[] {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string' && v.trim()) return [v];
+  return [];
 }

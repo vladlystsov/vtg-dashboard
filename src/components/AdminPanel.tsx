@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { UserProfile, Track, ArtistRequest, UserRole } from '../types/track';
 import { denyArtistRole } from '../services/artistRequestService';
-import { getRoleOptionsFor, canChangeRole, canDenyArtist } from '../utils/roles';
+import { getRoleOptionsFor, canChangeRole, canDenyArtist, isSoleOwnerDemoting } from '../utils/roles';
 
 interface AdminPanelProps {
   users: UserProfile[];
@@ -14,6 +14,7 @@ interface AdminPanelProps {
   onClearRequests: () => void;
   currentUserRole?: UserRole;
   currentUid?: string;
+  ownerCount?: number;
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -22,7 +23,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Владелец',
 };
 
-export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid }: AdminPanelProps) {
+export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid, ownerCount = 1 }: AdminPanelProps) {
   const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'stats'>('requests');
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
@@ -100,13 +101,17 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
                   <td>{u.artistVerified ? '✅' : u.isArtist ? '⏳' : '—'}</td>
                   <td className={`role-tag ${u.role}`}>{ROLE_LABELS[u.role] || u.role}</td>
                   <td>
-                    {canChangeRole(currentUserRole, u, currentUid) ? (
+                    {isSoleOwnerDemoting(currentUserRole, u, currentUid, ownerCount) ? (
+                      <select className="role-select" disabled title="Назначьте сначала владельцем другого" value={u.role}>
+                        <option value="owner">Владелец</option>
+                      </select>
+                    ) : canChangeRole(currentUserRole, u, currentUid, ownerCount) ? (
                       <select
                         className="role-select"
                         value={u.role}
                         onChange={(e) => onSetRole(u.uid, e.target.value as UserRole).catch(console.error)}
                       >
-                        {getRoleOptionsFor(currentUserRole, u, currentUid).map((o) => (
+                        {getRoleOptionsFor(currentUserRole, u, currentUid, ownerCount).map((o) => (
                           <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>

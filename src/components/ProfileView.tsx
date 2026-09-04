@@ -3,6 +3,7 @@ import type { ArtistRole } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import { createArtistRequest } from '../services/artistRequestService';
 import { updateMyProfile } from '../services/userService';
+import { renameArtistInTracks } from '../services/trackService';
 
 const ROLE_OPTIONS: { id: ArtistRole; label: string }[] = [
   { id: 'artist', label: 'Артист' },
@@ -42,6 +43,7 @@ export default function ProfileView() {
         roles,
         ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
       });
+      await renameArtistInTracks(profile.uid, profile.artistName || profile.displayName || '', artistName.trim() || profile.displayName);
       await refreshProfile();
       setMessage('Профиль сохранён.');
     } catch (e: any) {
@@ -61,6 +63,7 @@ export default function ProfileView() {
         roles,
         ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
       });
+      await renameArtistInTracks(profile.uid, profile.artistName || profile.displayName || '', artistName.trim() || profile.displayName);
       await refreshProfile();
       if (profile.artistVerified || isOwnerOrAdmin) {
         setMessage('Профиль сохранён.');

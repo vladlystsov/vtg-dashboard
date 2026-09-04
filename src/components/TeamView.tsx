@@ -1,12 +1,14 @@
 import type { UserProfile, UserRole, Track } from '../types/track';
-import { getRoleOptionsFor, canChangeRole } from '../utils/roles';
+import { getRoleOptionsFor, canChangeRole, isSoleOwnerDemoting } from '../utils/roles';
 
 interface TeamViewProps {
   users: UserProfile[];
   currentUid: string;
   canManage: boolean;
   currentUserRole?: UserRole;
+  ownerCount?: number;
   onSetRole: (uid: string, role: UserRole) => Promise<void>;
+  onDeleteUser: (uid: string, name: string) => Promise<void>;
   tracks: Track[];
 }
 
@@ -16,7 +18,13 @@ const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Владелец',
 };
 
-export default function TeamView({ users, currentUid, canManage, currentUserRole, onSetRole, tracks }: TeamViewProps) {
+export default function TeamView({ users, currentUid, canManage, currentUserRole, ownerCount = 1, onSetRole, onDeleteUser, tracks }: TeamViewProps) {
+  const canDeleteUser = (u: UserProfile): boolean => {
+    if (u.role === 'owner') return false;
+    if (currentUserRole === 'owner') return true;
+    if (currentUserRole === 'admin') return u.role === 'member';
+    return false;
+  };
   return (
     <div className="team-view">
       <h2>Команда VTG</h2>
@@ -27,7 +35,9 @@ export default function TeamView({ users, currentUid, canManage, currentUserRole
             (t.checklist || []).some((c) => c.assignee === u.displayName)
           ).length;
           const isSelf = u.uid === currentUid;
-          const canEdit = canManage && canChangeRole(currentUserRole, u, currentUid);
+          const canEdit = canManage && canChangeRole(currentUserRole, u, currentUid, ownerCount);
+          const soleOwnerDemote = isSoleOwnerDemoting(currentUserRole, u, currentUid, ownerCount);
+          const isDeletable = canManage && canDeleteUser(u);
           return (
             <div className="team-member" key={u.uid}>
               <div className="member-avatar">{(u.artistName || u.displayName || 'У')[0]}</div>
@@ -42,15 +52,30 @@ export default function TeamView({ users, currentUid, canManage, currentUserRole
                 </div>
                 {canEdit && (
                   <div className="role-controls">
-                    <select
-                      className="role-select"
-                      value={u.role}
-                      onChange={(e) => onSetRole(u.uid, e.target.value as UserRole).catch(console.error)}
-                    >
-                      {getRoleOptionsFor(currentUserRole, u, currentUid).map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
+                    {soleOwnerDemote ? (
+                      <select className="role-select" disabled title="Назначьте сначала владельцем другого" value={u.role}>
+                        <option value="owner">Владелец</option>
+                      </select>
+                    ) : (
+                      <select
+                        className="role-select"
+                        value={u.role}
+                        onChange={(e) => onSetRole(u.uid, e.target.value as UserRole).catch(console.error)}
+                      >
+                        {getRoleOptionsFor(currentUserRole, u, currentUid, ownerCount).map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    )}
+                    {isDeletable && (
+                      <button
+                        className="btn-small-ghost btn-danger"
+                        title="Удалить из команды"
+                        onClick={() => onDeleteUser(u.uid, u.artistName || u.displayName || u.email).catch(console.error)}
+                      >
+                        Удалить из команды
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
