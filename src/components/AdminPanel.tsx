@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { UserProfile, Track, ArtistRequest, UserRole } from '../types/track';
 import { denyArtistRole } from '../services/artistRequestService';
+import { getRoleOptionsFor, canChangeRole, canDenyArtist } from '../utils/roles';
 
 interface AdminPanelProps {
   users: UserProfile[];
@@ -12,6 +13,7 @@ interface AdminPanelProps {
   onReject: (id: string) => Promise<void>;
   onClearRequests: () => void;
   currentUserRole?: UserRole;
+  currentUid?: string;
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -20,9 +22,8 @@ const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Владелец',
 };
 
-export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole }: AdminPanelProps) {
+export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid }: AdminPanelProps) {
   const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'stats'>('requests');
-  const isOwner = currentUserRole === 'owner';
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
@@ -99,18 +100,30 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
                   <td>{u.artistVerified ? '✅' : u.isArtist ? '⏳' : '—'}</td>
                   <td className={`role-tag ${u.role}`}>{ROLE_LABELS[u.role] || u.role}</td>
                   <td>
-                    <select
-                      className="role-select"
-                      value={u.role}
-                      onChange={(e) => onSetRole(u.uid, e.target.value as UserRole).catch(console.error)}
-                      disabled={u.role === 'owner'}
-                    >
-                      <option value="member">Участник</option>
-                      <option value="admin">Админ</option>
-                      {isOwner && <option value="owner">Владелец</option>}
-                    </select>
+                    {canChangeRole(currentUserRole, u, currentUid) ? (
+                      <select
+                        className="role-select"
+                        value={u.role}
+                        onChange={(e) => onSetRole(u.uid, e.target.value as UserRole).catch(console.error)}
+                      >
+                        {getRoleOptionsFor(currentUserRole, u, currentUid).map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="role-locked" title="Роль другого владельца нельзя изменить">—</span>
+                    )}
                     {u.artistVerified && (
-                      <button className="btn-small-ghost" onClick={() => denyArtistRole(u.uid)}>
+                      <button
+                        className="btn-small-ghost"
+                        disabled={!canDenyArtist(currentUserRole, u, currentUid)}
+                        title={canDenyArtist(currentUserRole, u, currentUid) ? 'Снять подтверждение артиста' : 'Нельзя снять подтверждённого артиста'}
+                        onClick={() => {
+                          if (confirm(`Снять статус подтверждённого артиста с «${u.artistName || u.displayName}»?`)) {
+                            denyArtistRole(u.uid).catch(console.error);
+                          }
+                        }}
+                      >
                         Снять артиста
                       </button>
                     )}

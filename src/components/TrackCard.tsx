@@ -28,6 +28,21 @@ export default function TrackCard({ track, index, onOpen, userMap }: TrackCardPr
     ? (track.artists || []).filter(Boolean).join(', ')
     : track.artistsString || (track as any).artist || '';
 
+  const beatmakers = (track.beatmakerUids || []).length
+    ? (track.beatmakerUids || []).map(resolveName).filter(Boolean).join(', ')
+    : (track.beatmakers || []).filter(Boolean).length
+    ? (track.beatmakers || []).filter(Boolean).join(', ')
+    : (track as any).beatmakerString || '';
+
+  const mixByArr: string[] = (track.mixByUids || []).length
+    ? (track.mixByUids || []).map(resolveName).filter(Boolean)
+    : Array.isArray(track.mixBy)
+    ? (track.mixBy || []).filter(Boolean)
+    : track.mixBy
+    ? [String(track.mixBy)]
+    : [];
+  const mixBy = mixByArr.join(', ');
+
   const nextDeadline = (checklist || []).find((c) => c.deadline && c.status !== 'verified' && c.status !== 'done');
 
   return (
@@ -61,6 +76,12 @@ export default function TrackCard({ track, index, onOpen, userMap }: TrackCardPr
               <span className="track-artist">{artists || '—'}</span>
               {track.feat && <span className="track-feat">feat. {track.feat}</span>}
             </div>
+            {(beatmakers || mixBy) && (
+              <div className="track-credits-line">
+                {beatmakers && <span className="track-credit">prod. by {beatmakers}</span>}
+                {mixBy && <span className="track-credit">mix by {mixBy}</span>}
+              </div>
+            )}
             <div className="track-progress">
               <div className="progress-bar">
                 <div className="progress-fill" style={{ width: `${progress}%` }} />

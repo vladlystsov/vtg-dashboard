@@ -19,7 +19,7 @@ const ROLE_LABELS: Record<ArtistRole, string> = {
 };
 
 export default function ProfileView() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const [artistName, setArtistName] = useState(profile?.artistName || '');
   const [roles, setRoles] = useState<ArtistRole[]>(profile?.roles || ['artist']);
   const [saving, setSaving] = useState(false);
@@ -36,7 +36,13 @@ export default function ProfileView() {
     setError('');
     setSaving(true);
     try {
-      await updateMyProfile(profile.uid, { artistName: artistName.trim() || profile.displayName, roles });
+      const isOwnerOrAdmin = profile.role === 'owner' || profile.role === 'admin';
+      await updateMyProfile(profile.uid, {
+        artistName: artistName.trim() || profile.displayName,
+        roles,
+        ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
+      });
+      await refreshProfile();
       setMessage('Профиль сохранён.');
     } catch (e: any) {
       setError(e?.message || 'Не удалось сохранить.');
@@ -49,8 +55,14 @@ export default function ProfileView() {
     setError('');
     setSaving(true);
     try {
-      await updateMyProfile(profile.uid, { artistName: artistName.trim() || profile.displayName, roles });
-      if (profile.artistVerified) {
+      const isOwnerOrAdmin = profile.role === 'owner' || profile.role === 'admin';
+      await updateMyProfile(profile.uid, {
+        artistName: artistName.trim() || profile.displayName,
+        roles,
+        ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
+      });
+      await refreshProfile();
+      if (profile.artistVerified || isOwnerOrAdmin) {
         setMessage('Профиль сохранён.');
       } else {
         await createArtistRequest({ ...profile, artistName: artistName.trim() || profile.displayName, roles });

@@ -9,6 +9,7 @@ interface TracksListViewProps {
   userMap: Map<string, UserProfile>;
   onOpen: (track: Track) => void;
   onDelete: (id: string) => void;
+  onUpdateTrack?: (id: string, patch: Partial<Track>) => Promise<void>;
 }
 
 interface AlbumGroup {
@@ -20,7 +21,7 @@ interface AlbumGroup {
   detectedType: Exclude<ReleaseType, 'auto'>;
 }
 
-export default function TracksListView({ tracks, userMap, onOpen, onDelete }: TracksListViewProps) {
+export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUpdateTrack }: TracksListViewProps) {
   const [tab, setTab] = useState<'singles' | 'compilations'>('singles');
   const [filterArtist, setFilterArtist] = useState('');
 
@@ -98,7 +99,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete }: Tr
       {tab === 'compilations' && (
         <div className="albums-grid">
           {grouped.map((album) => (
-            <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} />
+            <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} />
           ))}
           {grouped.length === 0 && <div className="empty-state">Нет сборников</div>}
         </div>
@@ -293,6 +294,37 @@ function mixByNamesStr(track: Track, userMap: Map<string, UserProfile>): string 
   return out.join(', ');
 }
 
+function unionNames(joined: string[]): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of joined) {
+    if (!part) continue;
+    for (const n of part.split(',')) {
+      const trimmed = n.trim();
+      const key = trimmed.toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push(trimmed);
+      }
+    }
+  }
+  return out.join(', ');
+}
+
+function splitNames(input: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input.split(',')) {
+    const trimmed = raw.trim();
+    const key = trimmed.toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      out.push(trimmed);
+    }
+  }
+  return out;
+}
+
 function SingleTrackCard({
   track,
   userMap,
@@ -380,16 +412,23 @@ function AlbumCard({
   userMap,
   onOpen,
   onDelete,
+  onUpdateTrack,
 }: {
   album: AlbumGroup;
   userMap: Map<string, UserProfile>;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
+  onUpdateTrack?: (id: string, patch: Partial<Track>) => Promise<void>;
 }) {
   const { profile } = useAuth();
   const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
   const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
   const [expanded, setExpanded] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [producers, setProducers] = useState('');
+  const [mixers, setMixers] = useState('');
+  const [savingCredits, setSavingCredits] = useState(false);
+  const [creditMsg, setCreditMsg] = useState('');
 
   const effectiveType = album.releaseType === 'auto' ? album.detectedType : album.releaseType;
   const typeLabel = RELEASE_TYPE_LABELS[effectiveType];
@@ -406,8 +445,45 @@ function AlbumCard({
   const totalTracks = album.tracks.length;
   const progressPct = totalTracks ? Math.round((readyCount / totalTracks) * 100) : 0;
 
-  const albumBeatmakers = beatmakerNamesStr(album.tracks[0], userMap);
-  const albumMixBy = mixByNamesStr(album.tracks[0], userMap);
+  const repTrack = album.tracks[0];
+
+  const openEdit = () => {
+    setProducers(unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))));
+    setMixers(unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))));
+    setCreditMsg('');
+    setEditOpen(true);
+  };
+
+  const gatherFromTracks = () => {
+    setProducers(unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))));
+    setMixers(unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))));
+    setCreditMsg('Prod by / mix by собраны из треков альбома.');
+  };
+
+  const saveCredits = async () => {
+    if (!repTrack) return;
+    setSavingCredits(true);
+    setCreditMsg('');
+    try {
+      await onUpdateTrack?.(repTrack.id, {
+        beatmakers: splitNames(producers),
+        beatmakerUids: [],
+        mixBy: splitNames(mixers),
+        mixByUids: [],
+      });
+      setCreditMsg('Сохранено.');
+      setEditOpen(false);
+    } catch (e: any) {
+      setCreditMsg(e?.message || 'Не удалось сохранить.');
+    } finally {
+      setSavingCredits(false);
+    }
+  };
+
+  const creditsChanged = repTrack
+    ? unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))) !== producers
+      || unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))) !== mixers
+    : false;
 
   return (
     <div className="album-card">
@@ -440,8 +516,33 @@ function AlbumCard({
         {album.authorName && (
           <div className="album-artist-line">
             {album.authorName}
-            {albumBeatmakers && <span className="album-track-credit-role"> (prod. by {albumBeatmakers})</span>}
-            {albumMixBy && <span className="album-track-credit-role"> (mix by {albumMixBy})</span>}
+            {unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))) && <span className="album-track-credit-role"> (prod. by {unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap)))})</span>}
+            {unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))) && <span className="album-track-credit-role"> (mix by {unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap)))})</span>}
+          </div>
+        )}
+        {isOwnerOrAdmin && repTrack && !editOpen && (
+          <button className="btn-small-ghost album-credits-edit" onClick={(e) => { e.stopPropagation(); openEdit(); }}>
+            Изменить prod by / mix by
+          </button>
+        )}
+        {editOpen && (
+          <div className="album-credits-form" onClick={(e) => e.stopPropagation()}>
+            <div className="form-group">
+              <label>Prod by</label>
+              <input value={producers} onChange={(e) => setProducers(e.target.value)} placeholder="Имена через запятую" />
+            </div>
+            <div className="form-group">
+              <label>Mix by</label>
+              <input value={mixers} onChange={(e) => setMixers(e.target.value)} placeholder="Имена через запятую" />
+            </div>
+            <div className="album-credits-actions">
+              <button className="btn-secondary" type="button" onClick={gatherFromTracks}>Собрать по трекам</button>
+              <button className="btn-primary" type="button" disabled={savingCredits || !creditsChanged} onClick={saveCredits}>
+                {savingCredits ? 'Сохранение...' : 'Сохранить'}
+              </button>
+              <button className="btn-secondary" type="button" onClick={() => setEditOpen(false)}>Отмена</button>
+            </div>
+            {creditMsg && <div className="form-hint">{creditMsg}</div>}
           </div>
         )}
         <div className="album-progress-row">

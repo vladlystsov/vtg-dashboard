@@ -93,7 +93,7 @@ export default function App() {
     if (!user) return;
     notifUnsubRef.current = subscribeToNotifications((data) => {
       setNotifications(data);
-    }, (e) => console.error('notif sub', e));
+    }, (e) => console.error('notif sub', e), user.uid);
     return () => { notifUnsubRef.current?.(); notifUnsubRef.current = null; };
   }, [user]);
 
@@ -255,14 +255,16 @@ export default function App() {
   };
 
   const handleDeleteNotification = async (id: string) => {
+    const notif = notifications.find((n) => n.id === id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-    await deleteNotification(id);
+    await deleteNotification(id, myUid, notif?.hiddenBy);
   };
 
   const handleClearAllNotifications = async () => {
     if (!confirm('Удалить все уведомления?')) return;
+    const current = notifications;
     setNotifications([]);
-    await clearAllNotifications();
+    await clearAllNotifications(current, myUid);
   };
 
   const handleOpenAdminRequest = () => setView('admin');
@@ -311,6 +313,9 @@ export default function App() {
             userMap={userMap}
             onOpen={handleOpenTrack}
             onDelete={handleDelete}
+            onUpdateTrack={async (id, patch) => {
+              await updateTrack(id, patch as any);
+            }}
           />
         )}
 
@@ -318,6 +323,7 @@ export default function App() {
           <TeamView
             users={users}
             currentUid={profile?.uid || ''}
+            currentUserRole={profile?.role}
             canManage={isRoleAllowed}
             onSetRole={setUserRole}
             tracks={tracks}
@@ -337,6 +343,7 @@ export default function App() {
             onReject={rejectArtistRequest}
             onClearRequests={handleClearRequests}
             currentUserRole={profile?.role}
+            currentUid={profile?.uid}
           />
         )}
       </main>

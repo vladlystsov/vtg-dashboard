@@ -31,7 +31,7 @@ export async function setUserRole(uid: string, role: UserRole) {
 
 export async function updateMyProfile(
   uid: string,
-  data: { artistName?: string; roles?: ArtistRole[] }
+  data: { artistName?: string; roles?: ArtistRole[]; artistVerified?: boolean; isArtist?: boolean }
 ) {
   const ref = doc(db, 'users', uid);
   await updateDoc(ref, data);

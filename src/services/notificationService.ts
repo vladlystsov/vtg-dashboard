@@ -6,8 +6,6 @@ import {
   onSnapshot,
   query,
   orderBy,
-  getDocs,
-  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -19,6 +17,7 @@ export interface AppNotification {
   actorName?: string;
   createdAt: string;
   readBy: string[];
+  hiddenBy?: string[];
 }
 
 const notificationsRef = collection(db, 'notifications');
@@ -46,7 +45,8 @@ function sanitize(data: any): any {
 
 export function subscribeToNotifications(
   callback: (notifications: AppNotification[]) => void,
-  onError?: (e: Error) => void
+  onError?: (e: Error) => void,
+  uid?: string
 ) {
   const q = query(notificationsRef, orderBy('createdAt', 'desc'));
   return onSnapshot(q, (snap) => {
@@ -54,12 +54,13 @@ export function subscribeToNotifications(
       snap.docs
         .map((d) => ({ id: d.id, ...d.data() } as AppNotification))
         .filter((n) => !(n as any).hidden)
+        .filter((n) => !uid || !(n.hiddenBy || []).includes(uid))
     );
   }, onError);
 }
 
 export async function createNotification(data: Omit<AppNotification, 'id' | 'readBy'>) {
-  return addDoc(notificationsRef, sanitize({ ...data, readBy: [] }) as any);
+  return addDoc(notificationsRef, sanitize({ ...data, readBy: [], hiddenBy: [] }) as any);
 }
 
 export async function markNotificationRead(id: string, uid: string, currentReadBy: string[] = []) {
@@ -77,14 +78,16 @@ export async function markAllNotificationsRead(notifications: AppNotification[],
   );
 }
 
-export async function deleteNotification(id: string) {
-  await updateDoc(doc(db, 'notifications', id), { hidden: true } as any);
+export async function deleteNotification(id: string, uid: string, currentHiddenBy: string[] = []) {
+  await updateDoc(doc(db, 'notifications', id), {
+    hiddenBy: Array.from(new Set([...(currentHiddenBy || []), uid])),
+  } as any);
 }
 
-export async function clearAllNotifications() {
-  const snapshot = await getDocs(notificationsRef);
-  if (snapshot.empty) return;
-  const batch = writeBatch(db);
-  snapshot.docs.forEach((d) => batch.update(d.ref, { hidden: true }));
-  await batch.commit();
+export async function clearAllNotifications(notifications: AppNotification[], uid: string) {
+  await Promise.allSettled(
+    notifications.map((n) =>
+      deleteNotification(n.id, uid, n.hiddenBy)
+    )
+  );
 }
