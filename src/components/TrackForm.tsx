@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile } from '../types/track';
-import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS } from '../types/track';
+import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadCover } from '../services/fileService';
@@ -128,8 +128,8 @@ export default function TrackForm({
   const [artistUids, setArtistUids] = useState<string[]>(initialTrack?.artistUids || []);
   const [beatmakers, setBeatmakers] = useState<string[]>(initialTrack?.beatmakers || []);
   const [beatmakerUids, setBeatmakerUids] = useState<string[]>(initialTrack?.beatmakerUids || []);
-  const [mixBy, setMixBy] = useState<string[]>(initialTrack?.mixBy || []);
-  const [mixByUids, setMixByUids] = useState<string[]>(initialTrack?.mixByUids || []);
+  const [mixBy, setMixBy] = useState<string[]>(asArray(initialTrack?.mixBy));
+  const [mixByUids, setMixByUids] = useState<string[]>(asArray(initialTrack?.mixByUids));
   const [feat, setFeat] = useState(initialTrack?.feat || '');
   const [project, setProject] = useState(initialTrack?.project || '');
   const [trackNumber, setTrackNumber] = useState<number | undefined>(initialTrack?.trackNumber || undefined);
@@ -141,12 +141,12 @@ export default function TrackForm({
     initialTrack?.checklist || CHECKLIST_TEMPLATES.map((t) => ({ ...t, id: uuidv4() }))
   );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [showNewProject, setShowNewProject] = useState(false);
-  const [newProject, setNewProject] = useState('');
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(initialTrack?.coverUrl || null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const hasProject = !!project;
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -212,7 +212,7 @@ export default function TrackForm({
       if (coverFile) {
         coverUrl = await withTimeout(uploadCover(coverFile), 20000, 'обработка обложки');
       }
-      const finalProject = (newProject || project).trim();
+      const finalProject = project.trim();
 
       let finalNumber = trackNumber;
       if (finalProject) {
@@ -299,77 +299,77 @@ export default function TrackForm({
             />
           </div>
 
-          <PersonSelector
-            label="Битмейкеры"
-            options={users}
-            value={beatmakers}
-            valueUids={beatmakerUids}
-            onChange={(names, uids) => { setBeatmakers(names); setBeatmakerUids(uids); }}
-            placeholder="Введи имя и нажми Enter"
-          />
-
-          <PersonSelector
-            label="Mix by (сведение)"
-            options={users}
-            value={mixBy}
-            valueUids={mixByUids}
-            onChange={(names, uids) => { setMixBy(names); setMixByUids(uids); }}
-            placeholder="Кто сводил"
-          />
-
           <div className="form-row">
             <div className="form-group">
               <label>Проект / Альбом</label>
-              {showNewProject ? (
-                <>
-                  <input
-                    value={newProject}
-                    onChange={(e) => setNewProject(e.target.value)}
-                    placeholder="Введи название проекта/альбома"
-                    autoFocus
-                  />
-                  <button className="btn-add-inline" onClick={() => { setShowNewProject(false); setNewProject(''); }}>
-                    ← Выбрать из списка
-                  </button>
-                </>
-              ) : (
-                <>
-                  <select value={project} onChange={(e) => setProject(e.target.value)}>
-                    <option value="">Сингл (без проекта)</option>
-                    {projects.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <div className="form-row" style={{ gap: 8 }}>
-                    <button className="btn-add-inline" onClick={() => setShowNewProject(true)}>
-                      + Новый проект
-                    </button>
-                    <button
-                      className="btn-add-inline"
-                      type="button"
-                      onClick={() => {
-                        const firstArtist = artists[0] || '';
-                        if (firstArtist) {
-                          setProject(firstArtist);
-                          setShowNewProject(false);
-                        }
-                      }}
-                    >
-                      Автор из трека
-                    </button>
-                  </div>
-                </>
-              )}
+              <select value={project} onChange={(e) => setProject(e.target.value)}>
+                <option value="">Выберите проект/альбом</option>
+                {projects.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
             </div>
-            <div className="form-group">
-              <label>№ трека в альбоме</label>
-              <input
-                type="number"
-                min={1}
-                value={trackNumber ?? ''}
-                onChange={(e) => setTrackNumber(e.target.value ? Number(e.target.value) : undefined)}
-                placeholder="1"
-              />
-            </div>
+            {hasProject && (
+              <div className="form-group">
+                <label>№ трека в альбоме</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={trackNumber ?? ''}
+                  onChange={(e) => setTrackNumber(e.target.value ? Number(e.target.value) : undefined)}
+                  placeholder="1"
+                />
+              </div>
+            )}
           </div>
+
+          {hasProject && (
+            <>
+              <PersonSelector
+                label="Авторы (альбом)"
+                options={users}
+                value={artists}
+                valueUids={artistUids}
+                onChange={(names, uids) => { setArtists(names); setArtistUids(uids); }}
+                placeholder="Участники альбома"
+              />
+              <PersonSelector
+                label="Prod by (альбом)"
+                options={users}
+                value={beatmakers}
+                valueUids={beatmakerUids}
+                onChange={(names, uids) => { setBeatmakers(names); setBeatmakerUids(uids); }}
+                placeholder="Продюсеры альбома"
+              />
+              <PersonSelector
+                label="Mix by (альбом)"
+                options={users}
+                value={mixBy}
+                valueUids={mixByUids}
+                onChange={(names, uids) => { setMixBy(names); setMixByUids(uids); }}
+                placeholder="Кто сводил альбом"
+              />
+              <button
+                className="btn-add-inline"
+                type="button"
+                style={{ marginBottom: 14 }}
+                onClick={() => {
+                  const trackArtists = initialTrack?.artists || [];
+                  const trackArtistUids = initialTrack?.artistUids || [];
+                  const trackBeatmakers = initialTrack?.beatmakers || [];
+                  const trackBeatmakerUids = initialTrack?.beatmakerUids || [];
+                  const trackMixBy = asArray(initialTrack?.mixBy);
+                  const trackMixByUids = asArray(initialTrack?.mixByUids);
+                  setArtists(trackArtists);
+                  setArtistUids(trackArtistUids);
+                  setBeatmakers(trackBeatmakers);
+                  setBeatmakerUids(trackBeatmakerUids);
+                  setMixBy(trackMixBy);
+                  setMixByUids(trackMixByUids);
+                }}
+              >
+                Подставить из трека
+              </button>
+            </>
+          )}
 
           <div className="form-group">
             <label>Тип релиза</label>

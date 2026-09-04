@@ -98,6 +98,14 @@ function getChecklistProgress(checklist: Track['checklist']): { done: number; to
   return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 
+function artistNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
+  const names = [
+    ...(track.artistUids || []).map((uid) => resolveName(uid, userMap)),
+    ...(track.artists || []),
+  ];
+  return names.join(', ');
+}
+
 function AlbumCard({
   album,
   userMap,
@@ -139,10 +147,9 @@ function AlbumCard({
     ? 'recording'
     : 'draft';
 
-  const albumDone = album.tracks.filter((t) => {
-    const cl = t.checklist || [];
-    return cl.length > 0 && cl.every((c) => c.status === 'done' || c.status === 'verified');
-  }).length;
+  const readyCount = album.tracks.filter((t) => t.status === 'ready').length;
+  const totalTracks = album.tracks.length;
+  const progressPct = totalTracks ? Math.round((readyCount / totalTracks) * 100) : 0;
 
   return (
     <div className="album-card">
@@ -174,9 +181,9 @@ function AlbumCard({
         </div>
         <div className="album-progress-row">
           <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${albumDone}/${album.tracks.length}` }} />
+            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
           </div>
-          <span className="progress-text">{albumDone}/{album.tracks.length}</span>
+          <span className="progress-text">{readyCount}/{totalTracks}</span>
           <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
         </div>
         <div className="album-tracklist">
@@ -215,15 +222,7 @@ function SingleTrackCard({
   const { done, total, pct } = getChecklistProgress(track.checklist);
   const isMine = isMineByNames(track, myName, userMap);
 
-  const artistDisplay = [
-    ...(track.artistUids || []).map((uid) => resolveName(uid, userMap)),
-    ...(track.artists || []),
-  ];
-  const authorName = artistDisplay[0] || '';
-
-  const cardTitle = authorName
-    ? `${authorName} — ${track.title}`
-    : track.title;
+  const authorName = artistNamesStr(track, userMap);
 
   return (
     <div className="album-card album-card-single" onClick={() => onOpen(track)}>
@@ -249,17 +248,13 @@ function SingleTrackCard({
       <div className="album-main">
         <div className="album-track-bottom-row">
           <div className="album-track-bottom-left">
-            <div className="album-track-title-text">{cardTitle}</div>
-            <div className="album-track-progress-row">
-              <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${pct}%` }} />
-              </div>
-              <span className="progress-text">{done}/{total}</span>
+            <div className="album-track-title-text">
+              {authorName && <span className="album-track-author">{authorName} — </span>}
+              {track.title}
+              {isMine && <span className="at-mine">Мой</span>}
             </div>
           </div>
           <div className="album-track-bottom-right">
-            {isMine && <span className="at-mine">Мой</span>}
-            <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
             {(isMine || isOwnerOrAdmin) && (
               <button
                 className="at-delete"
@@ -273,6 +268,15 @@ function SingleTrackCard({
               </button>
             )}
           </div>
+        </div>
+        <div className="album-track-status-row">
+          <div className="album-track-progress-row">
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="progress-text">{done}/{total}</span>
+          </div>
+          <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
         </div>
       </div>
     </div>
@@ -299,39 +303,37 @@ function AlbumTrackRow({
 
   return (
     <div className="album-track-row" onClick={() => onOpen(track)}>
-      <div className="at-num">{track.trackNumber ?? ''}</div>
-      <div className="at-info">
-        <div className="at-title">{track.title}</div>
-        {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}
-      </div>
-      <div className="at-progress-cell">
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${pct}%` }} />
+      <div className="at-row-top">
+        <div className="at-num">{track.trackNumber ?? ''}</div>
+        <div className="at-info">
+          <div className="at-title-line">
+            <span className="at-title">{track.title}</span>
+            {isMine && <span className="at-mine">Мой</span>}
+          </div>
+          {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}
         </div>
-        <span className="progress-text">{done}/{total}</span>
+        {(isMine || isOwnerOrAdmin) && (
+          <button
+            className="at-delete"
+            title="Удалить"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(track.id);
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
-      <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
-      {isMine && <span className="at-mine">Мой</span>}
-      {(isMine || isOwnerOrAdmin) && (
-        <button
-          className="at-delete"
-          title="Удалить"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(track.id);
-          }}
-        >
-          ×
-        </button>
-      )}
+      <div className="at-bottom">
+        <div className="at-progress-cell">
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <span className="progress-text">{done}/{total}</span>
+        </div>
+        <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
+      </div>
     </div>
   );
-}
-
-function artistNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const names = [
-    ...(track.artistUids || []).map((uid) => resolveName(uid, userMap)),
-    ...(track.artists || []),
-  ];
-  return names.join(', ');
 }

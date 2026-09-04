@@ -454,7 +454,6 @@ body {
   border-left: 4px solid var(--gray-400);
   box-shadow: var(--shadow-sm);
   cursor: grab;
-  transition: box-shadow 0.2s, transform 0.2s;
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -1606,6 +1605,7 @@ body {
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   position: relative;
+  padding: 3px;
 }
 
 .album-cover-full {
@@ -1613,6 +1613,7 @@ body {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
 }
 
@@ -1775,10 +1776,9 @@ body {
 }
 
 .album-track-row {
-  display: grid;
-  grid-template-columns: 32px 1fr auto auto auto 32px;
-  gap: 10px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1789,15 +1789,30 @@ body {
   background: var(--gray-50);
 }
 
+.at-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .at-num {
   font-weight: 800;
   color: var(--gray-300);
   font-size: 15px;
   text-align: center;
+  width: 28px;
+  flex-shrink: 0;
 }
 
 .at-info {
+  flex: 1;
   min-width: 0;
+}
+
+.at-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .at-title {
@@ -1809,11 +1824,19 @@ body {
   text-overflow: ellipsis;
 }
 
+.at-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 36px;
+}
+
 .at-progress-cell {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 100px;
+  flex: 1;
+  min-width: 0;
 }
 
 .at-progress-cell .progress-bar {
@@ -1876,8 +1899,10 @@ body {
 
 .album-track-bottom-row {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 10px;
+  margin-bottom: 8px;
 }
 
 .album-track-bottom-left {
@@ -1896,14 +1921,29 @@ body {
   font-weight: 600;
   font-size: 15px;
   color: var(--gray-800);
-  margin-bottom: 8px;
   word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.album-track-author {
+  font-weight: 400;
+  color: var(--gray-500);
+}
+
+.album-track-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .album-track-progress-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
 }
 
 .album-track-progress-row .progress-bar {
@@ -2243,12 +2283,11 @@ body {
   .album-title {
     font-size: 16px;
   }
-  .album-track-row {
-    grid-template-columns: 28px 1fr auto auto auto 28px;
-    gap: 6px;
+  .at-bottom {
+    flex-wrap: wrap;
   }
   .at-progress-cell {
-    min-width: 70px;
+    min-width: 60px;
   }
   .form-row {
     grid-template-columns: 1fr;
@@ -2277,9 +2316,8 @@ body {
   .album-card {
     flex-direction: column;
   }
-  .album-track-row {
-    grid-template-columns: 24px 1fr auto auto auto 24px;
-    gap: 4px;
+  .at-bottom {
+    flex-wrap: wrap;
   }
   .at-delete {
     display: none;

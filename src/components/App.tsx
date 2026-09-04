@@ -91,13 +91,14 @@ export default function App() {
   }, [user]);
 
   const seenNotif = useRef<Set<string>>(new Set());
+  const deletedNotifIds = useRef<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!profile) return;
     const n = notifications[0];
     if (!n) return;
-    if (seenNotif.current.has(n.id)) return;
+    if (seenNotif.current.has(n.id) || deletedNotifIds.current.has(n.id)) return;
     seenNotif.current.add(n.id);
     if (!(n.readBy || []).includes(profile.uid)) {
       setToast(n.text);
@@ -232,14 +233,17 @@ export default function App() {
   };
 
   const handleDeleteNotification = async (id: string) => {
-    await deleteNotification(id);
+    deletedNotifIds.current.add(id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+    await deleteNotification(id);
   };
 
   const handleClearAllNotifications = async () => {
     if (!confirm('Удалить все уведомления?')) return;
-    await clearAllNotifications();
+    const ids = notifications.map((n) => n.id);
+    ids.forEach((id) => deletedNotifIds.current.add(id));
     setNotifications([]);
+    await clearAllNotifications();
   };
 
   const handleOpenAdminRequest = () => setView('admin');
