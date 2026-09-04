@@ -204,6 +204,36 @@ function artistNamesStr(track: Track, userMap: Map<string, UserProfile>): string
   return out.join(', ');
 }
 
+function beatmakerNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
+  const resolved = (track.beatmakerUids || []).map((uid) => resolveName(uid, userMap));
+  const stored = track.beatmakers || [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const n of [...resolved, ...stored]) {
+    const key = n.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(n);
+    }
+  }
+  return out.join(', ');
+}
+
+function mixByNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
+  const resolved = (track.mixByUids || []).map((uid) => resolveName(uid, userMap));
+  const stored = track.mixBy || [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const n of [...resolved, ...stored]) {
+    const key = n.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(n);
+    }
+  }
+  return out.join(', ');
+}
+
 function SingleTrackCard({
   track,
   userMap,
@@ -220,7 +250,6 @@ function SingleTrackCard({
   const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
   const { done, total, pct } = getChecklistProgress(track.checklist);
   const isMine = isMineByNames(track, myName, userMap);
-  const authorName = artistNamesStr(track, userMap);
 
   return (
     <div className="album-card album-card-single" onClick={() => onOpen(track)}>
@@ -247,10 +276,16 @@ function SingleTrackCard({
         <div className="album-track-bottom-row">
           <div className="album-track-bottom-left">
             <div className="album-track-title-text">
-              {authorName && <span className="album-track-author">{authorName} — </span>}
-              {track.title}
+              <span className="album-track-title-name">{track.title}</span>
               {isMine && <span className="at-mine">Мой</span>}
             </div>
+            {artistNamesStr(track, userMap) && (
+              <div className="album-track-credits">
+                {artistNamesStr(track, userMap)}
+                {beatmakerNamesStr(track, userMap) && <span className="album-track-credit-role"> (prod. by {beatmakerNamesStr(track, userMap)})</span>}
+                {mixByNamesStr(track, userMap) && <span className="album-track-credit-role"> (mix by {mixByNamesStr(track, userMap)})</span>}
+              </div>
+            )}
           </div>
           <div className="album-track-bottom-right">
             {(isMine || effectiveIsOwner) && (
@@ -312,6 +347,9 @@ function AlbumCard({
   const totalTracks = album.tracks.length;
   const progressPct = totalTracks ? Math.round((readyCount / totalTracks) * 100) : 0;
 
+  const albumBeatmakers = beatmakerNamesStr(album.tracks[0], userMap);
+  const albumMixBy = mixByNamesStr(album.tracks[0], userMap);
+
   return (
     <div className="album-card">
       <div className="album-cover-full">
@@ -337,9 +375,16 @@ function AlbumCard({
       </div>
       <div className="album-main">
         <div className="album-header-row">
-          <div className="album-title">{album.name}</div>
+          <div className="album-title">{album.authorName ? album.name.replace(`${album.authorName} — `, '') : album.name}</div>
           <span className="album-type-badge">{typeLabel}</span>
         </div>
+        {album.authorName && (
+          <div className="album-artist-line">
+            {album.authorName}
+            {albumBeatmakers && <span className="album-track-credit-role"> (prod. by {albumBeatmakers})</span>}
+            {albumMixBy && <span className="album-track-credit-role"> (mix by {albumMixBy})</span>}
+          </div>
+        )}
         <div className="album-progress-row">
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: `${progressPct}%` }} />
@@ -351,7 +396,7 @@ function AlbumCard({
           className="album-tracklist-toggle"
           onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
         >
-          {expanded ? '▲ Скрыть треклист' : `▼ Текст трека (${totalTracks})`}
+          {expanded ? '▲ Скрыть треклист' : `▼ Треклист (${totalTracks})`}
         </button>
         {expanded && (
           <div className="album-tracklist">
@@ -401,6 +446,12 @@ function AlbumTrackRow({
             {isMine && <span className="at-mine">Мой</span>}
           </div>
           {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}
+          {(beatmakerNamesStr(track, userMap) || mixByNamesStr(track, userMap)) && (
+            <div className="at-credits">
+              {beatmakerNamesStr(track, userMap) && <span>(prod. by {beatmakerNamesStr(track, userMap)})</span>}
+              {mixByNamesStr(track, userMap) && <span>(mix by {mixByNamesStr(track, userMap)})</span>}
+            </div>
+          )}
         </div>
         {(isMine || isOwnerOrAdmin) && (
           <button

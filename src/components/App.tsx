@@ -255,46 +255,22 @@ export default function App() {
   };
 
   const handleDeleteNotification = async (id: string) => {
-    notifUnsubRef.current?.();
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-    try {
-      await deleteNotification(id);
-    } finally {
-      if (user) {
-        notifUnsubRef.current = subscribeToNotifications((data) => {
-          setNotifications(data);
-        }, (e) => console.error('notif sub', e));
-      }
-    }
+    await deleteNotification(id);
   };
 
   const handleClearAllNotifications = async () => {
     if (!confirm('Удалить все уведомления?')) return;
-    notifUnsubRef.current?.();
     setNotifications([]);
-    try {
-      await clearAllNotifications();
-    } finally {
-      if (user) {
-        notifUnsubRef.current = subscribeToNotifications((data) => {
-          setNotifications(data);
-        }, (e) => console.error('notif sub', e));
-      }
-    }
+    await clearAllNotifications();
   };
 
   const handleOpenAdminRequest = () => setView('admin');
 
   const handleClearRequests = async () => {
-    reqUnsubRef.current?.();
+    if (!confirm('Удалить все заявки из истории?')) return;
     setRequests([]);
-    try {
-      await clearRequestHistory();
-    } finally {
-      if (user) {
-        reqUnsubRef.current = subscribeToRequests((data) => setRequests(data), (e) => console.error('requests sub', e));
-      }
-    }
+    await clearRequestHistory();
   };
 
   return (

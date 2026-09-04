@@ -1935,6 +1935,18 @@ body {
   text-overflow: ellipsis;
 }
 
+.at-credits {
+  font-size: 12px;
+  color: var(--gray-400);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.at-credits span {
+  white-space: nowrap;
+}
+
 .at-status {
   font-size: 12px;
   font-weight: 700;
@@ -1991,6 +2003,24 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.album-track-title-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--gray-800);
+}
+
+.album-track-credits {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.album-track-credit-role {
+  font-weight: 500;
+  color: var(--gray-400);
+  font-size: 12px;
 }
 
 .album-track-author {
@@ -2313,8 +2343,10 @@ body {
     overflow-x: auto;
   }
   .header-right {
+    display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    justify-content: flex-end;
   }
   .user-name {
     display: none;
