@@ -26,10 +26,10 @@ export default function TeamView({ users, currentUid, canManage, onSetRole, trac
           ).length;
           return (
             <div className="team-member" key={u.uid}>
-              <div className="member-avatar">{u.displayName?.[0] || 'У'}</div>
+              <div className="member-avatar">{(u.artistName || u.displayName || 'У')[0]}</div>
               <div className="member-info">
                 <div className="member-name">
-                  {u.displayName}
+                  {u.artistName || u.displayName}
                   {u.uid === currentUid && <span className="member-you"> (вы)</span>}
                 </div>
                 <div className={`member-role role-tag ${u.role}`}>{ROLE_LABELS[u.role] || u.role}</div>

@@ -47,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const all = await getAllUsers();
               const hasOwnerOrAdmin = all.some((u) => u.role === 'owner' || u.role === 'admin');
               if (!hasOwnerOrAdmin) {
-                await updateDoc(ref, { role: 'owner' });
-                p = { ...p, role: 'owner' };
+                await updateDoc(ref, { role: 'owner', isArtist: true, artistVerified: true });
+                p = { ...p, role: 'owner', isArtist: true, artistVerified: true };
               }
             } catch {
               // ignore
@@ -68,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Участник',
             role,
+            ...(role === 'owner' ? { isArtist: true, artistVerified: true } : {}),
           };
           await setDoc(ref, newProfile);
           setProfile(newProfile);
@@ -98,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       displayName,
       role,
+      ...(role === 'owner' ? { isArtist: true, artistVerified: true } : {}),
     };
     await setDoc(doc(db, 'users', cred.user.uid), newProfile);
     setProfile(newProfile);

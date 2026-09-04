@@ -79,7 +79,7 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
             <tbody>
               {users.map((u) => (
                 <tr key={u.uid}>
-                  <td>{u.displayName}</td>
+                  <td>{u.artistName || u.displayName}</td>
                   <td>{u.email}</td>
                   <td>{u.artistVerified ? '✅' : u.isArtist ? '⏳' : '—'}</td>
                   <td className={`role-tag ${u.role}`}>{ROLE_LABELS[u.role] || u.role}</td>

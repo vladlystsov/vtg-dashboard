@@ -71,9 +71,9 @@ export default function ProfileView() {
 
       <div className="profile-card">
         <div className="profile-header">
-          <div className="member-avatar">{profile.displayName?.[0] || 'У'}</div>
+          <div className="member-avatar">{(profile.artistName || profile.displayName || 'У')[0]}</div>
           <div>
-            <div className="member-name">{profile.displayName}</div>
+            <div className="member-name">{profile.artistName || profile.displayName}</div>
             <div className="member-email">{profile.email}</div>
             <div className={`member-role role-tag ${profile.role}`}>{profile.role === 'owner' ? 'Владелец' : profile.role === 'admin' ? 'Админ' : 'Участник'}</div>
             <div className="member-artist-status">

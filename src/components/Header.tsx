@@ -129,8 +129,8 @@ export default function Header({
 
         <div className="profile-menu" ref={menuRef}>
           <button className="user-info" onClick={() => setMenuOpen((o) => !o)}>
-            <span className="user-avatar">{profile?.displayName?.[0] || 'У'}</span>
-            <span className="user-name">{profile?.displayName || 'Участник'}</span>
+            <span className="user-avatar">{(profile?.artistName || profile?.displayName || 'У')[0]}</span>
+            <span className="user-name">{profile?.artistName || profile?.displayName || 'Участник'}</span>
             <span className="user-chevron">{menuOpen ? '▲' : '▼'}</span>
           </button>
 
