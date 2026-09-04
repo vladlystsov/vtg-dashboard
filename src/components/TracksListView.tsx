@@ -298,6 +298,7 @@ function AlbumCard({
   const { profile } = useAuth();
   const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
   const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
+  const isMine = album.tracks.some((t) => isMineByNames(t, myName, userMap));
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [producers, setProducers] = useState('');
@@ -375,18 +376,20 @@ function AlbumCard({
         <div className="album-header-row">
           <div className="album-title">{album.authorName ? album.name.replace(`${album.authorName} — `, '') : album.name}</div>
           <span className="album-type-badge">{typeLabel}</span>
-          <button
-            className="at-delete album-header-delete"
-            title="Удалить альбом"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (confirm(`Удалить все треки альбома «${album.name}»?`)) {
-                album.tracks.forEach((t) => onDelete(t.id));
-              }
-            }}
-          >
-            ×
-          </button>
+          {(isMine || isOwnerOrAdmin) && (
+            <button
+              className="at-delete album-header-delete"
+              title="Удалить альбом"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm(`Удалить все треки альбома «${album.name}»?`)) {
+                  album.tracks.forEach((t) => onDelete(t.id));
+                }
+              }}
+            >
+              ×
+            </button>
+          )}
         </div>
         {album.authorName && (
           <div className="album-artist-line">
