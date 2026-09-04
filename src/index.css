@@ -1713,7 +1713,7 @@ body {
 .album-artist-line {
   font-size: 13px;
   color: var(--gray-500);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .album-card-single {
@@ -1730,7 +1730,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .album-type-badge {
@@ -2347,6 +2347,10 @@ body {
     flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
+  }
+  .btn-create {
+    order: -1;
+    margin-right: auto;
   }
   .user-name {
     display: none;

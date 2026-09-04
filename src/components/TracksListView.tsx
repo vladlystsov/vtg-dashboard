@@ -108,16 +108,23 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete }: Tr
 }
 
 function getTrackAuthorName(track: Track, userMap: Map<string, UserProfile>): string {
-  const resolve = (uid: string) => {
-    const u = userMap.get(uid);
-    return u?.artistName || u?.displayName || '';
-  };
-  const resolved = (track.artistUids || []).map(resolve).filter(Boolean);
+  const uids = track.artistUids || [];
+  if (uids.length > 0) {
+    const seen = new Set<string>();
+    for (const uid of uids) {
+      const n = resolveName(uid, userMap);
+      const key = n.toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        return n;
+      }
+    }
+  }
   const stored = track.artists || [];
   const seen = new Set<string>();
-  for (const n of [...resolved, ...stored]) {
+  for (const n of stored) {
     const key = n.toLowerCase();
-    if (!seen.has(key)) {
+    if (key && !seen.has(key)) {
       seen.add(key);
       return n;
     }
@@ -155,30 +162,40 @@ function groupByProject(tracks: Track[], userMap: Map<string, UserProfile>): Alb
 
 function resolveName(uid: string, userMap: Map<string, UserProfile>): string {
   const u = userMap.get(uid);
-  return u?.artistName || u?.displayName || uid;
+  return (u?.artistName || u?.displayName || '').trim();
 }
 
 function isMineByNames(track: Track, myName: string, userMap: Map<string, UserProfile>): boolean {
-  const resolved = [
-    ...(track.artistUids || []).map((uid) => resolveName(uid, userMap)),
-    ...(track.beatmakerUids || []).map((uid) => resolveName(uid, userMap)),
-    ...(track.mixByUids || []).map((uid) => resolveName(uid, userMap)),
-  ];
-  const stored = [
-    ...(track.artists || []),
-    ...(track.beatmakers || []),
-    ...asArray(track.mixBy),
-    track.feat || '',
-  ];
   const seen = new Set<string>();
   const allNames: string[] = [];
-  for (const n of [...resolved, ...stored]) {
-    const key = n.toLowerCase();
-    if (!seen.has(key)) {
+
+  const check = (key: string) => {
+    if (key && !seen.has(key)) {
       seen.add(key);
       allNames.push(key);
     }
+  };
+
+  if ((track.artistUids || []).length > 0) {
+    for (const uid of track.artistUids) check(resolveName(uid, userMap).toLowerCase());
+  } else {
+    for (const n of track.artists || []) check(n.toLowerCase());
   }
+
+  if ((track.beatmakerUids || []).length > 0) {
+    for (const uid of track.beatmakerUids) check(resolveName(uid, userMap).toLowerCase());
+  } else {
+    for (const n of track.beatmakers || []) check(n.toLowerCase());
+  }
+
+  if ((track.mixByUids || []).length > 0) {
+    for (const uid of track.mixByUids) check(resolveName(uid, userMap).toLowerCase());
+  } else {
+    for (const n of asArray(track.mixBy)) check(n.toLowerCase());
+  }
+
+  if (track.feat) check(track.feat.toLowerCase());
+
   return allNames.includes(myName);
 }
 
@@ -190,45 +207,87 @@ function getChecklistProgress(checklist: Track['checklist']): { done: number; to
 }
 
 function artistNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const resolved = (track.artistUids || []).map((uid) => resolveName(uid, userMap));
+  const uids = track.artistUids || [];
+  if (uids.length > 0) {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const uid of uids) {
+      const n = resolveName(uid, userMap);
+      const key = n.toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push(n);
+      }
+    }
+    return out.join(', ');
+  }
   const stored = track.artists || [];
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const n of [...resolved, ...stored]) {
-    const key = n.toLowerCase();
-    if (!seen.has(key)) {
+  for (const n of stored) {
+    const trimmed = n.trim();
+    const key = trimmed.toLowerCase();
+    if (key && !seen.has(key)) {
       seen.add(key);
-      out.push(n);
+      out.push(trimmed);
     }
   }
   return out.join(', ');
 }
 
 function beatmakerNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const resolved = (track.beatmakerUids || []).map((uid) => resolveName(uid, userMap));
+  const uids = track.beatmakerUids || [];
+  if (uids.length > 0) {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const uid of uids) {
+      const n = resolveName(uid, userMap);
+      const key = n.toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push(n);
+      }
+    }
+    return out.join(', ');
+  }
   const stored = track.beatmakers || [];
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const n of [...resolved, ...stored]) {
-    const key = n.toLowerCase();
-    if (!seen.has(key)) {
+  for (const n of stored) {
+    const trimmed = n.trim();
+    const key = trimmed.toLowerCase();
+    if (key && !seen.has(key)) {
       seen.add(key);
-      out.push(n);
+      out.push(trimmed);
     }
   }
   return out.join(', ');
 }
 
 function mixByNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const resolved = (track.mixByUids || []).map((uid) => resolveName(uid, userMap));
+  const uids = track.mixByUids || [];
+  if (uids.length > 0) {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const uid of uids) {
+      const n = resolveName(uid, userMap);
+      const key = n.toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push(n);
+      }
+    }
+    return out.join(', ');
+  }
   const stored = track.mixBy || [];
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const n of [...resolved, ...stored]) {
-    const key = n.toLowerCase();
-    if (!seen.has(key)) {
+  for (const n of stored) {
+    const trimmed = (typeof n === 'string' ? n : '').trim();
+    const key = trimmed.toLowerCase();
+    if (key && !seen.has(key)) {
       seen.add(key);
-      out.push(n);
+      out.push(trimmed);
     }
   }
   return out.join(', ');

@@ -64,7 +64,7 @@ export default function App() {
 
   const resolveName = (uid: string): string => {
     const u = userMap.get(uid);
-    return u?.artistName || u?.displayName || uid;
+    return (u?.artistName || u?.displayName || '').trim();
   };
 
   useEffect(() => {

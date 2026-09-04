@@ -22,7 +22,11 @@ export function subscribeToRequests(
 ) {
   const q = query(requestsRef, orderBy('createdAt', 'desc'));
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ArtistRequest)));
+    callback(
+      snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as ArtistRequest))
+        .filter((r) => !(r as any).hidden)
+    );
   }, onError);
 }
 
@@ -86,7 +90,7 @@ export async function clearRequestHistory() {
   const snapshot = await getDocs(requestsRef);
   if (snapshot.empty) return;
   const batch = writeBatch(db);
-  snapshot.docs.forEach((d) => batch.delete(d.ref));
+  snapshot.docs.forEach((d) => batch.update(d.ref, { hidden: true }));
   await batch.commit();
 }
 

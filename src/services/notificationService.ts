@@ -2,7 +2,6 @@ import {
   collection,
   addDoc,
   updateDoc,
-  deleteDoc,
   doc,
   onSnapshot,
   query,
@@ -51,7 +50,11 @@ export function subscribeToNotifications(
 ) {
   const q = query(notificationsRef, orderBy('createdAt', 'desc'));
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppNotification)));
+    callback(
+      snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as AppNotification))
+        .filter((n) => !(n as any).hidden)
+    );
   }, onError);
 }
 
@@ -75,13 +78,13 @@ export async function markAllNotificationsRead(notifications: AppNotification[],
 }
 
 export async function deleteNotification(id: string) {
-  await deleteDoc(doc(db, 'notifications', id));
+  await updateDoc(doc(db, 'notifications', id), { hidden: true } as any);
 }
 
 export async function clearAllNotifications() {
   const snapshot = await getDocs(notificationsRef);
   if (snapshot.empty) return;
   const batch = writeBatch(db);
-  snapshot.docs.forEach((d) => batch.delete(d.ref));
+  snapshot.docs.forEach((d) => batch.update(d.ref, { hidden: true }));
   await batch.commit();
 }

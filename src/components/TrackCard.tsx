@@ -19,13 +19,13 @@ export default function TrackCard({ track, index, onOpen, userMap }: TrackCardPr
 
   const resolveName = (uid: string): string => {
     const u = userMap.get(uid);
-    return u?.artistName || u?.displayName || uid;
+    return (u?.artistName || u?.displayName || '').trim();
   };
 
   const artists = (track.artistUids || []).length
-    ? (track.artistUids || []).map(resolveName).join(', ')
-    : (track.artists || []).length
-    ? (track.artists || []).join(', ')
+    ? (track.artistUids || []).map(resolveName).filter(Boolean).join(', ')
+    : (track.artists || []).filter(Boolean).length
+    ? (track.artists || []).filter(Boolean).join(', ')
     : track.artistsString || (track as any).artist || '';
 
   const nextDeadline = (checklist || []).find((c) => c.deadline && c.status !== 'verified' && c.status !== 'done');
