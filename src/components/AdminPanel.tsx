@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { UserProfile, Track, ArtistRequest, UserRole } from '../types/track';
-import { denyArtistRole, clearRequestHistory } from '../services/artistRequestService';
+import { denyArtistRole } from '../services/artistRequestService';
 
 interface AdminPanelProps {
   users: UserProfile[];
@@ -10,6 +10,7 @@ interface AdminPanelProps {
   onDeleteTrack: (id: string) => void;
   onApprove: (id: string, req: ArtistRequest) => Promise<void>;
   onReject: (id: string) => Promise<void>;
+  onClearRequests: () => void;
   currentUserRole?: UserRole;
 }
 
@@ -19,15 +20,15 @@ const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Владелец',
 };
 
-export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, currentUserRole }: AdminPanelProps) {
+export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole }: AdminPanelProps) {
   const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'stats'>('requests');
   const isOwner = currentUserRole === 'owner';
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
-  const handleClearHistory = async () => {
+  const handleClearHistory = () => {
     if (!confirm('Удалить все заявки из истории? Это действие необратимо.')) return;
-    await clearRequestHistory();
+    onClearRequests();
   };
 
   return (

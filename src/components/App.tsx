@@ -24,6 +24,7 @@ import {
   subscribeToRequests,
   approveArtistRequest,
   rejectArtistRequest,
+  clearRequestHistory,
 } from '../services/artistRequestService';
 import {
   subscribeToNotifications,
@@ -78,29 +79,32 @@ export default function App() {
     return unsub;
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeToRequests((data) => setRequests(data), (e) => console.error('requests sub', e));
-    return unsub;
-  }, [user]);
+  const reqUnsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    const unsub = subscribeToNotifications((data) => {
-      setNotifications(data.filter((n) => !deletedNotifIds.current.has(n.id)));
+    reqUnsubRef.current = subscribeToRequests((data) => setRequests(data), (e) => console.error('requests sub', e));
+    return () => { reqUnsubRef.current?.(); reqUnsubRef.current = null; };
+  }, [user]);
+
+  const notifUnsubRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    notifUnsubRef.current = subscribeToNotifications((data) => {
+      setNotifications(data);
     }, (e) => console.error('notif sub', e));
-    return unsub;
+    return () => { notifUnsubRef.current?.(); notifUnsubRef.current = null; };
   }, [user]);
 
   const seenNotif = useRef<Set<string>>(new Set());
-  const deletedNotifIds = useRef<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!profile) return;
     const n = notifications[0];
     if (!n) return;
-    if (seenNotif.current.has(n.id) || deletedNotifIds.current.has(n.id)) return;
+    if (seenNotif.current.has(n.id)) return;
     seenNotif.current.add(n.id);
     if (!(n.readBy || []).includes(profile.uid)) {
       setToast(n.text);
@@ -251,20 +255,47 @@ export default function App() {
   };
 
   const handleDeleteNotification = async (id: string) => {
-    deletedNotifIds.current.add(id);
+    notifUnsubRef.current?.();
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-    await deleteNotification(id);
+    try {
+      await deleteNotification(id);
+    } finally {
+      if (user) {
+        notifUnsubRef.current = subscribeToNotifications((data) => {
+          setNotifications(data);
+        }, (e) => console.error('notif sub', e));
+      }
+    }
   };
 
   const handleClearAllNotifications = async () => {
     if (!confirm('Удалить все уведомления?')) return;
-    const ids = notifications.map((n) => n.id);
-    ids.forEach((id) => deletedNotifIds.current.add(id));
+    notifUnsubRef.current?.();
     setNotifications([]);
-    await clearAllNotifications();
+    try {
+      await clearAllNotifications();
+    } finally {
+      if (user) {
+        notifUnsubRef.current = subscribeToNotifications((data) => {
+          setNotifications(data);
+        }, (e) => console.error('notif sub', e));
+      }
+    }
   };
 
   const handleOpenAdminRequest = () => setView('admin');
+
+  const handleClearRequests = async () => {
+    reqUnsubRef.current?.();
+    setRequests([]);
+    try {
+      await clearRequestHistory();
+    } finally {
+      if (user) {
+        reqUnsubRef.current = subscribeToRequests((data) => setRequests(data), (e) => console.error('requests sub', e));
+      }
+    }
+  };
 
   return (
     <div className="app">
@@ -328,6 +359,7 @@ export default function App() {
             onDeleteTrack={handleDelete}
             onApprove={approveArtistRequest}
             onReject={rejectArtistRequest}
+            onClearRequests={handleClearRequests}
             currentUserRole={profile?.role}
           />
         )}

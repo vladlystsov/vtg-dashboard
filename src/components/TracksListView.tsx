@@ -112,11 +112,17 @@ function getTrackAuthorName(track: Track, userMap: Map<string, UserProfile>): st
     const u = userMap.get(uid);
     return u?.artistName || u?.displayName || '';
   };
-  const names = [
-    ...(track.artistUids || []).map(resolve).filter(Boolean),
-    ...(track.artists || []),
-  ];
-  return names[0] || '';
+  const resolved = (track.artistUids || []).map(resolve).filter(Boolean);
+  const stored = track.artists || [];
+  const seen = new Set<string>();
+  for (const n of [...resolved, ...stored]) {
+    const key = n.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      return n;
+    }
+  }
+  return '';
 }
 
 function groupByProject(tracks: Track[], userMap: Map<string, UserProfile>): AlbumGroup[] {
@@ -153,15 +159,26 @@ function resolveName(uid: string, userMap: Map<string, UserProfile>): string {
 }
 
 function isMineByNames(track: Track, myName: string, userMap: Map<string, UserProfile>): boolean {
-  const allNames = [
-    ...(track.artists || []),
+  const resolved = [
     ...(track.artistUids || []).map((uid) => resolveName(uid, userMap)),
-    ...(track.beatmakers || []),
     ...(track.beatmakerUids || []).map((uid) => resolveName(uid, userMap)),
-    ...asArray(track.mixBy),
     ...(track.mixByUids || []).map((uid) => resolveName(uid, userMap)),
+  ];
+  const stored = [
+    ...(track.artists || []),
+    ...(track.beatmakers || []),
+    ...asArray(track.mixBy),
     track.feat || '',
-  ].map((n) => n.toLowerCase());
+  ];
+  const seen = new Set<string>();
+  const allNames: string[] = [];
+  for (const n of [...resolved, ...stored]) {
+    const key = n.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      allNames.push(key);
+    }
+  }
   return allNames.includes(myName);
 }
 
@@ -173,11 +190,18 @@ function getChecklistProgress(checklist: Track['checklist']): { done: number; to
 }
 
 function artistNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const names = [
-    ...(track.artistUids || []).map((uid) => resolveName(uid, userMap)),
-    ...(track.artists || []),
-  ];
-  return names.join(', ');
+  const resolved = (track.artistUids || []).map((uid) => resolveName(uid, userMap));
+  const stored = track.artists || [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const n of [...resolved, ...stored]) {
+    const key = n.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(n);
+    }
+  }
+  return out.join(', ');
 }
 
 function SingleTrackCard({
