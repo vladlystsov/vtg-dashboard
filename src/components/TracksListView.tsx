@@ -230,16 +230,6 @@ function SingleTrackCard({
   return (
     <div className="album-card album-card-single" onClick={() => onOpen(track)}>
       <div className="album-cover-full">
-        <button
-          className="album-delete-btn"
-          title="Удалить"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(track.id);
-          }}
-        >
-          ×
-        </button>
         {track.coverUrl ? (
           <img className="album-cover-img" src={track.coverUrl} alt={track.title} />
         ) : (
@@ -373,18 +363,6 @@ function AlbumCard({
   return (
     <div className="album-card">
       <div className="album-cover-full">
-        <button
-          className="album-delete-btn"
-          title="Удалить альбом"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (confirm(`Удалить все треки альбома «${album.name}»?`)) {
-              album.tracks.forEach((t) => onDelete(t.id));
-            }
-          }}
-        >
-          ×
-        </button>
         {album.coverUrl ? (
           <img className="album-cover-img" src={album.coverUrl} alt={album.name} />
         ) : (
@@ -397,6 +375,18 @@ function AlbumCard({
         <div className="album-header-row">
           <div className="album-title">{album.authorName ? album.name.replace(`${album.authorName} — `, '') : album.name}</div>
           <span className="album-type-badge">{typeLabel}</span>
+          <button
+            className="at-delete album-header-delete"
+            title="Удалить альбом"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Удалить все треки альбома «${album.name}»?`)) {
+                album.tracks.forEach((t) => onDelete(t.id));
+              }
+            }}
+          >
+            ×
+          </button>
         </div>
         {album.authorName && (
           <div className="album-artist-line">
