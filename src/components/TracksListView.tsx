@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
-import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, resolveNames } from '../types/track';
+import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 
 interface TracksListViewProps {
@@ -323,16 +323,32 @@ function AlbumCard({
 
   const repTrack = album.tracks[0];
 
+  const trackBeatmakersUnion = unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap)));
+  const trackMixByUnion = unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap)));
+  // Альбомные prod by / mix by хранятся отдельно от треков (не пишутся в первый трек)
+  const storedAlbumBeatmakers = splitNames(
+    repTrack && repTrack.albumBeatmakers != null
+      ? asArray(repTrack.albumBeatmakers).join(', ')
+      : trackBeatmakersUnion
+  );
+  const storedAlbumMixBy = splitNames(
+    repTrack && repTrack.albumMixBy != null
+      ? asArray(repTrack.albumMixBy).join(', ')
+      : trackMixByUnion
+  );
+  const albumBeatmakersStr = storedAlbumBeatmakers.join(', ');
+  const albumMixByStr = storedAlbumMixBy.join(', ');
+
   const openEdit = () => {
-    setProducers(unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))));
-    setMixers(unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))));
+    setProducers(albumBeatmakersStr);
+    setMixers(albumMixByStr);
     setCreditMsg('');
     setEditOpen(true);
   };
 
   const gatherFromTracks = () => {
-    setProducers(unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))));
-    setMixers(unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))));
+    setProducers(trackBeatmakersUnion);
+    setMixers(trackMixByUnion);
     setCreditMsg('Prod by / mix by собраны из треков альбома.');
   };
 
@@ -342,10 +358,8 @@ function AlbumCard({
     setCreditMsg('');
     try {
       await onUpdateTrack?.(repTrack.id, {
-        beatmakers: splitNames(producers),
-        beatmakerUids: [],
-        mixBy: splitNames(mixers),
-        mixByUids: [],
+        albumBeatmakers: splitNames(producers),
+        albumMixBy: splitNames(mixers),
       });
       setCreditMsg('Сохранено.');
       setEditOpen(false);
@@ -357,8 +371,8 @@ function AlbumCard({
   };
 
   const creditsChanged = repTrack
-    ? unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))) !== producers
-      || unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))) !== mixers
+    ? splitNames(producers).join(', ') !== albumBeatmakersStr
+      || splitNames(mixers).join(', ') !== albumMixByStr
     : false;
 
   return (
@@ -394,8 +408,8 @@ function AlbumCard({
         {album.authorName && (
           <div className="album-artist-line">
             {album.authorName}
-            {unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap))) && <span className="album-track-credit-role"> (prod. by {unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap)))})</span>}
-            {unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap))) && <span className="album-track-credit-role"> (mix by {unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap)))})</span>}
+            {albumBeatmakersStr && <span className="album-track-credit-role"> (prod. by {albumBeatmakersStr})</span>}
+            {albumMixByStr && <span className="album-track-credit-role"> (mix by {albumMixByStr})</span>}
           </div>
         )}
         {isOwnerOrAdmin && repTrack && !editOpen && (

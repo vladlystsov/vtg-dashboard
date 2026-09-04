@@ -68,6 +68,8 @@ export interface Track {
   createdBy: string;
   priority: 'low' | 'medium' | 'high';
   releaseType?: ReleaseType;
+  albumBeatmakers?: string[] | string;
+  albumMixBy?: string[] | string;
 }
 
 export const CHECKLIST_TEMPLATES: Omit<ChecklistItem, 'id'>[] = [
