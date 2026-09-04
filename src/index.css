@@ -1588,6 +1588,50 @@ body {
   padding: 18px;
 }
 
+.album-card-vertical {
+  flex-direction: column;
+}
+
+.album-card-vertical .album-cover {
+  width: 100%;
+  height: 220px;
+}
+
+.album-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.album-type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--blue-100);
+  color: var(--blue-700);
+  white-space: nowrap;
+}
+
+.album-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.album-progress-row .progress-bar {
+  flex: 1;
+}
+
+.album-progress-row .progress-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  min-width: 30px;
+}
+
 .album-cover {
   position: relative;
   width: 180px;

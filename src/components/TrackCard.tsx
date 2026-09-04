@@ -1,5 +1,5 @@
 import { Draggable } from '@hello-pangea/dnd';
-import type { Track } from '../types/track';
+import type { Track, UserProfile } from '../types/track';
 import { KANBAN_COLUMNS, STATUS_LABELS } from '../types/track';
 import { format } from 'date-fns';
 
@@ -7,16 +7,24 @@ interface TrackCardProps {
   track: Track;
   index: number;
   onOpen: (track: Track) => void;
+  userMap: Map<string, UserProfile>;
 }
 
-export default function TrackCard({ track, index, onOpen }: TrackCardProps) {
+export default function TrackCard({ track, index, onOpen, userMap }: TrackCardProps) {
   const checklist = track.checklist || [];
   const doneCount = checklist.filter((c) => c.status === 'verified' || c.status === 'done').length;
   const totalCount = checklist.length;
   const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
   const currentColumn = KANBAN_COLUMNS.find((c) => c.id === track.column);
 
-  const artists = (track.artists || []).length
+  const resolveName = (uid: string): string => {
+    const u = userMap.get(uid);
+    return u?.artistName || u?.displayName || uid;
+  };
+
+  const artists = (track.artistUids || []).length
+    ? (track.artistUids || []).map(resolveName).join(', ')
+    : (track.artists || []).length
     ? (track.artists || []).join(', ')
     : track.artistsString || (track as any).artist || '';
 

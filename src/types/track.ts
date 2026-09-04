@@ -8,6 +8,20 @@ export type UserRole = 'member' | 'admin' | 'owner';
 
 export type ArtistRole = 'artist' | 'beatmaker' | 'mixer' | 'feat';
 
+export type ReleaseType = 'single' | 'ep' | 'album' | 'auto';
+
+export const RELEASE_TYPE_LABELS: Record<Exclude<ReleaseType, 'auto'>, string> = {
+  single: 'Сингл',
+  ep: 'EP',
+  album: 'Альбом',
+};
+
+export function autoDetectReleaseType(trackCount: number): Exclude<ReleaseType, 'auto'> {
+  if (trackCount <= 3) return 'single';
+  if (trackCount <= 7) return 'ep';
+  return 'album';
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -35,7 +49,9 @@ export interface Track {
   id: string;
   title: string;
   artists: string[];
+  artistUids: string[];
   beatmakers: string[];
+  beatmakerUids: string[];
   mixBy: string;
   feat: string;
   artistsString?: string;
@@ -50,6 +66,7 @@ export interface Track {
   updatedAt: string;
   createdBy: string;
   priority: 'low' | 'medium' | 'high';
+  releaseType?: ReleaseType;
 }
 
 export const CHECKLIST_TEMPLATES: Omit<ChecklistItem, 'id'>[] = [
@@ -82,7 +99,9 @@ export const STATUS_LABELS: Record<TrackStatus, string> = {
 export type TrackFormData = {
   title: string;
   artists: string[];
+  artistUids: string[];
   beatmakers: string[];
+  beatmakerUids: string[];
   mixBy: string;
   feat: string;
   project: string;
@@ -92,6 +111,7 @@ export type TrackFormData = {
   priority: Track['priority'];
   checklist: ChecklistItem[];
   createdBy: string;
+  releaseType?: ReleaseType;
 };
 
 export interface ArtistRequest {

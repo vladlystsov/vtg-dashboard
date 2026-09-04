@@ -1,6 +1,6 @@
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
-import type { Track, KanbanColumn } from '../types/track';
+import type { Track, KanbanColumn, UserProfile } from '../types/track';
 import { KANBAN_COLUMNS } from '../types/track';
 import TrackCard from './TrackCard';
 
@@ -8,9 +8,10 @@ interface KanbanBoardProps {
   tracks: Track[];
   onOpenTrack: (track: Track) => void;
   onMove: (id: string, column: KanbanColumn) => Promise<void>;
+  userMap: Map<string, UserProfile>;
 }
 
-export default function KanbanBoard({ tracks, onOpenTrack, onMove }: KanbanBoardProps) {
+export default function KanbanBoard({ tracks, onOpenTrack, onMove, userMap }: KanbanBoardProps) {
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
@@ -45,6 +46,7 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove }: KanbanBoard
                         track={track}
                         index={index}
                         onOpen={onOpenTrack}
+                        userMap={userMap}
                       />
                     ))}
                     {provided.placeholder}

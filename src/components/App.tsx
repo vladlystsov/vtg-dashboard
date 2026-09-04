@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Header from './Header';
 import KanbanBoard from './KanbanBoard';
 import TracksListView from './TracksListView';
@@ -27,6 +27,7 @@ import {
 import {
   subscribeToNotifications,
   markAllNotificationsRead,
+  createNotification,
 } from '../services/notificationService';
 import type { AppNotification } from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,8 +50,18 @@ export default function App() {
 
   const isRoleAllowed = profile?.role === 'owner' || profile?.role === 'admin';
   const isArtistAllowed = !!profile?.artistVerified || isRoleAllowed;
-  // if there are no users or the current user is the owner, allow anyway
   const canUseBoard = isArtistAllowed || (users.length === 0 && !profile?.artistVerified && !isRoleAllowed);
+
+  const userMap = useMemo(() => {
+    const m = new Map<string, UserProfile>();
+    for (const u of users) m.set(u.uid, u);
+    return m;
+  }, [users]);
+
+  const resolveName = (uid: string): string => {
+    const u = userMap.get(uid);
+    return u?.artistName || u?.displayName || uid;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -66,25 +77,21 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    if (isRoleAllowed) {
-      const unsub = subscribeToRequests((data) => setRequests(data), (e) => console.error('requests sub', e));
-      return unsub;
-    }
-  }, [user, isRoleAllowed]);
+    const unsub = subscribeToRequests((data) => setRequests(data), (e) => console.error('requests sub', e));
+    return unsub;
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    if (isRoleAllowed) {
-      const unsub = subscribeToNotifications((data) => setNotifications(data), (e) => console.error('notif sub', e));
-      return unsub;
-    }
-  }, [user, isRoleAllowed]);
+    const unsub = subscribeToNotifications((data) => setNotifications(data), (e) => console.error('notif sub', e));
+    return unsub;
+  }, [user]);
 
   const seenNotif = useRef<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!isRoleAllowed || !profile) return;
+    if (!profile) return;
     const n = notifications[0];
     if (!n) return;
     if (seenNotif.current.has(n.id)) return;
@@ -94,7 +101,7 @@ export default function App() {
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 6000);
     }
-  }, [notifications, isRoleAllowed, profile]);
+  }, [notifications, profile]);
 
   if (loading) {
     return <div className="loading-screen">Загрузка...</div>;
@@ -107,10 +114,10 @@ export default function App() {
   const members = Array.from(new Set([
     ...users.map((u) => u.artistName || u.displayName),
     ...tracks.flatMap((t) => [
+      ...(t.artistUids || []).map(resolveName),
+      ...(t.beatmakerUids || []).map(resolveName),
       ...(t.artists || []),
       ...(t.beatmakers || []),
-      (t as any).artist,
-      (t as any).beatmaker,
       t.mixBy as string,
       t.feat as string,
     ].filter(Boolean)),
@@ -134,19 +141,66 @@ export default function App() {
     setShowForm(true);
   };
 
+  const notifyAdminsAndOwner = async (text: string) => {
+    const now = new Date().toISOString();
+    try {
+      await createNotification({
+        type: 'task_status_changed',
+        text,
+        actorUid: profile?.uid || '',
+        actorName: profile?.artistName || profile?.displayName,
+        createdAt: now,
+      });
+    } catch {
+      // ignore notification errors
+    }
+  };
+
   const handleSave = async (data: TrackFormData, id?: string) => {
+    const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
+
+    if (!isOwnerOrAdmin && data.artistUids && data.artistUids.length > 0) {
+      const allVerified = data.artistUids.every((uid) => {
+        const u = userMap.get(uid);
+        return u?.artistVerified || u?.role === 'owner' || u?.role === 'admin';
+      });
+      if (!allVerified) {
+        throw new Error('Все указанные артисты должны быть подтверждены администратором.');
+      }
+    }
+
     const payload = {
       ...data,
       artist: data.artists[0] || '',
       beatmaker: data.beatmakers[0] || '',
       artists: data.artists,
       beatmakers: data.beatmakers,
+      artistUids: data.artistUids || [],
+      beatmakerUids: data.beatmakerUids || [],
     };
+
+    const isUpdate = !!id;
+    const oldTrack = isUpdate ? tracks.find((t) => t.id === id) : null;
+
     if (isOnline) {
       if (id) {
         await updateTrack(id, payload as any);
       } else {
         await createTrack(payload as any);
+      }
+
+      if (!isUpdate) {
+        await notifyAdminsAndOwner(
+          `Новый трек создан: «${payload.title}» (артист: ${payload.artists.join(', ') || '—'})`
+        );
+      } else if (oldTrack && oldTrack.status !== payload.status) {
+        const statusLabels: Record<string, string> = {
+          draft: 'Черновик', recording: 'Запись', mixing: 'Сведение',
+          mastering: 'Мастеринг', ready: 'Готово',
+        };
+        await notifyAdminsAndOwner(
+          `Статус трека «${payload.title}» изменён: ${statusLabels[oldTrack.status] || oldTrack.status} → ${statusLabels[payload.status] || payload.status}`
+        );
       }
     } else {
       const offlineTrack: Track = {
@@ -175,12 +229,10 @@ export default function App() {
   const handleMove = (id: string, col: KanbanColumn) => moveTrack(id, col);
 
   const myUid = profile?.uid || '';
-  const unreadCount = isRoleAllowed
-    ? notifications.filter((n) => !(n.readBy || []).includes(myUid)).length
-    : 0;
+  const unreadCount = notifications.filter((n) => !(n.readBy || []).includes(myUid)).length;
 
   const handleMarkAllRead = async () => {
-    if (!isRoleAllowed || notifications.length === 0) return;
+    if (notifications.length === 0) return;
     await markAllNotificationsRead(notifications, myUid);
     setNotifications((prev) => prev.map((n) => ({ ...n, readBy: Array.from(new Set([...(n.readBy || []), myUid])) })));
   };
@@ -213,11 +265,17 @@ export default function App() {
         )}
 
         {canUseBoard && view === 'board' && (
-          <KanbanBoard tracks={tracks} onOpenTrack={handleOpenTrack} onMove={handleMove} />
+          <KanbanBoard tracks={tracks} onOpenTrack={handleOpenTrack} onMove={handleMove} userMap={userMap} />
         )}
 
         {canUseBoard && view === 'tracks' && (
-          <TracksListView tracks={tracks} onOpen={handleOpenTrack} onDelete={handleDelete} />
+          <TracksListView
+            tracks={tracks}
+            users={users}
+            userMap={userMap}
+            onOpen={handleOpenTrack}
+            onDelete={handleDelete}
+          />
         )}
 
         {view === 'team' && (
@@ -241,6 +299,7 @@ export default function App() {
             onDeleteTrack={handleDelete}
             onApprove={approveArtistRequest}
             onReject={rejectArtistRequest}
+            currentUserRole={profile?.role}
           />
         )}
       </main>
@@ -253,7 +312,8 @@ export default function App() {
           members={members}
           projects={projects}
           existingNumbers={existingNumbers}
-          users={users.map((u) => ({ uid: u.uid, displayName: u.displayName }))}
+          users={users.map((u) => ({ uid: u.uid, displayName: u.artistName || u.displayName }))}
+          userMap={userMap}
           onClose={() => {
             setShowForm(false);
             setEditingTrack(null);

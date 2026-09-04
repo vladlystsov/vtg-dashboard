@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import type { Track, ChecklistItem, KanbanColumn } from '../types/track';
-import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS } from '../types/track';
+import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile } from '../types/track';
+import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadCover } from '../services/fileService';
 
 interface TrackFormProps {
   initialTrack?: Track;
-  members: string[];
+  members?: string[];
   projects: string[];
   existingNumbers?: Record<string, number[]>;
   users: { uid: string; displayName: string }[];
+  userMap?: Map<string, UserProfile>;
   onClose: () => void;
   onSave: (data: any, id?: string) => Promise<void>;
 }
@@ -19,37 +20,41 @@ const CHECKLIST_STATUS_ORDER: ChecklistItem['status'][] = ['pending', 'in_progre
 
 interface PersonSelectorProps {
   label: string;
-  options: string[];
+  options: { uid: string; displayName: string }[];
   value: string[];
-  onChange: (v: string[]) => void;
+  valueUids: string[];
+  onChange: (names: string[], uids: string[]) => void;
   placeholder: string;
 }
 
-function PersonSelector({ label, options, value, onChange, placeholder }: PersonSelectorProps) {
+function PersonSelector({ label, options, value, valueUids, onChange, placeholder }: PersonSelectorProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
   const trimmed = query.trim().toLowerCase();
-  const filtered = Array.from(new Set(options)).filter(
-    (o) => !value.includes(o) && (!trimmed || o.toLowerCase().includes(trimmed))
+  const filtered = options.filter(
+    (o) => !valueUids.includes(o.uid) && (!trimmed || o.displayName.toLowerCase().includes(trimmed))
   );
 
-  const add = (name: string) => {
-    const t = name.trim();
-    if (!t || value.includes(t)) return;
-    onChange([...value, t]);
+  const add = (opt: { uid: string; displayName: string }) => {
+    if (valueUids.includes(opt.uid)) return;
+    onChange([...value, opt.displayName], [...valueUids, opt.uid]);
     setQuery('');
   };
 
-  const addExact = () => {
+  const addCustom = () => {
     if (trimmed && !value.some((v) => v.toLowerCase() === trimmed)) {
-      onChange([...value, query.trim()]);
+      onChange([...value, query.trim()], [...valueUids, '']);
     }
     setQuery('');
     setOpen(false);
   };
 
-  const remove = (name: string) => onChange(value.filter((v) => v !== name));
+  const remove = (idx: number) => {
+    const newNames = value.filter((_, i) => i !== idx);
+    const newUids = valueUids.filter((_, i) => i !== idx);
+    onChange(newNames, newUids);
+  };
 
   return (
     <div className="form-group">
@@ -66,7 +71,7 @@ function PersonSelector({ label, options, value, onChange, placeholder }: Person
             setOpen(true);
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') { e.preventDefault(); addExact(); }
+            if (e.key === 'Enter') { e.preventDefault(); addCustom(); }
             else if (e.key === 'Escape') setOpen(false);
           }}
           placeholder={placeholder}
@@ -76,18 +81,18 @@ function PersonSelector({ label, options, value, onChange, placeholder }: Person
             {filtered.map((o) => (
               <button
                 type="button"
-                key={o}
+                key={o.uid}
                 className="combobox-item"
                 onMouseDown={(e) => { e.preventDefault(); add(o); }}
               >
-                {o}
+                {o.displayName}
               </button>
             ))}
-            {trimmed && !options.some((o) => o.toLowerCase() === trimmed) && (
+            {trimmed && !options.some((o) => o.displayName.toLowerCase() === trimmed) && (
               <button
                 type="button"
                 className="combobox-item combobox-create"
-                onMouseDown={(e) => { e.preventDefault(); addExact(); }}
+                onMouseDown={(e) => { e.preventDefault(); addCustom(); }}
               >
                 + Добавить «{query.trim()}»
               </button>
@@ -97,10 +102,10 @@ function PersonSelector({ label, options, value, onChange, placeholder }: Person
       </div>
       {value.length > 0 && (
         <div className="person-tags">
-          {value.map((v) => (
-            <span className="person-tag" key={v}>
+          {value.map((v, i) => (
+            <span className="person-tag" key={`${v}-${i}`}>
               {v}
-              <button type="button" className="person-tag-x" onClick={() => remove(v)}>×</button>
+              <button type="button" className="person-tag-x" onClick={() => remove(i)}>×</button>
             </span>
           ))}
         </div>
@@ -111,7 +116,6 @@ function PersonSelector({ label, options, value, onChange, placeholder }: Person
 
 export default function TrackForm({
   initialTrack,
-  members,
   projects,
   existingNumbers = {},
   users,
@@ -121,7 +125,9 @@ export default function TrackForm({
   const { profile } = useAuth();
   const [title, setTitle] = useState(initialTrack?.title || '');
   const [artists, setArtists] = useState<string[]>(initialTrack?.artists || []);
+  const [artistUids, setArtistUids] = useState<string[]>(initialTrack?.artistUids || []);
   const [beatmakers, setBeatmakers] = useState<string[]>(initialTrack?.beatmakers || []);
+  const [beatmakerUids, setBeatmakerUids] = useState<string[]>(initialTrack?.beatmakerUids || []);
   const [mixBy, setMixBy] = useState(initialTrack?.mixBy || '');
   const [feat, setFeat] = useState(initialTrack?.feat || '');
   const [project, setProject] = useState(initialTrack?.project || '');
@@ -129,6 +135,7 @@ export default function TrackForm({
   const [column, setColumn] = useState<KanbanColumn>(initialTrack?.column || 'ideas');
   const [priority, setPriority] = useState<Track['priority']>(initialTrack?.priority || 'medium');
   const [status, setStatus] = useState<Track['status']>(initialTrack?.status || 'draft');
+  const [releaseType, setReleaseType] = useState<ReleaseType>(initialTrack?.releaseType || 'auto');
   const [checklist, setChecklist] = useState<ChecklistItem[]>(
     initialTrack?.checklist || CHECKLIST_TEMPLATES.map((t) => ({ ...t, id: uuidv4() }))
   );
@@ -175,10 +182,6 @@ export default function TrackForm({
       setError('Укажи хотя бы одного основного артиста.');
       return;
     }
-    if (feat.trim() && artists.length === 0) {
-      setError('Если указан feat, должен быть заполнен основной артист.');
-      return;
-    }
     setSaving(true);
     setError('');
 
@@ -217,7 +220,9 @@ export default function TrackForm({
       const data = {
         title: title.trim(),
         artists,
+        artistUids,
         beatmakers,
+        beatmakerUids,
         mixBy: mixBy.trim(),
         feat: feat.trim(),
         project: finalProject,
@@ -228,6 +233,7 @@ export default function TrackForm({
         priority,
         checklist,
         createdBy: profile?.uid || '',
+        releaseType,
       };
       await withTimeout(onSave(data, initialTrack?.id), 20000, 'сохранение в Firestore');
       onClose();
@@ -259,9 +265,10 @@ export default function TrackForm({
 
           <PersonSelector
             label="Артисты (основные) *"
-            options={members}
+            options={users}
             value={artists}
-            onChange={setArtists}
+            valueUids={artistUids}
+            onChange={(names, uids) => { setArtists(names); setArtistUids(uids); }}
             placeholder="Введи имя и нажми Enter"
           />
 
@@ -277,9 +284,10 @@ export default function TrackForm({
 
           <PersonSelector
             label="Битмейкеры"
-            options={members}
+            options={users}
             value={beatmakers}
-            onChange={setBeatmakers}
+            valueUids={beatmakerUids}
+            onChange={(names, uids) => { setBeatmakers(names); setBeatmakerUids(uids); }}
             placeholder="Введи имя и нажми Enter"
           />
 
@@ -330,6 +338,16 @@ export default function TrackForm({
                 placeholder="1"
               />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label>Тип релиза</label>
+            <select value={releaseType} onChange={(e) => setReleaseType(e.target.value as ReleaseType)}>
+              <option value="auto">Автоопределение</option>
+              <option value="single">{RELEASE_TYPE_LABELS.single} (1–3 трека)</option>
+              <option value="ep">{RELEASE_TYPE_LABELS.ep} (4–7 треков)</option>
+              <option value="album">{RELEASE_TYPE_LABELS.album} (8+ треков)</option>
+            </select>
           </div>
 
           <div className="form-group">

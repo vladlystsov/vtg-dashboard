@@ -10,6 +10,7 @@ interface AdminPanelProps {
   onDeleteTrack: (id: string) => void;
   onApprove: (id: string, req: ArtistRequest) => Promise<void>;
   onReject: (id: string) => Promise<void>;
+  currentUserRole?: UserRole;
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -18,8 +19,9 @@ const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Владелец',
 };
 
-export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject }: AdminPanelProps) {
+export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, currentUserRole }: AdminPanelProps) {
   const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'stats'>('requests');
+  const isOwner = currentUserRole === 'owner';
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
@@ -88,10 +90,11 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
                       className="role-select"
                       value={u.role}
                       onChange={(e) => onSetRole(u.uid, e.target.value as UserRole).catch(console.error)}
+                      disabled={u.role === 'owner'}
                     >
                       <option value="member">Участник</option>
                       <option value="admin">Админ</option>
-                      <option value="owner">Владелец</option>
+                      {isOwner && <option value="owner">Владелец</option>}
                     </select>
                     {u.artistVerified && (
                       <button className="btn-small-ghost" onClick={() => denyArtistRole(u.uid)}>

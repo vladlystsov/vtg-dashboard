@@ -11,7 +11,7 @@ import { db } from '../config/firebase';
 
 export interface AppNotification {
   id: string;
-  type: 'artist_request' | 'system';
+  type: 'artist_request' | 'system' | 'task_created' | 'task_status_changed';
   text: string;
   actorUid: string;
   actorName?: string;

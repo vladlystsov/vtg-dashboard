@@ -1,9 +1,11 @@
-import type { Track } from '../types/track';
-import { STATUS_LABELS } from '../types/track';
+import type { Track, UserProfile, ReleaseType } from '../types/track';
+import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 
 interface TracksListViewProps {
   tracks: Track[];
+  users?: UserProfile[];
+  userMap: Map<string, UserProfile>;
   onOpen: (track: Track) => void;
   onDelete: (id: string) => void;
 }
@@ -12,15 +14,17 @@ interface AlbumGroup {
   name: string;
   tracks: Track[];
   coverUrl?: string;
+  releaseType: ReleaseType;
+  detectedType: Exclude<ReleaseType, 'auto'>;
 }
 
-export default function TracksListView({ tracks, onOpen, onDelete }: TracksListViewProps) {
+export default function TracksListView({ tracks, userMap, onOpen, onDelete }: TracksListViewProps) {
   const grouped = groupByProject(tracks);
 
   return (
     <div className="albums-list">
       {grouped.map((album) => (
-        <AlbumCard key={album.name} album={album} onOpen={onOpen} onDelete={onDelete} />
+        <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} />
       ))}
       {tracks.length === 0 && <div className="empty-state">Пока нет треков. Создайте первый!</div>}
     </div>
@@ -37,10 +41,14 @@ function groupByProject(tracks: Track[]): AlbumGroup[] {
   const groups: AlbumGroup[] = [];
   for (const [name, albumTracks] of map) {
     albumTracks.sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0));
+    const detected = autoDetectReleaseType(albumTracks.length);
+    const overrideType = albumTracks[0]?.releaseType;
     groups.push({
       name,
       tracks: albumTracks,
       coverUrl: albumTracks.find((t) => t.coverUrl)?.coverUrl,
+      releaseType: overrideType || 'auto',
+      detectedType: detected,
     });
   }
   groups.sort((a, b) => a.name.localeCompare(b.name));
@@ -49,18 +57,38 @@ function groupByProject(tracks: Track[]): AlbumGroup[] {
 
 function AlbumCard({
   album,
+  userMap,
   onOpen,
   onDelete,
 }: {
   album: AlbumGroup;
+  userMap: Map<string, UserProfile>;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
 }) {
   const { profile } = useAuth();
   const totalTracks = album.tracks.length;
+  const doneCount = album.tracks.filter((t) => {
+    const cl = t.checklist || [];
+    return cl.length > 0 && cl.every((c) => c.status === 'done' || c.status === 'verified');
+  }).length;
+  const progress = totalTracks ? Math.round((doneCount / totalTracks) * 100) : 0;
+
+  const effectiveType = album.releaseType === 'auto' ? album.detectedType : album.releaseType;
+  const typeLabel = RELEASE_TYPE_LABELS[effectiveType];
+
+  const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
+
+  const overallStatus = album.tracks.every((t) => t.status === 'ready')
+    ? 'ready'
+    : album.tracks.some((t) => t.status === 'mixing' || t.status === 'mastering')
+    ? 'mixing'
+    : album.tracks.some((t) => t.status === 'recording')
+    ? 'recording'
+    : 'draft';
 
   return (
-    <div className="album-card">
+    <div className="album-card album-card-vertical">
       <div className="album-cover">
         {album.coverUrl ? (
           <img className="album-cover-img" src={album.coverUrl} alt={album.name} />
@@ -69,16 +97,27 @@ function AlbumCard({
             <img className="fallback-img" src={`${import.meta.env.BASE_URL}logo_vtg_default.jpg`} alt="" />
           </div>
         )}
-        <div className="album-cover-count">{totalTracks} треков</div>
       </div>
       <div className="album-main">
-        <div className="album-title">{album.name}</div>
+        <div className="album-header-row">
+          <div className="album-title">{album.name}</div>
+          <span className="album-type-badge">{typeLabel}</span>
+        </div>
+        <div className="album-progress-row">
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <span className="progress-text">{doneCount}/{totalTracks}</span>
+          <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
+        </div>
         <div className="album-tracklist">
           {album.tracks.map((track) => (
             <AlbumTrackRow
               key={track.id}
               track={track}
               currentUid={profile?.uid || ''}
+              userMap={userMap}
+              isOwnerOrAdmin={isOwnerOrAdmin}
               onOpen={onOpen}
               onDelete={onDelete}
             />
@@ -92,18 +131,30 @@ function AlbumCard({
 function AlbumTrackRow({
   track,
   currentUid,
+  userMap,
+  isOwnerOrAdmin,
   onOpen,
   onDelete,
 }: {
   track: Track;
   currentUid: string;
+  userMap: Map<string, UserProfile>;
+  isOwnerOrAdmin: boolean;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
 }) {
   const isMine = track.createdBy === currentUid;
-  const artists = (track.artists || []).length
-    ? (track.artists || []).join(', ')
-    : track.artistsString || '';
+
+  const resolveName = (uid: string): string => {
+    const u = userMap.get(uid);
+    return u?.artistName || u?.displayName || uid;
+  };
+
+  const artistNames = (track.artistUids || []).length
+    ? (track.artistUids || []).map(resolveName).join(', ')
+    : (track.artists || []).join(', ');
+
+  const canDelete = isMine || isOwnerOrAdmin;
 
   return (
     <div className="album-track-row" onClick={() => onOpen(track)}>
@@ -113,19 +164,21 @@ function AlbumTrackRow({
           {track.title}
           {isMine && <span className="at-mine">Мой</span>}
         </div>
-        {artists && <div className="at-artists">{artists}</div>}
+        {artistNames && <div className="at-artists">{artistNames}</div>}
       </div>
       <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
-      <button
-        className="at-delete"
-        title="Удалить"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(track.id);
-        }}
-      >
-        ×
-      </button>
+      {canDelete && (
+        <button
+          className="at-delete"
+          title="Удалить"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(track.id);
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }
