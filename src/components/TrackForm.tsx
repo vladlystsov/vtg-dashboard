@@ -128,7 +128,8 @@ export default function TrackForm({
   const [artistUids, setArtistUids] = useState<string[]>(initialTrack?.artistUids || []);
   const [beatmakers, setBeatmakers] = useState<string[]>(initialTrack?.beatmakers || []);
   const [beatmakerUids, setBeatmakerUids] = useState<string[]>(initialTrack?.beatmakerUids || []);
-  const [mixBy, setMixBy] = useState(initialTrack?.mixBy || '');
+  const [mixBy, setMixBy] = useState<string[]>(initialTrack?.mixBy || []);
+  const [mixByUids, setMixByUids] = useState<string[]>(initialTrack?.mixByUids || []);
   const [feat, setFeat] = useState(initialTrack?.feat || '');
   const [project, setProject] = useState(initialTrack?.project || '');
   const [trackNumber, setTrackNumber] = useState<number | undefined>(initialTrack?.trackNumber || undefined);
@@ -182,6 +183,19 @@ export default function TrackForm({
       setError('Укажи хотя бы одного основного артиста.');
       return;
     }
+
+    const myName = profile?.artistName || profile?.displayName || '';
+    const myUid = profile?.uid || '';
+    const isInArtists = artistUids.includes(myUid) || artists.some((a) => a.toLowerCase() === myName.toLowerCase());
+    const isInBeatmakers = beatmakerUids.includes(myUid) || beatmakers.some((b) => b.toLowerCase() === myName.toLowerCase());
+    const isInMixBy = mixByUids.includes(myUid) || mixBy.some((m) => m.toLowerCase() === myName.toLowerCase());
+    const isInFeat = feat.toLowerCase().includes(myName.toLowerCase());
+
+    if (!isInArtists && !isInBeatmakers && !isInMixBy && !isInFeat) {
+      setError('Ты должен быть указан хотя бы в одном из разделов: Артисты, Битмейкеры, Mix by или Feat.');
+      return;
+    }
+
     setSaving(true);
     setError('');
 
@@ -198,22 +212,24 @@ export default function TrackForm({
       if (coverFile) {
         coverUrl = await withTimeout(uploadCover(coverFile), 20000, 'обработка обложки');
       }
-      const finalProject = (newProject || project || 'Без проекта').trim() || 'Без проекта';
+      const finalProject = (newProject || project).trim();
 
       let finalNumber = trackNumber;
-      if (finalNumber === undefined || finalNumber === null) {
-        const used = new Set(existingNumbers[finalProject] || []);
-        let candidate = 1;
-        while (used.has(candidate)) candidate++;
-        finalNumber = candidate;
-      } else if (initialTrack?.project === finalProject && initialTrack?.trackNumber === finalNumber) {
-        // same number, no conflict (editing same track)
-      } else {
-        const used = new Set((existingNumbers[finalProject] || []).filter((n) => !(initialTrack && initialTrack.project === finalProject && initialTrack.trackNumber === n)));
-        if (used.has(finalNumber)) {
-          setError(`Трек №${finalNumber} уже есть в проекте «${finalProject}». Укажи другой номер.`);
-          setSaving(false);
-          return;
+      if (finalProject) {
+        if (finalNumber === undefined || finalNumber === null) {
+          const used = new Set(existingNumbers[finalProject] || []);
+          let candidate = 1;
+          while (used.has(candidate)) candidate++;
+          finalNumber = candidate;
+        } else if (initialTrack?.project === finalProject && initialTrack?.trackNumber === finalNumber) {
+          // same number, no conflict (editing same track)
+        } else {
+          const used = new Set((existingNumbers[finalProject] || []).filter((n) => !(initialTrack && initialTrack.project === finalProject && initialTrack.trackNumber === n)));
+          if (used.has(finalNumber)) {
+            setError(`Трек №${finalNumber} уже есть в проекте «${finalProject}». Укажи другой номер.`);
+            setSaving(false);
+            return;
+          }
         }
       }
 
@@ -223,7 +239,8 @@ export default function TrackForm({
         artistUids,
         beatmakers,
         beatmakerUids,
-        mixBy: mixBy.trim(),
+        mixBy,
+        mixByUids,
         feat: feat.trim(),
         project: finalProject,
         trackNumber: finalNumber,
@@ -291,15 +308,14 @@ export default function TrackForm({
             placeholder="Введи имя и нажми Enter"
           />
 
-          <div className="form-group">
-            <label>Mix by (сведение)</label>
-            <input
-              type="text"
-              value={mixBy}
-              onChange={(e) => setMixBy(e.target.value)}
-              placeholder="Кто сводил"
-            />
-          </div>
+          <PersonSelector
+            label="Mix by (сведение)"
+            options={users}
+            value={mixBy}
+            valueUids={mixByUids}
+            onChange={(names, uids) => { setMixBy(names); setMixByUids(uids); }}
+            placeholder="Кто сводил"
+          />
 
           <div className="form-row">
             <div className="form-group">
@@ -319,7 +335,7 @@ export default function TrackForm({
               ) : (
                 <>
                   <select value={project} onChange={(e) => setProject(e.target.value)}>
-                    <option value="">Выберите проект</option>
+                    <option value="">Без проекта (сингл)</option>
                     {projects.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
                   <button className="btn-add-inline" onClick={() => setShowNewProject(true)}>

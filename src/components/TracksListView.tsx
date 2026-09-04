@@ -22,7 +22,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete }: Tr
   const grouped = groupByProject(tracks);
 
   return (
-    <div className="albums-list">
+    <div className="albums-grid">
       {grouped.map((album) => (
         <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} />
       ))}
@@ -34,7 +34,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete }: Tr
 function groupByProject(tracks: Track[]): AlbumGroup[] {
   const map = new Map<string, Track[]>();
   for (const t of tracks) {
-    const key = t.project || 'Без альбома';
+    const key = t.project || '';
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(t);
   }
@@ -44,7 +44,7 @@ function groupByProject(tracks: Track[]): AlbumGroup[] {
     const detected = autoDetectReleaseType(albumTracks.length);
     const overrideType = albumTracks[0]?.releaseType;
     groups.push({
-      name,
+      name: name || albumTracks[0]?.title || 'Без названия',
       tracks: albumTracks,
       coverUrl: albumTracks.find((t) => t.coverUrl)?.coverUrl,
       releaseType: overrideType || 'auto',
@@ -67,6 +67,28 @@ function AlbumCard({
   onDelete: (id: string) => void;
 }) {
   const { profile } = useAuth();
+  const isSingleTrack = album.tracks.length === 1 && !album.tracks[0].project;
+  const track = isSingleTrack ? album.tracks[0] : null;
+
+  const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
+
+  const resolveName = (uid: string): string => {
+    const u = userMap.get(uid);
+    return u?.artistName || u?.displayName || uid;
+  };
+
+  if (isSingleTrack && track) {
+    return (
+      <SingleTrackCard
+        track={track}
+        profile={profile}
+        resolveName={resolveName}
+        onOpen={onOpen}
+        onDelete={onDelete}
+      />
+    );
+  }
+
   const totalTracks = album.tracks.length;
   const doneCount = album.tracks.filter((t) => {
     const cl = t.checklist || [];
@@ -77,8 +99,6 @@ function AlbumCard({
   const effectiveType = album.releaseType === 'auto' ? album.detectedType : album.releaseType;
   const typeLabel = RELEASE_TYPE_LABELS[effectiveType];
 
-  const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
-
   const overallStatus = album.tracks.every((t) => t.status === 'ready')
     ? 'ready'
     : album.tracks.some((t) => t.status === 'mixing' || t.status === 'mastering')
@@ -87,8 +107,22 @@ function AlbumCard({
     ? 'recording'
     : 'draft';
 
+  const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
+
   return (
-    <div className="album-card album-card-vertical">
+    <div className="album-card">
+      <button
+        className="album-delete-btn"
+        title="Удалить альбом"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (confirm(`Удалить все треки альбома «${album.name}»?`)) {
+            album.tracks.forEach((t) => onDelete(t.id));
+          }
+        }}
+      >
+        ×
+      </button>
       <div className="album-cover">
         {album.coverUrl ? (
           <img className="album-cover-img" src={album.coverUrl} alt={album.name} />
@@ -111,12 +145,12 @@ function AlbumCard({
           <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
         </div>
         <div className="album-tracklist">
-          {album.tracks.map((track) => (
+          {album.tracks.map((t) => (
             <AlbumTrackRow
-              key={track.id}
-              track={track}
-              currentUid={profile?.uid || ''}
-              userMap={userMap}
+              key={t.id}
+              track={t}
+              resolveName={resolveName}
+              myName={myName}
               isOwnerOrAdmin={isOwnerOrAdmin}
               onOpen={onOpen}
               onDelete={onDelete}
@@ -128,33 +162,107 @@ function AlbumCard({
   );
 }
 
-function AlbumTrackRow({
+function SingleTrackCard({
   track,
-  currentUid,
-  userMap,
-  isOwnerOrAdmin,
+  profile,
+  resolveName,
   onOpen,
   onDelete,
 }: {
   track: Track;
-  currentUid: string;
-  userMap: Map<string, UserProfile>;
-  isOwnerOrAdmin: boolean;
+  profile: UserProfile | null;
+  resolveName: (uid: string) => string;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
 }) {
-  const isMine = track.createdBy === currentUid;
-
-  const resolveName = (uid: string): string => {
-    const u = userMap.get(uid);
-    return u?.artistName || u?.displayName || uid;
-  };
+  const doneCount = (track.checklist || []).filter((c) => c.status === 'done' || c.status === 'verified').length;
+  const total = (track.checklist || []).length;
+  const progress = total ? Math.round((doneCount / total) * 100) : 0;
 
   const artistNames = (track.artistUids || []).length
     ? (track.artistUids || []).map(resolveName).join(', ')
     : (track.artists || []).join(', ');
 
-  const canDelete = isMine || isOwnerOrAdmin;
+  const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
+  const allNames = [
+    ...(track.artists || []),
+    ...(track.artistUids || []).map(resolveName),
+    ...(track.beatmakers || []),
+    ...(track.beatmakerUids || []).map(resolveName),
+    ...(track.mixBy || []),
+    ...(track.mixByUids || []).map(resolveName),
+    track.feat || '',
+  ].map((n) => n.toLowerCase());
+  const isMine = allNames.includes(myName);
+
+  return (
+    <div className="album-card album-card-single" onClick={() => onOpen(track)}>
+      <button
+        className="album-delete-btn"
+        title="Удалить"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(track.id);
+        }}
+      >
+        ×
+      </button>
+      <div className="album-cover">
+        {track.coverUrl ? (
+          <img className="album-cover-img" src={track.coverUrl} alt={track.title} />
+        ) : (
+          <div className="album-cover-fallback">
+            <img className="fallback-img" src={`${import.meta.env.BASE_URL}logo_vtg_default.jpg`} alt="" />
+          </div>
+        )}
+      </div>
+      <div className="album-main">
+        <div className="album-header-row">
+          <div className="album-title">{track.title}</div>
+          {isMine && <span className="at-mine">Мой</span>}
+        </div>
+        {artistNames && <div className="album-artist-line">{artistNames}</div>}
+        <div className="album-progress-row">
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <span className="progress-text">{doneCount}/{total}</span>
+          <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AlbumTrackRow({
+  track,
+  resolveName,
+  myName,
+  isOwnerOrAdmin,
+  onOpen,
+  onDelete,
+}: {
+  track: Track;
+  resolveName: (uid: string) => string;
+  myName: string;
+  isOwnerOrAdmin: boolean;
+  onOpen: (t: Track) => void;
+  onDelete: (id: string) => void;
+}) {
+  const artistNames = (track.artistUids || []).length
+    ? (track.artistUids || []).map(resolveName).join(', ')
+    : (track.artists || []).join(', ');
+
+  const allNames = [
+    ...(track.artists || []),
+    ...(track.artistUids || []).map(resolveName),
+    ...(track.beatmakers || []),
+    ...(track.beatmakerUids || []).map(resolveName),
+    ...(track.mixBy || []),
+    ...(track.mixByUids || []).map(resolveName),
+    track.feat || '',
+  ].map((n) => n.toLowerCase());
+  const isMine = allNames.includes(myName);
 
   return (
     <div className="album-track-row" onClick={() => onOpen(track)}>
@@ -167,7 +275,7 @@ function AlbumTrackRow({
         {artistNames && <div className="at-artists">{artistNames}</div>}
       </div>
       <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
-      {canDelete && (
+      {(isMine || isOwnerOrAdmin) && (
         <button
           className="at-delete"
           title="Удалить"

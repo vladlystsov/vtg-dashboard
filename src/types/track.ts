@@ -52,7 +52,8 @@ export interface Track {
   artistUids: string[];
   beatmakers: string[];
   beatmakerUids: string[];
-  mixBy: string;
+  mixBy: string[];
+  mixByUids: string[];
   feat: string;
   artistsString?: string;
   beatmakerString?: string;
@@ -102,7 +103,8 @@ export type TrackFormData = {
   artistUids: string[];
   beatmakers: string[];
   beatmakerUids: string[];
-  mixBy: string;
+  mixBy: string[];
+  mixByUids: string[];
   feat: string;
   project: string;
   trackNumber?: number;

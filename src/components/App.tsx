@@ -116,9 +116,10 @@ export default function App() {
     ...tracks.flatMap((t) => [
       ...(t.artistUids || []).map(resolveName),
       ...(t.beatmakerUids || []).map(resolveName),
+      ...(t.mixByUids || []).map(resolveName),
       ...(t.artists || []),
       ...(t.beatmakers || []),
-      t.mixBy as string,
+      ...(t.mixBy || []),
       t.feat as string,
     ].filter(Boolean)),
   ])).filter(Boolean);
@@ -157,18 +158,6 @@ export default function App() {
   };
 
   const handleSave = async (data: TrackFormData, id?: string) => {
-    const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
-
-    if (!isOwnerOrAdmin && data.artistUids && data.artistUids.length > 0) {
-      const allVerified = data.artistUids.every((uid) => {
-        const u = userMap.get(uid);
-        return u?.artistVerified || u?.role === 'owner' || u?.role === 'admin';
-      });
-      if (!allVerified) {
-        throw new Error('Все указанные артисты должны быть подтверждены администратором.');
-      }
-    }
-
     const payload = {
       ...data,
       artist: data.artists[0] || '',
@@ -177,6 +166,8 @@ export default function App() {
       beatmakers: data.beatmakers,
       artistUids: data.artistUids || [],
       beatmakerUids: data.beatmakerUids || [],
+      mixBy: data.mixBy || [],
+      mixByUids: data.mixByUids || [],
     };
 
     const isUpdate = !!id;
