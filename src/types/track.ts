@@ -73,14 +73,22 @@ export interface Track {
   platformUrl?: string;
 }
 
-export type PlatformKind = 'soundcloud' | 'yandex' | 'vkontakte' | 'other';
+export type PlatformKind = 'soundcloud' | 'youtube' | 'yandex' | 'vkontakte' | 'other';
 
 export function detectPlatform(url?: string): PlatformKind {
   const host = (url || '').toLowerCase();
   if (host.includes('soundcloud.com') || host.includes('w.soundcloud.com')) return 'soundcloud';
+  if (host.includes('youtube.com') || host.includes('youtu.be')) return 'youtube';
   if (host.includes('music.yandex')) return 'yandex';
   if (host.includes('vk.com') || host.includes('vk.ru') || host.includes('vkontakte')) return 'vkontakte';
   return 'other';
+}
+
+export function youtubeVideoId(url: string): string | null {
+  const m = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/.exec(
+    url.trim()
+  );
+  return m ? m[1] : null;
 }
 
 export function soundCloudEmbedSrc(url: string): string {

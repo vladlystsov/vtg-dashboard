@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile } from '../types/track';
-import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform } from '../types/track';
+import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform, youtubeVideoId } from '../types/track';
 import { PlatformPlayer } from './TracksListView';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
@@ -160,7 +160,7 @@ export default function TrackForm({
   const [platformUrl, setPlatformUrl] = useState(initialTrack?.platformUrl || '');
   const [coverUrlExternal, setCoverUrlExternal] = useState('');
   const [saving, setSaving] = useState(false);
-  const [fetchingSc, setFetchingSc] = useState(false);
+  const [fetchingPlatform, setFetchingPlatform] = useState(false);
   const [error, setError] = useState('');
 
   const hasProject = !!project;
@@ -223,7 +223,7 @@ export default function TrackForm({
       setError('Вставь ссылку на трек SoundCloud вида https://soundcloud.com/...');
       return;
     }
-    setFetchingSc(true);
+    setFetchingPlatform(true);
     setError('');
     try {
       const res = await withTimeout(
@@ -252,7 +252,48 @@ export default function TrackForm({
     } catch (e: any) {
       setError(e?.message || 'Не удалось получить данные с SoundCloud.');
     } finally {
-      setFetchingSc(false);
+      setFetchingPlatform(false);
+    }
+  };
+
+  const fetchYouTubeData = async () => {
+    const url = platformUrl.trim();
+    if (!/youtube\.com|youtu\.be/i.test(url)) {
+      setError('Вставь ссылку на видео YouTube вида https://www.youtube.com/watch?v=... или https://youtu.be/...');
+      return;
+    }
+    setFetchingPlatform(true);
+    setError('');
+    try {
+      const res = await withTimeout(
+        fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`),
+        15000,
+        'запрос YouTube'
+      );
+      if (!res.ok) throw new Error('YouTube не вернул данные по этой ссылке.');
+      const j = await res.json();
+      let t = String(j.title || '').trim();
+      t = t
+        .replace(/\s*\(\s*(?:Official\s+)?(?:Video|Audio|Lyric\s*[Vv]ideo|Music\s*[Vv]ideo)\s*\)\s*$/i, '')
+        .replace(/\s*\[\s*(?:Official\s+)?(?:Video|Audio|Lyric\s*[Vv]ideo|Music\s*[Vv]ideo)\s*\]\s*$/i, '')
+        .trim();
+      const author = String(j.author_name || '').trim();
+      if (author && t.toLowerCase().startsWith(author.toLowerCase() + ' - ')) {
+        t = t.slice(author.length + 3).trim();
+      }
+      if (!title.trim() && t) setTitle(t);
+      if (artists.length === 0 && author) {
+        setArtists([author]);
+        setArtistUids(['']);
+      }
+      if (!coverPreview && j.thumbnail_url) {
+        setCoverUrlExternal(j.thumbnail_url);
+        setCoverPreview(j.thumbnail_url);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось получить данные с YouTube.');
+    } finally {
+      setFetchingPlatform(false);
     }
   };
 
@@ -506,17 +547,21 @@ export default function TrackForm({
               type="url"
               value={platformUrl}
               onChange={(e) => setPlatformUrl(e.target.value)}
-              placeholder="https://soundcloud.com/... или ссылка на Яндекс Музыку / VK"
+              placeholder="SoundCloud / YouTube / Яндекс Музыка / VK"
             />
-            {detectPlatform(platformUrl) === 'soundcloud' && (
+            {(detectPlatform(platformUrl) === 'soundcloud' || detectPlatform(platformUrl) === 'youtube') && (
               <button
                 type="button"
                 className="btn-secondary sc-fetch-btn"
-                onClick={fetchSoundCloudData}
-                disabled={fetchingSc}
+                onClick={detectPlatform(platformUrl) === 'youtube' ? fetchYouTubeData : fetchSoundCloudData}
+                disabled={fetchingPlatform}
                 style={{ marginTop: 8 }}
               >
-                {fetchingSc ? 'Загрузка...' : 'Загрузить данные с SoundCloud'}
+                {fetchingPlatform
+                  ? 'Загрузка...'
+                  : detectPlatform(platformUrl) === 'youtube'
+                  ? 'Загрузить данные с YouTube'
+                  : 'Загрузить данные с SoundCloud'}
               </button>
             )}
             {detectPlatform(platformUrl) === 'soundcloud' && (
@@ -524,7 +569,15 @@ export default function TrackForm({
                 Подставит название, артиста, обложку из SoundCloud. Прослушивание в РФ без VPN недоступно.
               </div>
             )}
+            {detectPlatform(platformUrl) === 'youtube' && (
+              <div className="form-hint" style={{ marginTop: 4 }}>
+                Подставит название и автора из YouTube (feat/prod YouTube не отдаёт — заполни вручную). Превью — кадр видео, не обложка.
+              </div>
+            )}
             {detectPlatform(platformUrl) === 'soundcloud' && platformUrl.trim().startsWith('https://soundcloud.com/') && (
+              <PlatformPlayer url={platformUrl.trim()} compact />
+            )}
+            {detectPlatform(platformUrl) === 'youtube' && !!youtubeVideoId(platformUrl.trim()) && (
               <PlatformPlayer url={platformUrl.trim()} compact />
             )}
           </div>

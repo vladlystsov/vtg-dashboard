@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
-import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc } from '../types/track';
+import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc, youtubeVideoId } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import ShippedPlayer, { ShippedMini, type ShippedTrackItem } from './ShippedPlayer';
 
@@ -73,15 +73,13 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
   const shippedPlayerTracks = useMemo<ShippedTrackItem[]>(() => {
     const items: ShippedTrackItem[] = [];
     for (const t of shippedSingles) {
-      if (t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud') {
-        items.push({ id: t.id, title: t.title, url: t.platformUrl });
-      }
+      const it = toShipItem(t);
+      if (it.platform) items.push(it);
     }
     for (const a of shippedAlbums) {
       for (const t of a.tracks) {
-        if (t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud') {
-          items.push({ id: t.id, title: t.title, url: t.platformUrl });
-        }
+        const it = toShipItem(t);
+        if (it.platform) items.push(it);
       }
     }
     return items;
@@ -258,18 +256,41 @@ function splitNames(input: string): string[] {
 export function PlatformPlayer({ url, compact = false, hideEmbed = false }: { url?: string; compact?: boolean; hideEmbed?: boolean }) {
   if (!url) return null;
   const trimmed = url.trim();
-  if (detectPlatform(trimmed) === 'soundcloud') {
+  const kind = detectPlatform(trimmed);
+  if (kind === 'soundcloud' || kind === 'youtube') {
     if (hideEmbed) return null;
+    if (kind === 'soundcloud') {
+      return (
+        <div className={`platform-player ${compact ? 'platform-player-compact' : ''}`} onClick={(e) => e.stopPropagation()}>
+          <iframe
+            title="SoundCloud"
+            width="100%"
+            height={compact ? 116 : 166}
+            frameBorder="0"
+            allow="autoplay"
+            scrolling="no"
+            src={soundCloudEmbedSrc(trimmed)}
+          />
+        </div>
+      );
+    }
+    const vid = youtubeVideoId(trimmed);
+    if (!vid) {
+      return (
+        <a className="listen-btn" href={trimmed} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+          ▶ Слушать на YouTube
+        </a>
+      );
+    }
     return (
       <div className={`platform-player ${compact ? 'platform-player-compact' : ''}`} onClick={(e) => e.stopPropagation()}>
         <iframe
-          title="SoundCloud"
+          title="YouTube"
           width="100%"
-          height={compact ? 116 : 166}
+          height={compact ? 116 : 200}
           frameBorder="0"
-          allow="autoplay"
-          scrolling="no"
-          src={soundCloudEmbedSrc(trimmed)}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          src={`https://www.youtube.com/embed/${vid}?autoplay=0`}
         />
       </div>
     );
@@ -288,11 +309,13 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false }: { ur
 }
 
 function toShipItem(t: Track): ShippedTrackItem {
-  return { id: t.id, title: t.title, url: t.platformUrl || '' };
+  const kind = t.platformUrl ? detectPlatform(t.platformUrl) : 'other';
+  const platform = kind === 'soundcloud' || kind === 'youtube' ? kind : undefined;
+  return { id: t.id, title: t.title, url: t.platformUrl || '', platform };
 }
 
-function isSoundCloudTrack(t: Track): boolean {
-  return !!t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud';
+function isPlayerTrack(t: Track): boolean {
+  return !!t.platformUrl && (detectPlatform(t.platformUrl) === 'soundcloud' || detectPlatform(t.platformUrl) === 'youtube');
 }
 
 function SingleTrackCard({
@@ -358,7 +381,7 @@ function SingleTrackCard({
           </div>
         </div>
         {shipped ? (
-          isSoundCloudTrack(track) ? (
+          isPlayerTrack(track) ? (
             <ShippedMini item={toShipItem(track)} />
           ) : (
             <PlatformPlayer url={track.platformUrl} />
@@ -428,7 +451,7 @@ function AlbumCard({
   const repTrack = album.tracks[0];
 
   const albumPlatformUrl =
-    album.tracks.find((t) => t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud')?.platformUrl
+    album.tracks.find((t) => t.platformUrl && (detectPlatform(t.platformUrl) === 'soundcloud' || detectPlatform(t.platformUrl) === 'youtube'))?.platformUrl
     || album.tracks.find((t) => t.platformUrl)?.platformUrl;
 
   const trackBeatmakersUnion = unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap)));
@@ -649,7 +672,7 @@ function AlbumTrackRow({
         )}
       </div>
       {shipped ? (
-        isSoundCloudTrack(track) ? (
+        isPlayerTrack(track) ? (
           <ShippedMini item={toShipItem(track)} />
         ) : null
       ) : (
