@@ -20,6 +20,15 @@ interface TrackFormProps {
 
 const CHECKLIST_STATUS_ORDER: ChecklistItem['status'][] = ['pending', 'in_progress', 'done', 'review', 'verified'];
 
+async function withTimeout<T>(p: Promise<T>, ms = 15000, label = 'операция'): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Превышен таймаут (${label}). Проверьте интернет/правила Firestore.`)), ms)
+    ),
+  ]);
+}
+
 interface PersonSelectorProps {
   label: string;
   options: { uid: string; displayName: string }[];
@@ -151,6 +160,7 @@ export default function TrackForm({
   const [platformUrl, setPlatformUrl] = useState(initialTrack?.platformUrl || '');
   const [coverUrlExternal, setCoverUrlExternal] = useState('');
   const [saving, setSaving] = useState(false);
+  const [fetchingSc, setFetchingSc] = useState(false);
   const [error, setError] = useState('');
 
   const hasProject = !!project;
@@ -207,6 +217,45 @@ export default function TrackForm({
     }
   };
 
+  const fetchSoundCloudData = async () => {
+    const url = platformUrl.trim();
+    if (!/^https:\/\/soundcloud\.com\//i.test(url)) {
+      setError('Вставь ссылку на трек SoundCloud вида https://soundcloud.com/...');
+      return;
+    }
+    setFetchingSc(true);
+    setError('');
+    try {
+      const res = await withTimeout(
+        fetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`),
+        15000,
+        'запрос SoundCloud'
+      );
+      if (!res.ok) throw new Error('SoundCloud не вернул данные по этой ссылке.');
+      const j = await res.json();
+      if (!title.trim() && j.title) setTitle(j.title);
+      if (artists.length === 0 && j.author_name) {
+        setArtists([j.author_name]);
+        setArtistUids(['']);
+      }
+      if (!coverPreview && j.thumbnail_url) {
+        setCoverUrlExternal(j.thumbnail_url);
+        setCoverPreview(j.thumbnail_url);
+      }
+      const desc = String(j.description || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+      const prodM = /(?:prod\s*\.?\s*by|продюсер)\s*[:\-]?\s*([A-Za-zА-Яа-яЁё0-9\s.,&#+]+)/i.exec(desc);
+      if (prodM && beatmakers.length === 0) {
+        setBeatmakers([prodM[1].trim().replace(/[\s.,]+$/g, '')]);
+      }
+      const featM = /feat\s*\.?\s*([A-Za-zА-Яа-яЁё0-9\s.,&#+]+)/i.exec(desc);
+      if (featM && !feat.trim()) setFeat(featM[1].trim().replace(/[\s.,]+$/g, ''));
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось получить данные с SoundCloud.');
+    } finally {
+      setFetchingSc(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!title.trim()) return;
     if (artists.length === 0) {
@@ -228,14 +277,6 @@ export default function TrackForm({
 
     setSaving(true);
     setError('');
-
-    const withTimeout = <T,>(p: Promise<T>, ms = 15000, label = 'операция'): Promise<T> =>
-      Promise.race([
-        p,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Сохранение: превышен таймаут (${label}). Проверьте интернет/правила Firestore.`)), ms)
-        ),
-      ]);
 
     let coverUrl = initialTrack?.coverUrl;
     try {
@@ -265,6 +306,9 @@ export default function TrackForm({
         }
       }
 
+      const finalChecklist =
+        status === 'completed' ? checklist.map((item) => ({ ...item, status: 'verified' as ChecklistItem['status'] })) : checklist;
+
       const data = {
         title: title.trim(),
         artists,
@@ -280,7 +324,7 @@ export default function TrackForm({
         status,
         column,
         priority,
-        checklist,
+        checklist: finalChecklist,
         createdBy: profile?.uid || '',
         releaseType,
         platformUrl: platformUrl.trim() || undefined,
@@ -465,8 +509,19 @@ export default function TrackForm({
               placeholder="https://soundcloud.com/... или ссылка на Яндекс Музыку / VK"
             />
             {detectPlatform(platformUrl) === 'soundcloud' && (
+              <button
+                type="button"
+                className="btn-secondary sc-fetch-btn"
+                onClick={fetchSoundCloudData}
+                disabled={fetchingSc}
+                style={{ marginTop: 8 }}
+              >
+                {fetchingSc ? 'Загрузка...' : 'Загрузить данные с SoundCloud'}
+              </button>
+            )}
+            {detectPlatform(platformUrl) === 'soundcloud' && (
               <div className="form-hint" style={{ marginTop: 4 }}>
-                Предпросмотр плеера SoundCloud (для прослушивания в РФ нужен VPN):
+                Подставит название, артиста, обложку из SoundCloud. Прослушивание в РФ без VPN недоступно.
               </div>
             )}
             {detectPlatform(platformUrl) === 'soundcloud' && platformUrl.trim().startsWith('https://soundcloud.com/') && (
@@ -509,14 +564,19 @@ export default function TrackForm({
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Приоритет</label>
-            <select value={priority} onChange={(e) => setPriority(e.target.value as Track['priority'])}>
-              <option value="low">Низкий</option>
-              <option value="medium">Средний</option>
-              <option value="high">Высокий</option>
-            </select>
-          </div>
+          {status !== 'completed' && (
+            <div className="form-group">
+              <label>Приоритет</label>
+              <select value={priority} onChange={(e) => setPriority(e.target.value as Track['priority'])}>
+                <option value="low">Низкий</option>
+                <option value="medium">Средний</option>
+                <option value="high">Высокий</option>
+              </select>
+            </div>
+          )}
+          {status === 'completed' && (
+            <div className="form-hint">При сохранении все пункты чек-листа будут помечены как Verified.</div>
+          )}
         </div>
 
         <div className="form-section">

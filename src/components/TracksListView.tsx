@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
 import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
-import ShippedPlayer, { type ShippedTrackItem } from './ShippedPlayer';
+import ShippedPlayer, { ShippedMini, type ShippedTrackItem } from './ShippedPlayer';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -136,8 +136,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
       )}
 
       {tab === 'shipped' && (
-        <>
-          {shippedPlayerTracks.length > 0 && <ShippedPlayer tracks={shippedPlayerTracks} />}
+        <ShippedPlayer tracks={shippedPlayerTracks}>
           <div className="albums-grid">
             {shippedSingles.map((track) => (
               <SingleTrackCard
@@ -146,17 +145,17 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
                 userMap={userMap}
                 onOpen={onOpen}
                 onDelete={onDelete}
-                hideEmbed
+                shipped
               />
             ))}
             {shippedAlbums.map((album) => (
-              <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} hideEmbed />
+              <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} shipped />
             ))}
             {shippedSingles.length === 0 && shippedAlbums.length === 0 && (
               <div className="empty-state">Нет отгруженных релизов. Отметьте трек статусом «Завершено» или укажите ссылку на платформу в карточке трека.</div>
             )}
           </div>
-        </>
+        </ShippedPlayer>
       )}
     </div>
   );
@@ -288,18 +287,26 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false }: { ur
   );
 }
 
+function toShipItem(t: Track): ShippedTrackItem {
+  return { id: t.id, title: t.title, url: t.platformUrl || '' };
+}
+
+function isSoundCloudTrack(t: Track): boolean {
+  return !!t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud';
+}
+
 function SingleTrackCard({
   track,
   userMap,
   onOpen,
   onDelete,
-  hideEmbed = false,
+  shipped = false,
 }: {
   track: Track;
   userMap: Map<string, UserProfile>;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
-  hideEmbed?: boolean;
+  shipped?: boolean;
 }) {
   const { profile } = useAuth();
   const effectiveIsOwner = profile?.role === 'owner' || profile?.role === 'admin';
@@ -350,16 +357,24 @@ function SingleTrackCard({
             )}
           </div>
         </div>
-        <div className="album-track-status-row">
-          <div className="album-track-progress-row">
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${pct}%` }} />
+        {shipped ? (
+          isSoundCloudTrack(track) ? (
+            <ShippedMini item={toShipItem(track)} />
+          ) : (
+            <PlatformPlayer url={track.platformUrl} />
+          )
+        ) : (
+          <div className="album-track-status-row">
+            <div className="album-track-progress-row">
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${pct}%` }} />
+              </div>
+              <span className="progress-text">{done}/{total}</span>
             </div>
-            <span className="progress-text">{done}/{total}</span>
+            <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
           </div>
-          <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
-        </div>
-        <PlatformPlayer url={track.platformUrl} hideEmbed={hideEmbed} />
+        )}
+        {!shipped && <PlatformPlayer url={track.platformUrl} />}
       </div>
     </div>
   );
@@ -371,14 +386,14 @@ function AlbumCard({
   onOpen,
   onDelete,
   onUpdateTrack,
-  hideEmbed = false,
+  shipped = false,
 }: {
   album: AlbumGroup;
   userMap: Map<string, UserProfile>;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
   onUpdateTrack?: (id: string, patch: Partial<Track>) => Promise<void>;
-  hideEmbed?: boolean;
+  shipped?: boolean;
 }) {
   const { profile } = useAuth();
   const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
@@ -531,14 +546,16 @@ function AlbumCard({
             {creditMsg && <div className="form-hint">{creditMsg}</div>}
           </div>
         )}
-        <div className="album-progress-row">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
+        {!shipped && (
+          <div className="album-progress-row">
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${progressPct}%` }} />
+            </div>
+            <span className="progress-text">{readyCount}/{totalTracks}</span>
+            <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
           </div>
-          <span className="progress-text">{readyCount}/{totalTracks}</span>
-          <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
-        </div>
-        <PlatformPlayer url={albumPlatformUrl} hideEmbed={hideEmbed} />
+        )}
+        {!shipped && <PlatformPlayer url={albumPlatformUrl} />}
         <button
           className="album-tracklist-toggle"
           onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
@@ -556,6 +573,7 @@ function AlbumCard({
                 isOwnerOrAdmin={isOwnerOrAdmin}
                 onOpen={onOpen}
                 onDelete={onDelete}
+                shipped={shipped}
               />
             ))}
           </div>
@@ -572,6 +590,7 @@ function AlbumTrackRow({
   isOwnerOrAdmin,
   onOpen,
   onDelete,
+  shipped = false,
 }: {
   track: Track;
   userMap: Map<string, UserProfile>;
@@ -579,6 +598,7 @@ function AlbumTrackRow({
   isOwnerOrAdmin: boolean;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
+  shipped?: boolean;
 }) {
   const { done, total, pct } = getChecklistProgress(track.checklist);
   const isArtist = isArtistOnTrack(track, myName, userMap);
@@ -628,15 +648,21 @@ function AlbumTrackRow({
           </button>
         )}
       </div>
-      <div className="at-bottom">
-        <div className="at-progress-cell">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${pct}%` }} />
+      {shipped ? (
+        isSoundCloudTrack(track) ? (
+          <ShippedMini item={toShipItem(track)} />
+        ) : null
+      ) : (
+        <div className="at-bottom">
+          <div className="at-progress-cell">
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="progress-text">{done}/{total}</span>
           </div>
-          <span className="progress-text">{done}/{total}</span>
+          <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
         </div>
-        <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
-      </div>
+      )}
     </div>
   );
 }
