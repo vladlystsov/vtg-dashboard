@@ -5,7 +5,7 @@ import {
   doc,
   getDoc,
   getDocs,
-  deleteDoc,
+  writeBatch,
   onSnapshot,
   query,
   orderBy,
@@ -84,9 +84,10 @@ export async function denyArtistRole(uid: string) {
 
 export async function clearRequestHistory() {
   const snapshot = await getDocs(requestsRef);
-  await Promise.allSettled(
-    snapshot.docs.map((d) => deleteDoc(doc(db, 'artistRequests', d.id)))
-  );
+  if (snapshot.empty) return;
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
 }
 
 export type { ArtistRole };

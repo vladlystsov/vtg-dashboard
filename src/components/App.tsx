@@ -86,7 +86,9 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const unsub = subscribeToNotifications((data) => setNotifications(data), (e) => console.error('notif sub', e));
+    const unsub = subscribeToNotifications((data) => {
+      setNotifications(data.filter((n) => !deletedNotifIds.current.has(n.id)));
+    }, (e) => console.error('notif sub', e));
     return unsub;
   }, [user]);
 
@@ -129,6 +131,22 @@ export default function App() {
   ])).filter(Boolean);
 
   const projects = Array.from(new Set(tracks.map((t) => t.project).filter((p) => p)));
+
+  const projectData: Record<string, { artists: string[]; artistUids: string[]; beatmakers: string[]; beatmakerUids: string[]; mixBy: string[]; mixByUids: string[] }> = {};
+  for (const p of projects) {
+    const pTracks = tracks.filter((t) => t.project === p);
+    const last = pTracks.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+    if (last) {
+      projectData[p] = {
+        artists: last.artists || [],
+        artistUids: last.artistUids || [],
+        beatmakers: last.beatmakers || [],
+        beatmakerUids: last.beatmakerUids || [],
+        mixBy: asArray(last.mixBy),
+        mixByUids: asArray(last.mixByUids),
+      };
+    }
+  }
 
   const existingNumbers: Record<string, number[]> = {};
   for (const t of tracks) {
@@ -322,6 +340,7 @@ export default function App() {
           initialTrack={editingTrack || undefined}
           members={members}
           projects={projects}
+          projectData={projectData}
           existingNumbers={existingNumbers}
           users={users.map((u) => ({ uid: u.uid, displayName: u.artistName || u.displayName }))}
           userMap={userMap}

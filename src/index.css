@@ -1590,6 +1590,54 @@ body {
 }
 
 /* ===== Albums list (tracks view, project/album cards with tracklist) ===== */
+.tracks-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tracks-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tracks-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.tracks-tab {
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tracks-tab.active {
+  background: #fff;
+  color: var(--gray-800);
+  box-shadow: var(--shadow-sm);
+}
+
+.tracks-filter select {
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: #fff;
+}
+
 .albums-list {
   display: flex;
   flex-direction: column;
@@ -1605,7 +1653,7 @@ body {
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   position: relative;
-  padding: 3px;
+  padding: 6px;
 }
 
 .album-cover-full {
@@ -1759,7 +1807,7 @@ body {
 .album-main {
   flex: 1;
   min-width: 0;
-  padding: 16px;
+  padding: 12px;
 }
 
 .album-title {
@@ -1767,6 +1815,23 @@ body {
   font-weight: 800;
   color: var(--gray-800);
   margin-bottom: 10px;
+}
+
+.album-tracklist-toggle {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--blue-600);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.album-tracklist-toggle:hover {
+  color: var(--blue-800);
 }
 
 .album-tracklist {

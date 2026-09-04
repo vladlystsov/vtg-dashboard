@@ -8,6 +8,7 @@ import {
   query,
   orderBy,
   getDocs,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -79,7 +80,8 @@ export async function deleteNotification(id: string) {
 
 export async function clearAllNotifications() {
   const snapshot = await getDocs(notificationsRef);
-  await Promise.allSettled(
-    snapshot.docs.map((d) => deleteDoc(doc(db, 'notifications', d.id)))
-  );
+  if (snapshot.empty) return;
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
 }

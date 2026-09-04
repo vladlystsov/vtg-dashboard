@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile } from '../types/track';
 import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ interface TrackFormProps {
   initialTrack?: Track;
   members?: string[];
   projects: string[];
+  projectData?: Record<string, { artists: string[]; artistUids: string[]; beatmakers: string[]; beatmakerUids: string[]; mixBy: string[]; mixByUids: string[] }>;
   existingNumbers?: Record<string, number[]>;
   users: { uid: string; displayName: string }[];
   userMap?: Map<string, UserProfile>;
@@ -117,6 +118,7 @@ function PersonSelector({ label, options, value, valueUids, onChange, placeholde
 export default function TrackForm({
   initialTrack,
   projects,
+  projectData = {},
   existingNumbers = {},
   users,
   onClose,
@@ -147,6 +149,20 @@ export default function TrackForm({
   const [error, setError] = useState('');
 
   const hasProject = !!project;
+  const prevProject = useRef(project);
+
+  useEffect(() => {
+    if (project && project !== prevProject.current && projectData[project]) {
+      const pd = projectData[project];
+      setArtists(pd.artists);
+      setArtistUids(pd.artistUids);
+      setBeatmakers(pd.beatmakers);
+      setBeatmakerUids(pd.beatmakerUids);
+      setMixBy(pd.mixBy);
+      setMixByUids(pd.mixByUids);
+    }
+    prevProject.current = project;
+  }, [project, projectData]);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -299,6 +315,24 @@ export default function TrackForm({
             />
           </div>
 
+          <PersonSelector
+            label="Prod by"
+            options={users}
+            value={beatmakers}
+            valueUids={beatmakerUids}
+            onChange={(names, uids) => { setBeatmakers(names); setBeatmakerUids(uids); }}
+            placeholder="Продюсер"
+          />
+
+          <PersonSelector
+            label="Mix by"
+            options={users}
+            value={mixBy}
+            valueUids={mixByUids}
+            onChange={(names, uids) => { setMixBy(names); setMixByUids(uids); }}
+            placeholder="Кто сводил"
+          />
+
           <div className="form-row">
             <div className="form-group">
               <label>Проект / Альбом</label>
@@ -330,22 +364,6 @@ export default function TrackForm({
                 valueUids={artistUids}
                 onChange={(names, uids) => { setArtists(names); setArtistUids(uids); }}
                 placeholder="Участники альбома"
-              />
-              <PersonSelector
-                label="Prod by (альбом)"
-                options={users}
-                value={beatmakers}
-                valueUids={beatmakerUids}
-                onChange={(names, uids) => { setBeatmakers(names); setBeatmakerUids(uids); }}
-                placeholder="Продюсеры альбома"
-              />
-              <PersonSelector
-                label="Mix by (альбом)"
-                options={users}
-                value={mixBy}
-                valueUids={mixByUids}
-                onChange={(names, uids) => { setMixBy(names); setMixByUids(uids); }}
-                placeholder="Кто сводил альбом"
               />
               <button
                 className="btn-add-inline"
