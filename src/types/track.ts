@@ -70,6 +70,25 @@ export interface Track {
   releaseType?: ReleaseType;
   albumBeatmakers?: string[] | string;
   albumMixBy?: string[] | string;
+  platformUrl?: string;
+}
+
+export type PlatformKind = 'soundcloud' | 'yandex' | 'vkontakte' | 'other';
+
+export function detectPlatform(url?: string): PlatformKind {
+  const host = (url || '').toLowerCase();
+  if (host.includes('soundcloud.com') || host.includes('w.soundcloud.com')) return 'soundcloud';
+  if (host.includes('music.yandex')) return 'yandex';
+  if (host.includes('vk.com') || host.includes('vk.ru') || host.includes('vkontakte')) return 'vkontakte';
+  return 'other';
+}
+
+export function soundCloudEmbedSrc(url: string): string {
+  return (
+    'https://w.soundcloud.com/player/?' +
+    `url=${encodeURIComponent(url)}` +
+    '&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false&visual=false&color=%23f2740d'
+  );
 }
 
 export const CHECKLIST_TEMPLATES: Omit<ChecklistItem, 'id'>[] = [

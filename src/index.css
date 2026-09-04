@@ -23,6 +23,9 @@
   --green-500: #10b981;
   --amber-500: #f59e0b;
   --purple-500: #8b5cf6;
+  --orange-100: #ffedd5;
+  --orange-300: #fdba74;
+  --orange-600: #ea580c;
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 6px -1px rgba(15,23,42,0.1), 0 2px 4px -2px rgba(15,23,42,0.1);
   --shadow-lg: 0 10px 15px -3px rgba(15,23,42,0.1), 0 4px 6px -4px rgba(15,23,42,0.1);
@@ -2002,6 +2005,61 @@ body {
 
 .album-header-delete {
   margin-left: auto;
+}
+
+.platform-player {
+  margin: 0 0 8px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.platform-player iframe {
+  display: block;
+  border: none;
+}
+
+.listen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+  background: var(--gray-100);
+  border: 1px solid var(--gray-300);
+  border-radius: 999px;
+  padding: 5px 12px;
+  margin: 0 0 8px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.listen-btn:hover {
+  background: var(--orange-100);
+  border-color: var(--orange-300);
+  color: var(--gray-800);
+}
+
+.at-listen {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--gray-500);
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.at-listen:hover {
+  background: var(--orange-100);
+  color: var(--orange-600);
 }
 
 .album-track-bottom-row {

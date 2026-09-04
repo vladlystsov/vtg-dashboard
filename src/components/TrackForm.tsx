@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile } from '../types/track';
-import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray } from '../types/track';
+import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform } from '../types/track';
+import { PlatformPlayer } from './TracksListView';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadCover } from '../services/fileService';
@@ -145,6 +146,8 @@ export default function TrackForm({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(initialTrack?.coverUrl || null);
+  const [platformUrl, setPlatformUrl] = useState(initialTrack?.platformUrl || '');
+  const [coverUrlExternal, setCoverUrlExternal] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -225,7 +228,9 @@ export default function TrackForm({
 
     let coverUrl = initialTrack?.coverUrl;
     try {
-      if (coverFile) {
+      if (coverUrlExternal.trim()) {
+        coverUrl = coverUrlExternal.trim();
+      } else if (coverFile) {
         coverUrl = await withTimeout(uploadCover(coverFile), 20000, 'обработка обложки');
       }
       const finalProject = project.trim();
@@ -267,6 +272,7 @@ export default function TrackForm({
         checklist,
         createdBy: profile?.uid || '',
         releaseType,
+        platformUrl: platformUrl.trim() || undefined,
       };
       await withTimeout(onSave(data, initialTrack?.id), 20000, 'сохранение в Firestore');
       onClose();
@@ -405,6 +411,37 @@ export default function TrackForm({
               {coverPreview && <img className="cover-preview" src={coverPreview} alt="Обложка" />}
               <input type="file" accept="image/*" onChange={handleCoverChange} />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label>Ссылка на платформу</label>
+            <input
+              type="url"
+              value={platformUrl}
+              onChange={(e) => setPlatformUrl(e.target.value)}
+              placeholder="https://soundcloud.com/... или ссылка на Яндекс Музыку / VK"
+            />
+            {detectPlatform(platformUrl) === 'soundcloud' && (
+              <div className="form-hint" style={{ marginTop: 4 }}>
+                Предпросмотр плеера SoundCloud (для прослушивания в РФ нужен VPN):
+              </div>
+            )}
+            {detectPlatform(platformUrl) === 'soundcloud' && platformUrl.trim().startsWith('https://soundcloud.com/') && (
+              <PlatformPlayer url={platformUrl.trim()} compact />
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>Обложка (URL) — указать внешнюю ссылку вместо загрузки</label>
+            <input
+              type="url"
+              value={coverUrlExternal}
+              onChange={(e) => {
+                setCoverUrlExternal(e.target.value);
+                if (e.target.value.trim()) setCoverPreview(e.target.value.trim());
+              }}
+              placeholder="https://.../cover.jpg"
+            />
           </div>
 
           <div className="form-row">

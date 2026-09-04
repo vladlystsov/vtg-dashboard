@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
-import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames } from '../types/track';
+import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 
 interface TracksListViewProps {
@@ -22,7 +22,7 @@ interface AlbumGroup {
 }
 
 export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUpdateTrack }: TracksListViewProps) {
-  const [tab, setTab] = useState<'singles' | 'compilations'>('singles');
+  const [tab, setTab] = useState<'singles' | 'compilations' | 'shipped'>('singles');
   const [filterArtist, setFilterArtist] = useState('');
 
   const allArtistNames = useMemo(() => {
@@ -60,6 +60,9 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
 
   const grouped = useMemo(() => groupByProject(compilations, userMap), [compilations, userMap]);
 
+  const shippedSingles = useMemo(() => singles.filter((t) => !!t.platformUrl), [singles]);
+  const shippedAlbums = useMemo(() => grouped.filter((a) => a.tracks.some((t) => !!t.platformUrl)), [grouped]);
+
   return (
     <div className="tracks-view">
       <div className="tracks-toolbar">
@@ -69,6 +72,9 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
           </button>
           <button className={`tracks-tab ${tab === 'compilations' ? 'active' : ''}`} onClick={() => setTab('compilations')}>
             Сборники ({compilations.length})
+          </button>
+          <button className={`tracks-tab ${tab === 'shipped' ? 'active' : ''}`} onClick={() => setTab('shipped')}>
+            Отгружено ({shippedSingles.length + shippedAlbums.length})
           </button>
         </div>
         <div className="tracks-filter">
@@ -102,6 +108,26 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
             <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} />
           ))}
           {grouped.length === 0 && <div className="empty-state">Нет сборников</div>}
+        </div>
+      )}
+
+      {tab === 'shipped' && (
+        <div className="albums-grid">
+          {shippedSingles.map((track) => (
+            <SingleTrackCard
+              key={track.id}
+              track={track}
+              userMap={userMap}
+              onOpen={onOpen}
+              onDelete={onDelete}
+            />
+          ))}
+          {shippedAlbums.map((album) => (
+            <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} />
+          ))}
+          {shippedSingles.length === 0 && shippedAlbums.length === 0 && (
+            <div className="empty-state">Нет отгруженных релизов. Укажите ссылку на платформу в карточке трека.</div>
+          )}
         </div>
       )}
     </div>
@@ -202,6 +228,37 @@ function splitNames(input: string): string[] {
   return out;
 }
 
+export function PlatformPlayer({ url, compact = false }: { url?: string; compact?: boolean }) {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (detectPlatform(trimmed) === 'soundcloud') {
+    return (
+      <div className={`platform-player ${compact ? 'platform-player-compact' : ''}`} onClick={(e) => e.stopPropagation()}>
+        <iframe
+          title="SoundCloud"
+          width="100%"
+          height={compact ? 116 : 166}
+          frameBorder="0"
+          allow="autoplay"
+          scrolling="no"
+          src={soundCloudEmbedSrc(trimmed)}
+        />
+      </div>
+    );
+  }
+  return (
+    <a
+      className="listen-btn"
+      href={trimmed}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+    >
+      ▶ Слушать на платформе
+    </a>
+  );
+}
+
 function SingleTrackCard({
   track,
   userMap,
@@ -271,6 +328,7 @@ function SingleTrackCard({
           </div>
           <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
         </div>
+        <PlatformPlayer url={track.platformUrl} />
       </div>
     </div>
   );
@@ -320,6 +378,10 @@ function AlbumCard({
   const progressPct = totalTracks ? Math.round((readyCount / totalTracks) * 100) : 0;
 
   const repTrack = album.tracks[0];
+
+  const albumPlatformUrl =
+    album.tracks.find((t) => t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud')?.platformUrl
+    || album.tracks.find((t) => t.platformUrl)?.platformUrl;
 
   const trackBeatmakersUnion = unionNames(album.tracks.map((t) => beatmakerNamesStr(t, userMap)));
   const trackMixByUnion = unionNames(album.tracks.map((t) => mixByNamesStr(t, userMap)));
@@ -443,6 +505,7 @@ function AlbumCard({
           <span className="progress-text">{readyCount}/{totalTracks}</span>
           <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
         </div>
+        <PlatformPlayer url={albumPlatformUrl} />
         <button
           className="album-tracklist-toggle"
           onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
@@ -506,9 +569,22 @@ function AlbumTrackRow({
             </div>
           )}
         </div>
+        {track.platformUrl && (
+          <a
+            className="at-listen"
+            href={track.platformUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Слушать на платформе"
+            onClick={(e) => e.stopPropagation()}
+          >
+            ▶
+          </a>
+        )}
         {(isArtist || isOwnerOrAdmin) && (
           <button
             className="at-delete"
+
             title="Удалить"
             onClick={(e) => {
               e.stopPropagation();
