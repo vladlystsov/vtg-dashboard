@@ -1946,6 +1946,10 @@ body {
   white-space: nowrap;
 }
 
+.at-mine.at-participant {
+  background: var(--gray-400);
+}
+
 .at-artists {
   font-size: 13px;
   color: var(--gray-500);
@@ -1994,9 +1998,6 @@ body {
 }
 
 .album-header-delete {
-  width: 20px;
-  height: 20px;
-  font-size: 16px;
   margin-left: auto;
 }
 

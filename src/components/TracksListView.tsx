@@ -140,24 +140,16 @@ function groupByProject(tracks: Track[], userMap: Map<string, UserProfile>): Alb
   return groups;
 }
 
-function isMineByNames(track: Track, myName: string, userMap: Map<string, UserProfile>): boolean {
-  const seen = new Set<string>();
-  const allNames: string[] = [];
+function isArtistOnTrack(track: Track, myName: string, userMap: Map<string, UserProfile>): boolean {
+  const key = myName.toLowerCase();
+  return resolveNames(track.artists, track.artistUids, userMap).some((n) => n.toLowerCase() === key)
+    || !!(track.feat && track.feat.trim().toLowerCase() === key);
+}
 
-  const check = (key: string) => {
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      allNames.push(key);
-    }
-  };
-
-  for (const n of resolveNames(track.artists, track.artistUids, userMap)) check(n.toLowerCase());
-  for (const n of resolveNames(track.beatmakers, track.beatmakerUids, userMap)) check(n.toLowerCase());
-  for (const n of resolveNames(track.mixBy, track.mixByUids, userMap)) check(n.toLowerCase());
-
-  if (track.feat) check(track.feat.toLowerCase());
-
-  return allNames.includes(myName);
+function isParticipantOnTrack(track: Track, myName: string, userMap: Map<string, UserProfile>): boolean {
+  const key = myName.toLowerCase();
+  return resolveNames(track.beatmakers, track.beatmakerUids, userMap).some((n) => n.toLowerCase() === key)
+    || resolveNames(track.mixBy, track.mixByUids, userMap).some((n) => n.toLowerCase() === key);
 }
 
 function getChecklistProgress(checklist: Track['checklist']): { done: number; total: number; pct: number } {
@@ -225,7 +217,9 @@ function SingleTrackCard({
   const effectiveIsOwner = profile?.role === 'owner' || profile?.role === 'admin';
   const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
   const { done, total, pct } = getChecklistProgress(track.checklist);
-  const isMine = isMineByNames(track, myName, userMap);
+  const isArtist = isArtistOnTrack(track, myName, userMap);
+  const isParticipant = isParticipantOnTrack(track, myName, userMap);
+  const badge = isArtist ? 'Мой' : isParticipant ? 'Участник' : null;
 
   return (
     <div className="album-card album-card-single" onClick={() => onOpen(track)}>
@@ -243,7 +237,7 @@ function SingleTrackCard({
           <div className="album-track-bottom-left">
             <div className="album-track-title-text">
               <span className="album-track-title-name">{track.title}</span>
-              {isMine && <span className="at-mine">Мой</span>}
+              {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
             </div>
             {artistNamesStr(track, userMap) && (
               <div className="album-track-credits">
@@ -254,7 +248,7 @@ function SingleTrackCard({
             )}
           </div>
           <div className="album-track-bottom-right">
-            {(isMine || effectiveIsOwner) && (
+            {(isArtist || effectiveIsOwner) && (
               <button
                 className="at-delete"
                 title="Удалить"
@@ -298,7 +292,11 @@ function AlbumCard({
   const { profile } = useAuth();
   const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
   const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
-  const isMine = album.tracks.some((t) => isMineByNames(t, myName, userMap));
+  const isMine = album.tracks.some((t) => isArtistOnTrack(t, myName, userMap));
+  const isParticipant = album.tracks.some((t) => isParticipantOnTrack(t, myName, userMap))
+    || asArray(album.tracks[0]?.albumBeatmakers).some((n) => n.toLowerCase() === myName)
+    || asArray(album.tracks[0]?.albumMixBy).some((n) => n.toLowerCase() === myName);
+  const albumBadge = isMine ? 'Мой' : isParticipant ? 'Участник' : null;
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [producers, setProducers] = useState('');
@@ -389,6 +387,7 @@ function AlbumCard({
       <div className="album-main">
         <div className="album-header-row">
           <div className="album-title">{album.authorName ? album.name.replace(`${album.authorName} — `, '') : album.name}</div>
+          {albumBadge && <span className={isMine ? 'at-mine' : 'at-mine at-participant'}>{albumBadge}</span>}
           <span className="album-type-badge">{typeLabel}</span>
           {(isMine || isOwnerOrAdmin) && (
             <button
@@ -486,7 +485,9 @@ function AlbumTrackRow({
   onDelete: (id: string) => void;
 }) {
   const { done, total, pct } = getChecklistProgress(track.checklist);
-  const isMine = isMineByNames(track, myName, userMap);
+  const isArtist = isArtistOnTrack(track, myName, userMap);
+  const isParticipant = isParticipantOnTrack(track, myName, userMap);
+  const badge = isArtist ? 'Мой' : isParticipant ? 'Участник' : null;
 
   return (
     <div className="album-track-row" onClick={() => onOpen(track)}>
@@ -495,7 +496,7 @@ function AlbumTrackRow({
         <div className="at-info">
           <div className="at-title-line">
             <span className="at-title">{track.title}</span>
-            {isMine && <span className="at-mine">Мой</span>}
+            {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
           </div>
           {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}
           {(beatmakerNamesStr(track, userMap) || mixByNamesStr(track, userMap)) && (
@@ -505,7 +506,7 @@ function AlbumTrackRow({
             </div>
           )}
         </div>
-        {(isMine || isOwnerOrAdmin) && (
+        {(isArtist || isOwnerOrAdmin) && (
           <button
             className="at-delete"
             title="Удалить"
