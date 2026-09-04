@@ -1759,8 +1759,9 @@ body {
   flex-shrink: 0;
 }
 
-.album-credits-edit {
+.btn-small-ghost.album-credits-edit {
   margin: 2px 0 10px;
+  margin-left: 0;
 }
 
 .album-credits-form {
