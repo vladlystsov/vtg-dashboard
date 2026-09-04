@@ -135,6 +135,8 @@ export default function TrackForm({
   const [mixByUids, setMixByUids] = useState<string[]>(asArray(initialTrack?.mixByUids));
   const [feat, setFeat] = useState(initialTrack?.feat || '');
   const [project, setProject] = useState(initialTrack?.project || '');
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
   const [trackNumber, setTrackNumber] = useState<number | undefined>(initialTrack?.trackNumber || undefined);
   const [column, setColumn] = useState<KanbanColumn>(initialTrack?.column || 'ideas');
   const [priority, setPriority] = useState<Track['priority']>(initialTrack?.priority || 'medium');
@@ -193,6 +195,15 @@ export default function TrackForm({
     if (file) {
       setCoverFile(file);
       setCoverPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const applyNewProject = () => {
+    const name = newProjectName.trim();
+    if (name) {
+      setProject(name);
+      setNewProjectName('');
+      setNewProjectOpen(false);
     }
   };
 
@@ -342,10 +353,42 @@ export default function TrackForm({
           <div className="form-row">
             <div className="form-group">
               <label>Проект / Альбом</label>
-              <select value={project} onChange={(e) => setProject(e.target.value)}>
-                <option value="">Выберите проект/альбом</option>
-                {projects.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+              {!newProjectOpen ? (
+                <div className="project-picker">
+                  <select value={project} onChange={(e) => setProject(e.target.value)}>
+                    <option value="">Выберите проект/альбом</option>
+                    {project && !projects.includes(project) && <option value={project}>{project}</option>}
+                    {projects.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <button type="button" className="btn-add-inline" onClick={() => setNewProjectOpen(true)}>
+                    + Новый проект
+                  </button>
+                </div>
+              ) : (
+                <div className="project-picker">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Название нового альбома"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); applyNewProject(); }
+                      if (e.key === 'Escape') { setNewProjectOpen(false); setNewProjectName(''); }
+                    }}
+                  />
+                  <button type="button" className="btn-secondary" onClick={applyNewProject} disabled={!newProjectName.trim()}>
+                    Создать
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => { setNewProjectOpen(false); setNewProjectName(''); }}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              )}
             </div>
             {hasProject && (
               <div className="form-group">
@@ -461,6 +504,7 @@ export default function TrackForm({
                 <option value="mixing">Сведение</option>
                 <option value="mastering">Мастеринг</option>
                 <option value="ready">Готово</option>
+                <option value="completed">Завершено</option>
               </select>
             </div>
           </div>

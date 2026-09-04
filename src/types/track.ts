@@ -1,4 +1,4 @@
-export type TrackStatus = 'draft' | 'recording' | 'mixing' | 'mastering' | 'ready';
+export type TrackStatus = 'draft' | 'recording' | 'mixing' | 'mastering' | 'ready' | 'completed';
 
 export type KanbanColumn = 'ideas' | 'in_progress' | 'review' | 'ready_to_publish' | 'released';
 
@@ -87,7 +87,7 @@ export function soundCloudEmbedSrc(url: string): string {
   return (
     'https://w.soundcloud.com/player/?' +
     `url=${encodeURIComponent(url)}` +
-    '&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false&visual=false&color=%23f2740d'
+    '&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false&visual=false&color=%23f2740d&enable_api=true'
   );
 }
 
@@ -116,6 +116,7 @@ export const STATUS_LABELS: Record<TrackStatus, string> = {
   mixing: 'Сведение',
   mastering: 'Мастеринг',
   ready: 'Готово',
+  completed: 'Завершено',
 };
 
 export type TrackFormData = {

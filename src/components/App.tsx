@@ -249,7 +249,7 @@ export default function App() {
       } else if (oldTrack && oldTrack.status !== payload.status) {
         const statusLabels: Record<string, string> = {
           draft: 'Черновик', recording: 'Запись', mixing: 'Сведение',
-          mastering: 'Мастеринг', ready: 'Готово',
+          mastering: 'Мастеринг', ready: 'Готово', completed: 'Завершено',
         };
         await notifyAdminsAndOwner(
           `Статус трека «${payload.title}» изменён: ${statusLabels[oldTrack.status] || oldTrack.status} → ${statusLabels[payload.status] || payload.status}`
@@ -346,7 +346,12 @@ export default function App() {
         )}
 
         {canUseBoard && view === 'board' && (
-          <KanbanBoard tracks={tracks} onOpenTrack={handleOpenTrack} onMove={handleMove} userMap={userMap} />
+          <KanbanBoard
+            tracks={tracks.filter((t) => t.status !== 'completed')}
+            onOpenTrack={handleOpenTrack}
+            onMove={handleMove}
+            userMap={userMap}
+          />
         )}
 
         {canUseBoard && view === 'tracks' && (

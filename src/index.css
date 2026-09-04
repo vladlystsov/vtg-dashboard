@@ -21,6 +21,7 @@
   --crimson-600: #dc2626;
   --crimson-red: #b91c1c;
   --green-500: #10b981;
+  --green-600: #059669;
   --amber-500: #f59e0b;
   --purple-500: #8b5cf6;
   --orange-100: #ffedd5;
@@ -2062,6 +2063,104 @@ body {
   color: var(--orange-600);
 }
 
+.shipped-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 60px;
+  z-index: 5;
+}
+
+.sp-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sp-btn:hover {
+  background: var(--gray-100);
+}
+
+.sp-btn.sp-play {
+  width: 42px;
+  height: 42px;
+  font-size: 16px;
+  background: var(--blue-600);
+  color: #fff;
+  border-color: var(--blue-600);
+}
+
+.sp-btn.sp-active {
+  background: var(--orange-100);
+  border-color: var(--orange-300);
+  color: var(--orange-600);
+}
+
+.sp-track {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sp-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-open {
+  text-decoration: none;
+  color: var(--gray-400);
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.sp-open:hover {
+  color: var(--orange-600);
+}
+
+.sp-empty {
+  color: var(--gray-400);
+  font-size: 13px;
+}
+
+.sp-frame {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 320px;
+  height: 166px;
+  pointer-events: none;
+}
+
 .album-track-bottom-row {
   display: flex;
   align-items: flex-start;
@@ -2147,6 +2246,19 @@ body {
 .status-mixing { background: rgba(245,158,11,0.14); color: var(--amber-500); }
 .status-mastering { background: rgba(139,92,246,0.14); color: var(--purple-500); }
 .status-ready { background: rgba(16,185,129,0.14); color: var(--green-500); }
+.status-completed { background: rgba(16,185,129,0.22); color: var(--green-600); }
+
+.project-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-picker select,
+.project-picker input {
+  flex: 1;
+  min-width: 0;
+}
 
 /* ===== Gate block ===== */
 .gate-block {

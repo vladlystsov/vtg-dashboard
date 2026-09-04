@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
 import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
+import ShippedPlayer, { type ShippedTrackItem } from './ShippedPlayer';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -60,18 +61,41 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
 
   const grouped = useMemo(() => groupByProject(compilations, userMap), [compilations, userMap]);
 
-  const shippedSingles = useMemo(() => singles.filter((t) => !!t.platformUrl), [singles]);
-  const shippedAlbums = useMemo(() => grouped.filter((a) => a.tracks.some((t) => !!t.platformUrl)), [grouped]);
+  const isCompleted = (t: Track) => t.status === 'completed';
+  const activeSingles = useMemo(() => singles.filter((t) => !isCompleted(t)), [singles]);
+  const activeGroups = useMemo(() => grouped.filter((g) => !g.tracks.every(isCompleted)), [grouped]);
+  const shippedSingles = useMemo(() => singles.filter((t) => isCompleted(t) || !!t.platformUrl), [singles]);
+  const shippedAlbums = useMemo(
+    () => grouped.filter((g) => g.tracks.every(isCompleted) || g.tracks.some((t) => !!t.platformUrl)),
+    [grouped]
+  );
+
+  const shippedPlayerTracks = useMemo<ShippedTrackItem[]>(() => {
+    const items: ShippedTrackItem[] = [];
+    for (const t of shippedSingles) {
+      if (t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud') {
+        items.push({ id: t.id, title: t.title, url: t.platformUrl });
+      }
+    }
+    for (const a of shippedAlbums) {
+      for (const t of a.tracks) {
+        if (t.platformUrl && detectPlatform(t.platformUrl) === 'soundcloud') {
+          items.push({ id: t.id, title: t.title, url: t.platformUrl });
+        }
+      }
+    }
+    return items;
+  }, [shippedSingles, shippedAlbums]);
 
   return (
     <div className="tracks-view">
       <div className="tracks-toolbar">
         <div className="tracks-tabs">
           <button className={`tracks-tab ${tab === 'singles' ? 'active' : ''}`} onClick={() => setTab('singles')}>
-            Синглы ({singles.length})
+            Синглы ({activeSingles.length})
           </button>
           <button className={`tracks-tab ${tab === 'compilations' ? 'active' : ''}`} onClick={() => setTab('compilations')}>
-            Сборники ({compilations.length})
+            Сборники ({activeGroups.length})
           </button>
           <button className={`tracks-tab ${tab === 'shipped' ? 'active' : ''}`} onClick={() => setTab('shipped')}>
             Отгружено ({shippedSingles.length + shippedAlbums.length})
@@ -89,7 +113,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
 
       {tab === 'singles' && (
         <div className="albums-grid">
-          {singles.map((track) => (
+          {activeSingles.map((track) => (
             <SingleTrackCard
               key={track.id}
               track={track}
@@ -98,37 +122,41 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
               onDelete={onDelete}
             />
           ))}
-          {singles.length === 0 && <div className="empty-state">Нет синглов</div>}
+          {activeSingles.length === 0 && <div className="empty-state">Нет синглов</div>}
         </div>
       )}
 
       {tab === 'compilations' && (
         <div className="albums-grid">
-          {grouped.map((album) => (
+          {activeGroups.map((album) => (
             <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} />
           ))}
-          {grouped.length === 0 && <div className="empty-state">Нет сборников</div>}
+          {activeGroups.length === 0 && <div className="empty-state">Нет сборников</div>}
         </div>
       )}
 
       {tab === 'shipped' && (
-        <div className="albums-grid">
-          {shippedSingles.map((track) => (
-            <SingleTrackCard
-              key={track.id}
-              track={track}
-              userMap={userMap}
-              onOpen={onOpen}
-              onDelete={onDelete}
-            />
-          ))}
-          {shippedAlbums.map((album) => (
-            <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} />
-          ))}
-          {shippedSingles.length === 0 && shippedAlbums.length === 0 && (
-            <div className="empty-state">Нет отгруженных релизов. Укажите ссылку на платформу в карточке трека.</div>
-          )}
-        </div>
+        <>
+          {shippedPlayerTracks.length > 0 && <ShippedPlayer tracks={shippedPlayerTracks} />}
+          <div className="albums-grid">
+            {shippedSingles.map((track) => (
+              <SingleTrackCard
+                key={track.id}
+                track={track}
+                userMap={userMap}
+                onOpen={onOpen}
+                onDelete={onDelete}
+                hideEmbed
+              />
+            ))}
+            {shippedAlbums.map((album) => (
+              <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} hideEmbed />
+            ))}
+            {shippedSingles.length === 0 && shippedAlbums.length === 0 && (
+              <div className="empty-state">Нет отгруженных релизов. Отметьте трек статусом «Завершено» или укажите ссылку на платформу в карточке трека.</div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -228,10 +256,11 @@ function splitNames(input: string): string[] {
   return out;
 }
 
-export function PlatformPlayer({ url, compact = false }: { url?: string; compact?: boolean }) {
+export function PlatformPlayer({ url, compact = false, hideEmbed = false }: { url?: string; compact?: boolean; hideEmbed?: boolean }) {
   if (!url) return null;
   const trimmed = url.trim();
   if (detectPlatform(trimmed) === 'soundcloud') {
+    if (hideEmbed) return null;
     return (
       <div className={`platform-player ${compact ? 'platform-player-compact' : ''}`} onClick={(e) => e.stopPropagation()}>
         <iframe
@@ -264,11 +293,13 @@ function SingleTrackCard({
   userMap,
   onOpen,
   onDelete,
+  hideEmbed = false,
 }: {
   track: Track;
   userMap: Map<string, UserProfile>;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
+  hideEmbed?: boolean;
 }) {
   const { profile } = useAuth();
   const effectiveIsOwner = profile?.role === 'owner' || profile?.role === 'admin';
@@ -328,7 +359,7 @@ function SingleTrackCard({
           </div>
           <span className={`at-status status-${track.status}`}>{STATUS_LABELS[track.status]}</span>
         </div>
-        <PlatformPlayer url={track.platformUrl} />
+        <PlatformPlayer url={track.platformUrl} hideEmbed={hideEmbed} />
       </div>
     </div>
   );
@@ -340,12 +371,14 @@ function AlbumCard({
   onOpen,
   onDelete,
   onUpdateTrack,
+  hideEmbed = false,
 }: {
   album: AlbumGroup;
   userMap: Map<string, UserProfile>;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
   onUpdateTrack?: (id: string, patch: Partial<Track>) => Promise<void>;
+  hideEmbed?: boolean;
 }) {
   const { profile } = useAuth();
   const isOwnerOrAdmin = profile?.role === 'owner' || profile?.role === 'admin';
@@ -365,7 +398,7 @@ function AlbumCard({
   const effectiveType = album.releaseType === 'auto' ? album.detectedType : album.releaseType;
   const typeLabel = RELEASE_TYPE_LABELS[effectiveType];
 
-  const overallStatus = album.tracks.every((t) => t.status === 'ready')
+  const overallStatus = album.tracks.every((t) => t.status === 'ready' || t.status === 'completed')
     ? 'ready'
     : album.tracks.some((t) => t.status === 'mixing' || t.status === 'mastering')
     ? 'mixing'
@@ -373,7 +406,7 @@ function AlbumCard({
     ? 'recording'
     : 'draft';
 
-  const readyCount = album.tracks.filter((t) => t.status === 'ready').length;
+  const readyCount = album.tracks.filter((t) => t.status === 'ready' || t.status === 'completed').length;
   const totalTracks = album.tracks.length;
   const progressPct = totalTracks ? Math.round((readyCount / totalTracks) * 100) : 0;
 
@@ -505,7 +538,7 @@ function AlbumCard({
           <span className="progress-text">{readyCount}/{totalTracks}</span>
           <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
         </div>
-        <PlatformPlayer url={albumPlatformUrl} />
+        <PlatformPlayer url={albumPlatformUrl} hideEmbed={hideEmbed} />
         <button
           className="album-tracklist-toggle"
           onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
