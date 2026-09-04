@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { UserProfile, Track, ArtistRequest, UserRole } from '../types/track';
-import { denyArtistRole } from '../services/artistRequestService';
+import { denyArtistRole, clearRequestHistory } from '../services/artistRequestService';
 
 interface AdminPanelProps {
   users: UserProfile[];
@@ -25,6 +25,11 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
+  const handleClearHistory = async () => {
+    if (!confirm('Удалить все заявки из истории? Это действие необратимо.')) return;
+    await clearRequestHistory();
+  };
+
   return (
     <div className="admin-panel">
       <h2>Панель администратора</h2>
@@ -46,7 +51,14 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
 
       {tab === 'requests' && (
         <div className="admin-section">
-          {pendingRequests.length === 0 && <div className="empty-state">Нет новых заявок</div>}
+          <div className="admin-section-header">
+            {requests.length > 0 && (
+              <button className="btn-reject btn-clear-history" onClick={handleClearHistory}>
+                Очистить историю заявок
+              </button>
+            )}
+          </div>
+          {pendingRequests.length === 0 && requests.length === 0 && <div className="empty-state">Нет заявок</div>}
           {requests.map((req) => (
             <div className={`admin-request ${req.status}`} key={req.id}>
               <div className="admin-request-info">

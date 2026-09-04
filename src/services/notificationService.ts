@@ -2,10 +2,12 @@ import {
   collection,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   onSnapshot,
   query,
   orderBy,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -68,5 +70,16 @@ export async function markAllNotificationsRead(notifications: AppNotification[],
     notifications.map((n) =>
       markNotificationRead(n.id, uid, n.readBy)
     )
+  );
+}
+
+export async function deleteNotification(id: string) {
+  await deleteDoc(doc(db, 'notifications', id));
+}
+
+export async function clearAllNotifications() {
+  const snapshot = await getDocs(notificationsRef);
+  await Promise.allSettled(
+    snapshot.docs.map((d) => deleteDoc(doc(db, 'notifications', d.id)))
   );
 }

@@ -8,6 +8,7 @@ import ProfileView from './ProfileView';
 import AdminPanel from './AdminPanel';
 import type { Track, UserProfile, ArtistRequest, KanbanColumn } from '../types/track';
 import type { TrackFormData } from '../types/track';
+import { asArray } from '../types/track';
 import {
   subscribeToTracks,
   createTrack,
@@ -28,6 +29,8 @@ import {
   subscribeToNotifications,
   markAllNotificationsRead,
   createNotification,
+  deleteNotification,
+  clearAllNotifications,
 } from '../services/notificationService';
 import type { AppNotification } from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -119,7 +122,7 @@ export default function App() {
       ...(t.mixByUids || []).map(resolveName),
       ...(t.artists || []),
       ...(t.beatmakers || []),
-      ...(t.mixBy || []),
+      ...asArray(t.mixBy),
       t.feat as string,
     ].filter(Boolean)),
   ])).filter(Boolean);
@@ -228,6 +231,17 @@ export default function App() {
     setNotifications((prev) => prev.map((n) => ({ ...n, readBy: Array.from(new Set([...(n.readBy || []), myUid])) })));
   };
 
+  const handleDeleteNotification = async (id: string) => {
+    await deleteNotification(id);
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const handleClearAllNotifications = async () => {
+    if (!confirm('Удалить все уведомления?')) return;
+    await clearAllNotifications();
+    setNotifications([]);
+  };
+
   const handleOpenAdminRequest = () => setView('admin');
 
   return (
@@ -243,6 +257,8 @@ export default function App() {
         notifications={notifications}
         unreadCount={unreadCount}
         onMarkAllRead={handleMarkAllRead}
+        onDeleteNotification={handleDeleteNotification}
+        onClearAll={handleClearAllNotifications}
         onOpenAdminRequest={handleOpenAdminRequest}
       />
 

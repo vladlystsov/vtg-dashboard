@@ -12,6 +12,8 @@ interface HeaderProps {
   notifications: AppNotification[];
   unreadCount: number;
   onMarkAllRead: () => void;
+  onDeleteNotification: (id: string) => void;
+  onClearAll: () => void;
   onOpenAdminRequest: () => void;
 }
 
@@ -28,6 +30,8 @@ export default function Header({
   notifications,
   unreadCount,
   onMarkAllRead,
+  onDeleteNotification,
+  onClearAll,
   onOpenAdminRequest,
 }: HeaderProps) {
   const { profile, signOut } = useAuth();
@@ -87,45 +91,58 @@ export default function Header({
           + Создать трек
         </button>
 
-        {canAdmin && (
-          <div className="notif-menu" ref={notifRef}>
-            <button className="notif-bell" onClick={() => setNotifOpen((o) => !o)}>
-              🔔
-              {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
-            </button>
-            {notifOpen && (
-              <div className="notif-dropdown">
-                <div className="notif-header">
-                  <span>Уведомления</span>
+        <div className="notif-menu" ref={notifRef}>
+          <button className="notif-bell" onClick={() => setNotifOpen((o) => !o)}>
+            🔔
+            {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+          </button>
+          {notifOpen && (
+            <div className="notif-dropdown">
+              <div className="notif-header">
+                <span>Уведомления</span>
+                <div className="notif-header-actions">
                   {unreadCount > 0 && (
                     <button className="notif-markall" onClick={onMarkAllRead}>
                       Прочитать всё
                     </button>
                   )}
+                  {notifications.length > 0 && (
+                    <button className="notif-clearall" onClick={onClearAll}>
+                      Удалить всё
+                    </button>
+                  )}
                 </div>
-                {notifications.length === 0 && (
-                  <div className="notif-empty">Уведомлений нет</div>
-                )}
-                {notifications.map((n) => {
-                  const unread = !(n.readBy || []).includes(profile?.uid || '');
-                  return (
-                    <button
-                      key={n.id}
-                      className={`notif-item ${unread ? 'unread' : ''}`}
-                      onClick={openAdminAndClose}
-                    >
+              </div>
+              {notifications.length === 0 && (
+                <div className="notif-empty">Уведомлений нет</div>
+              )}
+              {notifications.map((n) => {
+                const unread = !(n.readBy || []).includes(profile?.uid || '');
+                return (
+                  <div key={n.id} className={`notif-item ${unread ? 'unread' : ''}`}>
+                    <button className="notif-item-main" onClick={openAdminAndClose}>
                       <span className="notif-dot" />
                       <span className="notif-text">{n.text}</span>
                       <span className="notif-time">
                         {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                    <button
+                      className="notif-delete"
+                      title="Удалить"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteNotification(n.id);
+                      }}
+                    >
+                      🗑
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="profile-menu" ref={menuRef}>
           <button className="user-info" onClick={() => setMenuOpen((o) => !o)}>

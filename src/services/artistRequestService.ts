@@ -4,6 +4,8 @@ import {
   updateDoc,
   doc,
   getDoc,
+  getDocs,
+  deleteDoc,
   onSnapshot,
   query,
   orderBy,
@@ -78,6 +80,13 @@ export async function rejectArtistRequest(requestId: string) {
 
 export async function denyArtistRole(uid: string) {
   await updateDoc(doc(db, 'users', uid), { isArtist: false, artistVerified: false });
+}
+
+export async function clearRequestHistory() {
+  const snapshot = await getDocs(requestsRef);
+  await Promise.allSettled(
+    snapshot.docs.map((d) => deleteDoc(doc(db, 'artistRequests', d.id)))
+  );
 }
 
 export type { ArtistRole };

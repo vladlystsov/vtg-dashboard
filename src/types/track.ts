@@ -116,6 +116,12 @@ export type TrackFormData = {
   releaseType?: ReleaseType;
 };
 
+export function asArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x) => typeof x === 'string');
+  if (typeof v === 'string' && v.trim()) return [v];
+  return [];
+}
+
 export interface ArtistRequest {
   id: string;
   uid: string;

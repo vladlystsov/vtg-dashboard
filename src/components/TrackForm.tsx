@@ -335,12 +335,27 @@ export default function TrackForm({
               ) : (
                 <>
                   <select value={project} onChange={(e) => setProject(e.target.value)}>
-                    <option value="">Без проекта (сингл)</option>
+                    <option value="">Сингл (без проекта)</option>
                     {projects.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
-                  <button className="btn-add-inline" onClick={() => setShowNewProject(true)}>
-                    + Новый проект
-                  </button>
+                  <div className="form-row" style={{ gap: 8 }}>
+                    <button className="btn-add-inline" onClick={() => setShowNewProject(true)}>
+                      + Новый проект
+                    </button>
+                    <button
+                      className="btn-add-inline"
+                      type="button"
+                      onClick={() => {
+                        const firstArtist = artists[0] || '';
+                        if (firstArtist) {
+                          setProject(firstArtist);
+                          setShowNewProject(false);
+                        }
+                      }}
+                    >
+                      Автор из трека
+                    </button>
+                  </div>
                 </>
               )}
             </div>
