@@ -1,6 +1,6 @@
 import { Draggable } from '@hello-pangea/dnd';
 import type { Track, UserProfile } from '../types/track';
-import { KANBAN_COLUMNS, STATUS_LABELS } from '../types/track';
+import { KANBAN_COLUMNS, STATUS_LABELS, resolveNames } from '../types/track';
 import { format } from 'date-fns';
 
 interface TrackCardProps {
@@ -17,31 +17,13 @@ export default function TrackCard({ track, index, onOpen, userMap }: TrackCardPr
   const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
   const currentColumn = KANBAN_COLUMNS.find((c) => c.id === track.column);
 
-  const resolveName = (uid: string): string => {
-    const u = userMap.get(uid);
-    return (u?.artistName || u?.displayName || '').trim();
-  };
+  const artists = resolveNames(track.artists, track.artistUids, userMap).join(', ')
+    || track.artistsString || (track as any).artist || '';
 
-  const artists = (track.artistUids || []).length
-    ? (track.artistUids || []).map(resolveName).filter(Boolean).join(', ')
-    : (track.artists || []).filter(Boolean).length
-    ? (track.artists || []).filter(Boolean).join(', ')
-    : track.artistsString || (track as any).artist || '';
+  const beatmakers = resolveNames(track.beatmakers, track.beatmakerUids, userMap).join(', ')
+    || (track as any).beatmakerString || '';
 
-  const beatmakers = (track.beatmakerUids || []).length
-    ? (track.beatmakerUids || []).map(resolveName).filter(Boolean).join(', ')
-    : (track.beatmakers || []).filter(Boolean).length
-    ? (track.beatmakers || []).filter(Boolean).join(', ')
-    : (track as any).beatmakerString || '';
-
-  const mixByArr: string[] = (track.mixByUids || []).length
-    ? (track.mixByUids || []).map(resolveName).filter(Boolean)
-    : Array.isArray(track.mixBy)
-    ? (track.mixBy || []).filter(Boolean)
-    : track.mixBy
-    ? [String(track.mixBy)]
-    : [];
-  const mixBy = mixByArr.join(', ');
+  const mixBy = resolveNames(track.mixBy, track.mixByUids, userMap).join(', ');
 
   const nextDeadline = (checklist || []).find((c) => c.deadline && c.status !== 'verified' && c.status !== 'done');
 

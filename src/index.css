@@ -403,7 +403,6 @@ body {
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
   min-height: 200px;
-  backdrop-filter: blur(8px);
 }
 
 .column-header {
@@ -1745,6 +1744,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  height: 22.5px;
   margin-bottom: 6px;
 }
 
@@ -1856,7 +1856,7 @@ body {
   font-size: 15px;
   font-weight: 800;
   color: var(--gray-800);
-  margin-bottom: 10px;
+  line-height: 22.5px;
 }
 
 .album-tracklist-toggle {

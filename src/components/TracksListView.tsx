@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
-import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray } from '../types/track';
+import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, resolveNames } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 
 interface TracksListViewProps {
@@ -109,28 +109,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
 }
 
 function getTrackAuthorName(track: Track, userMap: Map<string, UserProfile>): string {
-  const uids = track.artistUids || [];
-  if (uids.length > 0) {
-    const seen = new Set<string>();
-    for (const uid of uids) {
-      const n = resolveName(uid, userMap);
-      const key = n.toLowerCase();
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        return n;
-      }
-    }
-  }
-  const stored = track.artists || [];
-  const seen = new Set<string>();
-  for (const n of stored) {
-    const key = n.toLowerCase();
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      return n;
-    }
-  }
-  return '';
+  return resolveNames(track.artists, track.artistUids, userMap)[0] || '';
 }
 
 function groupByProject(tracks: Track[], userMap: Map<string, UserProfile>): AlbumGroup[] {
@@ -161,11 +140,6 @@ function groupByProject(tracks: Track[], userMap: Map<string, UserProfile>): Alb
   return groups;
 }
 
-function resolveName(uid: string, userMap: Map<string, UserProfile>): string {
-  const u = userMap.get(uid);
-  return (u?.artistName || u?.displayName || '').trim();
-}
-
 function isMineByNames(track: Track, myName: string, userMap: Map<string, UserProfile>): boolean {
   const seen = new Set<string>();
   const allNames: string[] = [];
@@ -177,23 +151,9 @@ function isMineByNames(track: Track, myName: string, userMap: Map<string, UserPr
     }
   };
 
-  if ((track.artistUids || []).length > 0) {
-    for (const uid of track.artistUids) check(resolveName(uid, userMap).toLowerCase());
-  } else {
-    for (const n of track.artists || []) check(n.toLowerCase());
-  }
-
-  if ((track.beatmakerUids || []).length > 0) {
-    for (const uid of track.beatmakerUids) check(resolveName(uid, userMap).toLowerCase());
-  } else {
-    for (const n of track.beatmakers || []) check(n.toLowerCase());
-  }
-
-  if ((track.mixByUids || []).length > 0) {
-    for (const uid of track.mixByUids) check(resolveName(uid, userMap).toLowerCase());
-  } else {
-    for (const n of asArray(track.mixBy)) check(n.toLowerCase());
-  }
+  for (const n of resolveNames(track.artists, track.artistUids, userMap)) check(n.toLowerCase());
+  for (const n of resolveNames(track.beatmakers, track.beatmakerUids, userMap)) check(n.toLowerCase());
+  for (const n of resolveNames(track.mixBy, track.mixByUids, userMap)) check(n.toLowerCase());
 
   if (track.feat) check(track.feat.toLowerCase());
 
@@ -208,90 +168,15 @@ function getChecklistProgress(checklist: Track['checklist']): { done: number; to
 }
 
 function artistNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const uids = track.artistUids || [];
-  if (uids.length > 0) {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const uid of uids) {
-      const n = resolveName(uid, userMap);
-      const key = n.toLowerCase();
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        out.push(n);
-      }
-    }
-    return out.join(', ');
-  }
-  const stored = track.artists || [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const n of stored) {
-    const trimmed = n.trim();
-    const key = trimmed.toLowerCase();
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      out.push(trimmed);
-    }
-  }
-  return out.join(', ');
+  return resolveNames(track.artists, track.artistUids, userMap).join(', ');
 }
 
 function beatmakerNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const uids = track.beatmakerUids || [];
-  if (uids.length > 0) {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const uid of uids) {
-      const n = resolveName(uid, userMap);
-      const key = n.toLowerCase();
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        out.push(n);
-      }
-    }
-    return out.join(', ');
-  }
-  const stored = track.beatmakers || [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const n of stored) {
-    const trimmed = n.trim();
-    const key = trimmed.toLowerCase();
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      out.push(trimmed);
-    }
-  }
-  return out.join(', ');
+  return resolveNames(track.beatmakers, track.beatmakerUids, userMap).join(', ');
 }
 
 function mixByNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
-  const uids = track.mixByUids || [];
-  if (uids.length > 0) {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const uid of uids) {
-      const n = resolveName(uid, userMap);
-      const key = n.toLowerCase();
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        out.push(n);
-      }
-    }
-    return out.join(', ');
-  }
-  const stored = track.mixBy || [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const n of stored) {
-    const trimmed = (typeof n === 'string' ? n : '').trim();
-    const key = trimmed.toLowerCase();
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      out.push(trimmed);
-    }
-  }
-  return out.join(', ');
+  return resolveNames(track.mixBy, track.mixByUids, userMap).join(', ');
 }
 
 function unionNames(joined: string[]): string {

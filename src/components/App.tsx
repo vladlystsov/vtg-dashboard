@@ -8,7 +8,7 @@ import ProfileView from './ProfileView';
 import AdminPanel from './AdminPanel';
 import type { Track, UserProfile, ArtistRequest, KanbanColumn } from '../types/track';
 import type { TrackFormData } from '../types/track';
-import { asArray } from '../types/track';
+import { asArray, resolveNames } from '../types/track';
 import {
   subscribeToTracks,
   createTrack,
@@ -63,16 +63,54 @@ export default function App() {
     return m;
   }, [users]);
 
-  const resolveName = (uid: string): string => {
-    const u = userMap.get(uid);
-    return (u?.artistName || u?.displayName || '').trim();
-  };
-
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToTracks((data) => setTracks(data), (e) => console.error('tracks sub', e));
     return unsub;
   }, [user]);
+
+  // Авто-присвоение: если текущий пользователь вошёл под ником, который есть в треках
+  // (но без uid), проставляем его uid в artistUids/beatmakerUids/mixByUids.
+  const autoAssignedRef = useRef(false);
+  useEffect(() => {
+    if (!profile?.uid || !users.length || !tracks.length) return;
+    if (autoAssignedRef.current) return;
+    const myUid = profile.uid;
+    const myName = (profile.artistName || profile.displayName || '').trim().toLowerCase();
+    if (!myName) return;
+
+    const changes: { id: string; patch: Record<string, string[]> }[] = [];
+
+    const fillUids = (names: string[], uids: string[]): string[] | null => {
+      const next = uids.slice();
+      let changed = false;
+      for (let i = 0; i < names.length; i++) {
+        const name = (names[i] || '').trim().toLowerCase();
+        const cur = next[i] || '';
+        if (name === myName && (cur === '' || !userMap.has(cur))) {
+          next[i] = myUid;
+          changed = true;
+        }
+      }
+      return changed ? next : null;
+    };
+
+    for (const t of tracks) {
+      const patch: Record<string, string[]> = {};
+      const a = fillUids(asArray(t.artists), asArray(t.artistUids));
+      if (a) patch.artistUids = a;
+      const b = fillUids(asArray(t.beatmakers), asArray(t.beatmakerUids));
+      if (b) patch.beatmakerUids = b;
+      const m = fillUids(asArray(t.mixBy), asArray(t.mixByUids));
+      if (m) patch.mixByUids = m;
+      if (Object.keys(patch).length) changes.push({ id: t.id, patch });
+    }
+
+    if (changes.length) {
+      changes.forEach((c) => updateTrack(c.id, c.patch as any).catch(console.error));
+    }
+    autoAssignedRef.current = true;
+  }, [tracks, users, profile, userMap]);
 
   useEffect(() => {
     if (!user) return;
@@ -125,12 +163,9 @@ export default function App() {
   const members = Array.from(new Set([
     ...users.map((u) => u.artistName || u.displayName),
     ...tracks.flatMap((t) => [
-      ...(t.artistUids || []).map(resolveName),
-      ...(t.beatmakerUids || []).map(resolveName),
-      ...(t.mixByUids || []).map(resolveName),
-      ...(t.artists || []),
-      ...(t.beatmakers || []),
-      ...asArray(t.mixBy),
+      ...resolveNames(t.artists, t.artistUids, userMap),
+      ...resolveNames(t.beatmakers, t.beatmakerUids, userMap),
+      ...resolveNames(t.mixBy, t.mixByUids, userMap),
       t.feat as string,
     ].filter(Boolean)),
   ])).filter(Boolean);

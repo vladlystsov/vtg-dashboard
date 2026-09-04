@@ -122,6 +122,34 @@ export function asArray(v: unknown): string[] {
   return [];
 }
 
+/**
+ * Разрешает имена участников: где uid резолвится в известного пользователя — берём его имя,
+ * иначе (незарегистрированный/кастомный ник) берём параллельное сохранённое имя.
+ */
+export function resolveNames(
+  names: unknown,
+  uids: unknown,
+  userMap: Map<string, UserProfile>
+): string[] {
+  const nameArr = asArray(names);
+  const uidArr = asArray(uids);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const len = Math.max(nameArr.length, uidArr.length);
+  for (let i = 0; i < len; i++) {
+    const uid = uidArr[i];
+    const u = uid ? userMap.get(uid) : undefined;
+    let n = (u?.artistName || u?.displayName || '').trim();
+    if (!n) n = (nameArr[i] || '').trim();
+    const key = n.toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      out.push(n);
+    }
+  }
+  return out;
+}
+
 export interface ArtistRequest {
   id: string;
   uid: string;
