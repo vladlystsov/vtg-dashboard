@@ -97,8 +97,28 @@ export async function uploadBeatAudio(params: {
     headers,
     body: params.file,
   });
+  let last = put;
   if (!put.ok) {
-    throw new Error(`Ошибка загрузки в Archive.org (${put.status})`);
+    // archive.org редко отдаёт 403/429/5xx транзитно (лимиты, обслуживание) — пробуем ещё пару раз
+    const transient = [403, 429, 500, 502, 503, 504].includes(put.status);
+    if (transient) {
+      await sleep(2500);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        last = await fetch(`${S3_HOST}/${itemId}/${filename}`, {
+          method: 'PUT',
+          headers,
+          body: params.file,
+        });
+        if (last.ok) break;
+        await sleep(attempt === 0 ? 5000 : 10000);
+      }
+    }
+    if (!last.ok) {
+      const detail = await last.text().catch(() => '');
+      const code = (detail.match(/<Code>(.*?)<\/Code>/) || [])[1] || '';
+      const snippet = code ? ` ${code}` : detail.replace(/\s+/g, ' ').trim().slice(0, 160);
+      throw new Error(`Ошибка загрузки в Archive.org (${last.status}${snippet ? `: ${snippet}` : ''})`);
+    }
   }
 
   const url = `https://archive.org/download/${itemId}/${filename}`;
