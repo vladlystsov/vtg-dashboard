@@ -50,6 +50,11 @@ import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin';
 
+function beatIdFromHash(): string | undefined {
+  const m = window.location.hash.match(/#beat=([A-Za-z0-9_-]+)/);
+  return m ? m[1] : undefined;
+}
+
 export default function App() {
   const { user, profile, loading } = useAuth();
   const isOnline = useNetwork();
@@ -59,7 +64,8 @@ export default function App() {
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [toast, setToast] = useState<string | null>(null);
-  const [view, setView] = useState<View>('board');
+  const [view, setView] = useState<View>(beatIdFromHash() ? 'beats' : 'board');
+  const requestedBeatId = beatIdFromHash();
   const [showForm, setShowForm] = useState(false);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
 
@@ -425,6 +431,7 @@ export default function App() {
             currentName={profile?.artistName || profile?.displayName || ''}
             canEdit={canManageBeats}
             isAdmin={isRoleAllowed}
+            autoPlayId={requestedBeatId}
             onSave={handleSaveBeat}
             onDelete={handleDeleteBeat}
           />

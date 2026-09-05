@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BEAT_KEY_OPTIONS,
   BEAT_GENRE_OPTIONS,
@@ -8,6 +8,7 @@ import {
 } from '../types/beat';
 import { detectPlatform, type PlatformKind } from '../types/track';
 import { useShippedPlayerManager } from './ShippedPlayer';
+import { uploadBeatAudio, checkBeatAudioFile } from '../services/archiveService';
 
 const FALLBACK_COVER = `${import.meta.env.BASE_URL}logo_vtg_default.jpg`;
 
@@ -36,6 +37,7 @@ interface BeatsViewProps {
   currentName: string;
   canEdit: boolean;
   isAdmin: boolean;
+  autoPlayId?: string;
   onSave: (id: string | null, data: BeatFormData) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
@@ -87,39 +89,79 @@ function toFormState(b: Beat): BeatFormState {
 function BeatFormModal({
   initial,
   saving,
+  creatorName,
   onCancel,
   onSubmit,
 }: {
   initial: BeatFormState;
   saving: boolean;
+  creatorName: string;
   onCancel: () => void;
-  onSubmit: (f: BeatFormState) => void;
+  onSubmit: (f: BeatFormState) => Promise<void>;
 }) {
   const [f, setF] = useState<BeatFormState>(initial);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stage, setStage] = useState<'idle' | 'upload' | 'verify'>('idle');
 
   const kind = detectPlatform(f.platformUrl.trim());
-  const playable = kind === 'soundcloud' || kind === 'youtube' || kind === 'audio';
+  const linkPlayable = kind === 'soundcloud' || kind === 'youtube' || kind === 'audio';
 
-  const submit = () => {
+  const submit = async () => {
+    setError(null);
     if (!f.title.trim()) {
       setError('Укажите название бита');
       return;
     }
-    if (!f.platformUrl.trim()) {
-      setError('Укажите ссылку на аудио');
+    if (audioFile) {
+      const fileErr = checkBeatAudioFile(audioFile);
+      if (fileErr) {
+        setError(fileErr);
+        return;
+      }
+      setStage('upload');
+      try {
+        const up = await uploadBeatAudio({
+          file: audioFile,
+          title: f.title.trim(),
+          description: f.description.trim() || undefined,
+          creator: creatorName,
+        });
+        setStage('verify');
+        const next = { ...f, platformUrl: up.url };
+        setF(next);
+        await onSubmit(next);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Загрузка не удалась');
+      } finally {
+        setStage('idle');
+      }
       return;
     }
-    if (!playable) {
+    if (!f.platformUrl.trim()) {
+      setError('Прикрепите mp3 или укажите ссылку на аудио');
+      return;
+    }
+    if (!linkPlayable) {
       setError(
         'Ссылка не распознана. Укажите SoundCloud, YouTube или прямой файл (mp3/wav/ogg)'
       );
       return;
     }
-    onSubmit(f);
+    await onSubmit(f);
   };
 
   const set = (patch: Partial<BeatFormState>) => setF((prev) => ({ ...prev, ...patch }));
+  const busy = saving || stage !== 'idle';
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setAudioFile(file);
+    if (file && !f.title.trim()) {
+      const base = file.name.replace(/\.[^.]+$/, '');
+      set({ title: base });
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
@@ -141,7 +183,21 @@ function BeatFormModal({
           </div>
 
           <div className="form-group">
-            <label>Ссылка на аудио *</label>
+            <label>Аудио *</label>
+            <input
+              type="file"
+              accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus"
+              onChange={onFileChange}
+            />
+            <span className="beat-link-hint">
+              {audioFile
+                ? `Выбран: ${audioFile.name} — опубликуется в Archive.org автоматически`
+                : 'Прикрепите mp3 (до 30 МБ): сам опубликуется в Archive.org'}
+            </span>
+          </div>
+
+          <div className="form-group">
+            <label>Или ссылка на уже загруженное аудио</label>
             <input
               type="text"
               value={f.platformUrl}
@@ -149,8 +205,10 @@ function BeatFormModal({
               placeholder="SoundCloud, YouTube или прямой mp3/wav/ogg"
             />
             {f.platformUrl.trim() && (
-              <span className={`beat-link-hint ${playable ? 'ok' : 'bad'}`}>
-                {playable ? `Воспроизведение: ${PLATFORM_LABELS[kind]}` : 'Не распознано как аудио'}
+              <span className={`beat-link-hint ${linkPlayable ? 'ok' : 'bad'}`}>
+                {linkPlayable
+                  ? `Воспроизведение: ${PLATFORM_LABELS[kind]}`
+                  : 'Не распознано как аудио'}
               </span>
             )}
           </div>
@@ -240,13 +298,22 @@ function BeatFormModal({
             />
             Бесплатное использование
           </label>
+          <p className="beat-publish-hint">
+            После сохранения бит сразу публикуется на сайте. Если прикрепили файл, через пару минут он появится в Archive.org со ссылкой.
+          </p>
         </div>
 
         <div className="form-actions">
           {error && <span className="form-error">{error}</span>}
-          <button className="btn-secondary" onClick={onCancel}>Отмена</button>
-          <button className="btn-primary" onClick={submit} disabled={saving}>
-            {saving ? 'Сохраняем…' : 'Сохранить'}
+          <button className="btn-secondary" onClick={onCancel} disabled={busy}>Отмена</button>
+          <button className="btn-primary" onClick={submit} disabled={busy}>
+            {stage === 'upload'
+              ? 'Загружаем в Archive.org…'
+              : stage === 'verify'
+                ? 'Проверяем и публикуем…'
+                : saving
+                  ? 'Сохраняем…'
+                  : 'Сохранить'}
           </button>
         </div>
       </div>
@@ -260,6 +327,7 @@ export default function BeatsView({
   currentName,
   canEdit,
   isAdmin,
+  autoPlayId,
   onSave,
   onDelete,
 }: BeatsViewProps) {
@@ -269,6 +337,30 @@ export default function BeatsView({
   const [form, setForm] = useState<BeatFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const autoPlayedRef = useRef(false);
+
+  useEffect(() => {
+    if (!autoPlayId || autoPlayedRef.current) return;
+    const b = beats.find((x) => x.id === autoPlayId);
+    if (!b) return;
+    autoPlayedRef.current = true;
+    if (beatPlayable(b)) manager.playTrack(b.id);
+  }, [beats, autoPlayId, manager]);
+
+  const baseUrl = window.location.origin + import.meta.env.BASE_URL;
+
+  const copyLink = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(`${baseUrl}#beat=${id}`);
+      setCopiedId(id);
+      if (copiedId !== id) {
+        setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -421,6 +513,14 @@ export default function BeatsView({
                       </button>
                       <button
                         type="button"
+                        className="btn-small-ghost"
+                        title="Скопировать ссылку на бит"
+                        onClick={() => copyLink(b.id)}
+                      >
+                        {copiedId === b.id ? 'Ссылка ✓' : 'Ссылка'}
+                      </button>
+                      <button
+                        type="button"
                         className="btn-small-ghost btn-danger"
                         disabled={deletingId === b.id}
                         onClick={() => remove(b.id)}
@@ -440,6 +540,7 @@ export default function BeatsView({
         <BeatFormModal
           initial={form}
           saving={saving}
+          creatorName={currentName}
           onCancel={() => setForm(null)}
           onSubmit={save}
         />

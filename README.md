@@ -55,6 +55,31 @@ npm run deploy         # публикация через gh-pages
 
 Или через GitHub Actions (папка `.github/workflows`), либо вручную через Settings → Pages.
 
+## Загрузка битов в Archive.org
+
+Битмейкер прикрепляет mp3 прямо из формы «Биты» — браузер загружает файл в командный аккаунт **Archive.org**. Archive.org сам проверяет байты файла (bit-for-bit), публикует запись в коллекции `opensource_audio` и отдаёт файл по прямой ссылке `https://archive.org/download/<identifier>/<file>`. Ссылка сохраняется в бите (`platformUrl`), и бит сразу появляется на сайте.
+
+Схема: `браузер → s3.us.archive.org → прямой URL + опубликованный айтем`.
+
+### 1. Ключи Archive.org
+
+1. Возьми S3-ключи на https://archive.org/account/s3.php (раздел S3 Keys).
+2. Положи значения в `.env` (`VITE_ARCHIVE_ORG_ACCESS_KEY`, `VITE_ARCHIVE_ORG_SECRET_KEY` — см. `.env.example`), а на GitHub Pages — в Secrets с теми же именами (`.github/workflows/deploy.yml` передаёт их в сборку).
+
+> ⚠️ Ключи компилируются в JS-бандл и видны любому. Рекомендуем завести для приложения **отдельный «издательский» аккаунт Archive.org**, чтобы не светить ключи основного.
+
+### 2. Ограничения
+
+- Файл не больше 30 МБ (mp3/wav/ogg/m4a/aac/flac/opus).
+- Во время сохранения браузер ждёт подтверждения публикации в Archive.org (обычно до 2–3 минут).
+- Загружать mp3 могут только админы/владельцы и пользователи с ролью `beatmaker` (поле `roles` в профиле).
+
+### Полезные ссылки
+
+- Публичная страница айтема: `https://archive.org/details/<identifier>`
+- Прямая ссылка на файл: `https://archive.org/download/<identifier>/<file>`
+- Удалить лишний айтем можно в аккаунте Archive.org (страница айтема → Delete).
+
 ## Структура проекта
 
 ```
