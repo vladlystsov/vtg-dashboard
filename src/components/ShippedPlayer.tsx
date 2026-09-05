@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { soundCloudEmbedSrc, youtubeVideoId, detectPlatform } from '../types/track';
 import type { Track } from '../types/track';
+import { cacheAudio, getCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
 
 const SC_API_URL = 'https://w.soundcloud.com/player/api.js';
 const YT_API_URL = 'https://www.youtube.com/iframe_api';
@@ -146,6 +147,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeEngineRef = useRef<'sc' | 'yt' | 'audio'>('sc');
   const lookupRef = useRef<Map<string, ShippedTrackItem>>(new Map());
+  const objectUrlRef = useRef<Map<string, string>>(new Map());
 
   const [order, setOrder] = useState<ShippedTrackItem[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -262,16 +264,37 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
           pendingYtIdRef.current = vid;
         }
       } else if (isAudio) {
-        const a = audioRef.current;
-        if (a) {
+        void (async () => {
+          const a = audioRef.current;
+          if (!a) return;
           try {
-            a.src = item.url.trim();
+            const cached = await getCachedAudio(item.id);
+            if (currentIdRef.current !== item.id) return;
+            const prev = objectUrlRef.current.get(item.id);
+            if (prev) {
+              URL.revokeObjectURL(prev);
+              objectUrlRef.current.delete(item.id);
+            }
+            if (cached) {
+              const objUrl = URL.createObjectURL(cached.blob);
+              objectUrlRef.current.set(item.id, objUrl);
+              a.src = objUrl;
+            } else {
+              a.src = item.url.trim();
+              void cacheAudio({ id: item.id, url: item.url.trim(), title: item.title });
+            }
             const p = a.play();
             if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
           } catch {
-            /* ignore */
+            try {
+              a.src = item.url.trim();
+              const p = a.play();
+              if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
+            } catch {
+              /* ignore */
+            }
           }
-        }
+        })();
       } else {
         const w = scWidgetRef.current;
         if (w && scReadyRef.current) {
@@ -287,6 +310,35 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
 
   const playTrackRef = useRef(playTrack);
   playTrackRef.current = playTrack;
+
+  // если текущий трек удалили из кэша (или очистили весь кэш) —
+  // переключаем на сетевой источник, чтобы воспроизведение не оборвалось
+  useEffect(
+    () =>
+      onAudioCacheChange((affectedId?: string) => {
+        const cur = currentIdRef.current;
+        if (affectedId !== undefined && affectedId !== cur) return;
+        if (activeEngineRef.current !== 'audio' || !cur) return;
+        const item = lookupRef.current.get(cur);
+        const a = audioRef.current;
+        if (!item || !a) return;
+        try {
+          const prev = objectUrlRef.current.get(item.id);
+          if (prev) {
+            URL.revokeObjectURL(prev);
+            objectUrlRef.current.delete(item.id);
+          }
+          if (affectedId === undefined) {
+            objectUrlRef.current.forEach((u) => URL.revokeObjectURL(u));
+            objectUrlRef.current.clear();
+          }
+          a.src = item.url.trim();
+        } catch {
+          /* ignore */
+        }
+      }),
+    []
+  );
 
   const nextIndex = useCallback((from: number, wrap: boolean): number => {
     const len = orderRef.current.length;
@@ -484,6 +536,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       pendingYtIdRef.current = null;
       audioRef.current?.remove();
       audioRef.current = null;
+      objectUrlRef.current.forEach((u) => URL.revokeObjectURL(u));
+      objectUrlRef.current.clear();
     };
   }, [initEngines, stopYtTimer]);
 

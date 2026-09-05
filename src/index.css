@@ -3319,6 +3319,23 @@ body {
   cursor: help;
 }
 
+.beat-cache-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.beat-cached {
+  background: rgba(5, 150, 105, 0.15);
+  color: var(--green-500, #34d399);
+}
+
+.beat-cache-hint {
+  font-size: 11px;
+  color: var(--fg-muted, #9ca3af);
+}
+
 .beat-play {
   position: absolute;
   right: 12px;

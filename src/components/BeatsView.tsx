@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BEAT_KEY_OPTIONS,
   BEAT_GENRE_OPTIONS,
@@ -10,8 +10,14 @@ import {
 import { detectPlatform, type PlatformKind } from '../types/track';
 import { useShippedPlayerManager } from './ShippedPlayer';
 import { checkBeatAudioFile } from '../services/archiveService';
+import { listCachedAudio, deleteCachedAudio, clearAudioCache, onAudioCacheChange } from '../services/audioCacheService';
 
 const FALLBACK_COVER = `${import.meta.env.BASE_URL}logo_vtg_default.jpg`;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+}
 
 const PLATFORM_LABELS: Record<PlatformKind, string> = {
   soundcloud: 'SoundCloud',
@@ -328,6 +334,37 @@ export default function BeatsView({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const autoPlayedRef = useRef(false);
+  const [cached, setCached] = useState<{ ids: Set<string>; bytes: number }>({
+    ids: new Set(),
+    bytes: 0,
+  });
+
+  const refreshCache = useCallback(async () => {
+    try {
+      const list = await listCachedAudio();
+      setCached({
+        ids: new Set(list.map((r) => r.id)),
+        bytes: list.reduce((s, r) => s + (r.size || 0), 0),
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshCache();
+    return onAudioCacheChange(() => void refreshCache());
+  }, [refreshCache]);
+
+  const removeCached = async (id: string) => {
+    await deleteCachedAudio(id);
+  };
+
+  const clearCache = async () => {
+    if (cached.ids.size === 0) return;
+    if (!window.confirm(`Удалить из локального кэша все ${cached.ids.size} трек(ов)?`)) return;
+    await clearAudioCache();
+  };
 
   useEffect(() => {
     if (!autoPlayId || autoPlayedRef.current) return;
@@ -439,6 +476,15 @@ export default function BeatsView({
             + Добавить бит
           </button>
         )}
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={cached.ids.size === 0}
+          onClick={clearCache}
+          title="Удалить все скачанные аудио с устройства"
+        >
+          Очистить кэш{cached.bytes > 0 ? ` (${cached.ids.size} · ${formatBytes(cached.bytes)})` : ''}
+        </button>
       </div>
 
       {visible.length === 0 ? (
@@ -496,6 +542,27 @@ export default function BeatsView({
                     <span>{b.beatmakerName || 'Битмейкер'}</span>
                     <span className="beat-platform">{PLATFORM_LABELS[beatPlatform(b)]}</span>
                   </div>
+                  {beatPlatform(b) === 'audio' && (
+                    <div className="beat-cache-row">
+                      {cached.ids.has(b.id) ? (
+                        <>
+                          <span className="beat-chip beat-cached">✓ В кэше</span>
+                          <button
+                            type="button"
+                            className="btn-small-ghost"
+                            title="Удалить этот трек из локального кэша"
+                            onClick={() => removeCached(b.id)}
+                          >
+                            Удалить из кэша
+                          </button>
+                        </>
+                      ) : (
+                        <span className="beat-cache-hint">
+                          Скачается в кэш автоматически при первом прослушивании
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {!!(b.tags && b.tags.length) && (
                     <div className="beat-tags">
                       {b.tags!.map((t) => (
