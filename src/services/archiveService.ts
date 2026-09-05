@@ -9,8 +9,9 @@ const META_TIMEOUT_MS = 150000;
 
 // LOW-ключи S3-аккаунта Archive.org. Светятся в бандле — для приложения
 // рекомендуется отдельный «издательский» аккаунт archive.org.
-const ARCHIVE_ORG_ACCESS_KEY = import.meta.env.VITE_ARCHIVE_ORG_ACCESS_KEY as string | undefined;
-const ARCHIVE_ORG_SECRET_KEY = import.meta.env.VITE_ARCHIVE_ORG_SECRET_KEY as string | undefined;
+// .trim(): секреты могут попасть в окружение с хвостовыми пробелами/переносами.
+const ARCHIVE_ORG_ACCESS_KEY = (import.meta.env.VITE_ARCHIVE_ORG_ACCESS_KEY as string | undefined)?.trim();
+const ARCHIVE_ORG_SECRET_KEY = (import.meta.env.VITE_ARCHIVE_ORG_SECRET_KEY as string | undefined)?.trim();
 
 export function isBeatAudioFile(file: File): boolean {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
