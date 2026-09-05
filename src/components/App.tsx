@@ -44,6 +44,7 @@ import {
   updateBeat,
   deleteBeat,
 } from '../services/beatsService';
+import { publishBeatAudioInBackground } from '../services/archiveService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
@@ -322,11 +323,37 @@ export default function App() {
     }
   };
 
-  const handleSaveBeat = async (id: string | null, data: BeatFormData) => {
+  const handleSaveBeat = async (id: string | null, data: BeatFormData, file?: File) => {
     if (id) {
       await updateBeat(id, data as any);
-    } else {
-      await createBeat(data as any);
+      return;
+    }
+    const newId = await createBeat(data as any);
+    if (file) {
+      // Публикация mp3 в Archive.org идёт в фоне: карточка уже сохранена,
+      // создаём айтем и обновляем бит ссылкой, когда звук готов
+      publishBeatAudioInBackground({
+        file,
+        title: data.title,
+        description: data.description,
+        creator: data.beatmakerName,
+        callbacks: {
+          onReady: (url: string) => {
+            void updateBeat(newId, {
+              platformUrl: url,
+              platform: 'audio',
+              archiveStatus: 'ready',
+              archiveError: undefined,
+            });
+          },
+          onError: (message: string) => {
+            void updateBeat(newId, {
+              archiveStatus: 'error',
+              archiveError: message,
+            });
+          },
+        },
+      });
     }
   };
 

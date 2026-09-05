@@ -131,3 +131,30 @@ export async function uploadBeatAudio(params: {
   }
   return { url, identifier: itemId, ready };
 }
+
+export interface PublishBeatCallbacks {
+  onReady: (url: string) => void;
+  onError: (message: string) => void;
+}
+
+/**
+ * Фоновая публикация mp3 в Archive.org. Карточка уже сохранена (archiveStatus:
+ * uploading) — здесь в фоне грузим файл, а когда появляется playable-ссылка,
+ * вызываем onReady; при неудаче onError.
+ */
+export function publishBeatAudioInBackground(params: {
+  file: File;
+  title: string;
+  description?: string;
+  creator?: string;
+  callbacks: PublishBeatCallbacks;
+}): void {
+  (async () => {
+    try {
+      const { url } = await uploadBeatAudio(params);
+      params.callbacks.onReady(url);
+    } catch (e) {
+      params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации');
+    }
+  })();
+}

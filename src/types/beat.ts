@@ -2,6 +2,8 @@ import type { PlatformKind } from './track';
 
 export type BeatStatus = 'published' | 'hidden';
 
+export type BeatArchiveStatus = 'uploading' | 'ready' | 'error';
+
 export interface Beat {
   id: string;
   title: string;
@@ -20,6 +22,9 @@ export interface Beat {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  // Карточка создаётся сразу, публикация mp3 в Archive.org идёт в фоне
+  archiveStatus?: BeatArchiveStatus;
+  archiveError?: string;
 }
 
 export const BEAT_STATUS_LABELS: Record<BeatStatus, string> = {
@@ -61,4 +66,5 @@ export type BeatFormData = {
   beatmakerUid: string;
   beatmakerName: string;
   createdBy: string;
+  archiveStatus?: BeatArchiveStatus;
 };

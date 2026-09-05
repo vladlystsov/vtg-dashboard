@@ -4,11 +4,12 @@ import {
   BEAT_GENRE_OPTIONS,
   type Beat,
   type BeatStatus,
+  type BeatArchiveStatus,
   type BeatFormData,
 } from '../types/beat';
 import { detectPlatform, type PlatformKind } from '../types/track';
 import { useShippedPlayerManager } from './ShippedPlayer';
-import { uploadBeatAudio, checkBeatAudioFile } from '../services/archiveService';
+import { checkBeatAudioFile } from '../services/archiveService';
 
 const FALLBACK_COVER = `${import.meta.env.BASE_URL}logo_vtg_default.jpg`;
 
@@ -38,7 +39,7 @@ interface BeatsViewProps {
   canEdit: boolean;
   isAdmin: boolean;
   autoPlayId?: string;
-  onSave: (id: string | null, data: BeatFormData) => Promise<void>;
+  onSave: (id: string | null, data: BeatFormData, file?: File) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -54,6 +55,7 @@ interface BeatFormState {
   platformUrl: string;
   status: BeatStatus;
   free: boolean;
+  archiveStatus?: BeatArchiveStatus;
 }
 
 const EMPTY_FORM: BeatFormState = {
@@ -68,6 +70,7 @@ const EMPTY_FORM: BeatFormState = {
   platformUrl: '',
   status: 'published',
   free: false,
+  archiveStatus: 'ready',
 };
 
 function toFormState(b: Beat): BeatFormState {
@@ -83,26 +86,25 @@ function toFormState(b: Beat): BeatFormState {
     platformUrl: b.platformUrl || '',
     status: b.status,
     free: !!b.free,
+    archiveStatus: b.archiveStatus || 'ready',
   };
 }
 
 function BeatFormModal({
   initial,
   saving,
-  creatorName,
   onCancel,
   onSubmit,
 }: {
   initial: BeatFormState;
   saving: boolean;
-  creatorName: string;
   onCancel: () => void;
-  onSubmit: (f: BeatFormState) => Promise<void>;
+  onSubmit: (f: BeatFormState, file?: File) => Promise<void>;
 }) {
   const [f, setF] = useState<BeatFormState>(initial);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [stage, setStage] = useState<'idle' | 'upload' | 'verify'>('idle');
+  const [stage, setStage] = useState<'idle' | 'saving'>('idle');
 
   const kind = detectPlatform(f.platformUrl.trim());
   const linkPlayable = kind === 'soundcloud' || kind === 'youtube' || kind === 'audio';
@@ -119,20 +121,13 @@ function BeatFormModal({
         setError(fileErr);
         return;
       }
-      setStage('upload');
+      setStage('saving');
       try {
-        const up = await uploadBeatAudio({
-          file: audioFile,
-          title: f.title.trim(),
-          description: f.description.trim() || undefined,
-          creator: creatorName,
-        });
-        setStage('verify');
-        const next = { ...f, platformUrl: up.url };
-        setF(next);
-        await onSubmit(next);
+        // Карточка сохраняется сразу (без ссылки), публикация mp3 идёт в фоне
+        const next = { ...f, platformUrl: '', archiveStatus: 'uploading' as const };
+        await onSubmit(next, audioFile);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Загрузка не удалась');
+        setError(e instanceof Error ? e.message : 'Не удалось сохранить бит');
       } finally {
         setStage('idle');
       }
@@ -299,7 +294,7 @@ function BeatFormModal({
             Бесплатное использование
           </label>
           <p className="beat-publish-hint">
-            После сохранения бит сразу публикуется на сайте. Если прикрепили файл, через пару минут он появится в Archive.org со ссылкой.
+            Если прикрепили mp3 — карточка сохранится сразу, а звук опубликуется в Archive.org в фоне (можно грузить несколько подряд).
           </p>
         </div>
 
@@ -307,13 +302,7 @@ function BeatFormModal({
           {error && <span className="form-error">{error}</span>}
           <button className="btn-secondary" onClick={onCancel} disabled={busy}>Отмена</button>
           <button className="btn-primary" onClick={submit} disabled={busy}>
-            {stage === 'upload'
-              ? 'Загружаем в Archive.org…'
-              : stage === 'verify'
-                ? 'Проверяем и публикуем…'
-                : saving
-                  ? 'Сохраняем…'
-                  : 'Сохранить'}
+            {saving || stage === 'saving' ? 'Сохраняем…' : 'Сохранить'}
           </button>
         </div>
       </div>
@@ -378,7 +367,7 @@ export default function BeatsView({
 
   const canManage = (b: Beat) => canEdit && (isAdmin || b.beatmakerUid === currentUid);
 
-  const save = async (f: BeatFormState) => {
+  const save = async (f: BeatFormState, file?: File) => {
     setSaving(true);
     try {
       const platformUrl = f.platformUrl.trim();
@@ -400,7 +389,8 @@ export default function BeatsView({
         beatmakerUid: currentUid,
         beatmakerName: currentName,
         createdBy: currentUid,
-      });
+        archiveStatus: f.archiveStatus || (file ? 'uploading' : 'ready'),
+      }, file);
       setForm(null);
     } finally {
       setSaving(false);
@@ -469,6 +459,17 @@ export default function BeatsView({
                   <img className="beat-cover" src={b.coverUrl?.trim() || FALLBACK_COVER} alt="" />
                   {b.free && <span className="beat-badge-free">FREE</span>}
                   {b.status === 'hidden' && <span className="beat-badge-hidden">Скрыт</span>}
+                  {b.archiveStatus === 'error' && (
+                    <span
+                      className="beat-badge-archive-error"
+                      title={b.archiveError || 'Произошла ошибка при публикации звука'}
+                    >
+                      Ошибка публикации
+                    </span>
+                  )}
+                  {b.archiveStatus === 'uploading' && (
+                    <span className="beat-badge-archive">Публикуем…</span>
+                  )}
                   {playable && (
                     <button
                       type="button"
@@ -540,7 +541,6 @@ export default function BeatsView({
         <BeatFormModal
           initial={form}
           saving={saving}
-          creatorName={currentName}
           onCancel={() => setForm(null)}
           onSubmit={save}
         />
