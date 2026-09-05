@@ -14,7 +14,7 @@ export interface ShippedTrackItem {
   id: string;
   title: string;
   url: string;
-  platform?: 'soundcloud' | 'youtube';
+  platform?: 'soundcloud' | 'youtube' | 'audio';
   coverUrl?: string;
 }
 
@@ -42,16 +42,20 @@ interface ShippedPlayerManager {
 
 const ShippedPlayerContext = createContext<ShippedPlayerManager | null>(null);
 
+export function shippedFromUrl(
+  id: string,
+  title: string,
+  url: string,
+  coverUrl?: string
+): ShippedTrackItem {
+  const kind = detectPlatform(url);
+  const platform =
+    kind === 'soundcloud' || kind === 'youtube' || kind === 'audio' ? kind : undefined;
+  return { id, title, url, platform, coverUrl };
+}
+
 export function toShippedItem(track: Track): ShippedTrackItem {
-  const kind = track.platformUrl ? detectPlatform(track.platformUrl) : 'other';
-  const platform = kind === 'soundcloud' || kind === 'youtube' ? kind : undefined;
-  return {
-    id: track.id,
-    title: track.title,
-    url: track.platformUrl || '',
-    platform,
-    coverUrl: track.coverUrl,
-  };
+  return shippedFromUrl(track.id, track.title, track.platformUrl || '', track.coverUrl);
 }
 
 export function useShippedPlayerManager(): ShippedPlayerManager {
@@ -67,9 +71,10 @@ function fmt(ms: number): string {
   return `${m}:${ss.toString().padStart(2, '0')}`;
 }
 
-function itemKind(item: ShippedTrackItem): 'soundcloud' | 'youtube' {
+function itemKind(item: ShippedTrackItem): 'soundcloud' | 'youtube' | 'audio' {
   if (item.platform) return item.platform;
-  return detectPlatform(item.url) === 'youtube' ? 'youtube' : 'soundcloud';
+  const k = detectPlatform(item.url);
+  return k === 'youtube' ? 'youtube' : k === 'audio' ? 'audio' : 'soundcloud';
 }
 
 function shuffleRestIds(arr: string[], keepIdx: number): string[] {
@@ -138,7 +143,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const ytReadyRef = useRef(false);
   const pendingYtIdRef = useRef<string | null>(null);
   const ytTimerRef = useRef<number | null>(null);
-  const activeEngineRef = useRef<'sc' | 'yt'>('sc');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeEngineRef = useRef<'sc' | 'yt' | 'audio'>('sc');
   const lookupRef = useRef<Map<string, ShippedTrackItem>>(new Map());
 
   const [order, setOrder] = useState<ShippedTrackItem[]>([]);
@@ -204,6 +210,17 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     }
   }, [stopYtTimer]);
 
+  const pauseAudio = useCallback(() => {
+    const a = audioRef.current;
+    if (a) {
+      try {
+        a.pause();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
   const playTrack = useCallback(
     (id: string) => {
       const item = lookupRef.current.get(id);
@@ -214,9 +231,18 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       setDur(0);
       setPlaying(true);
       const isYt = itemKind(item) === 'youtube';
-      activeEngineRef.current = isYt ? 'yt' : 'sc';
-      if (isYt) pauseSc();
-      else pauseYt();
+      const isAudio = itemKind(item) === 'audio';
+      activeEngineRef.current = isYt ? 'yt' : isAudio ? 'audio' : 'sc';
+      if (isYt) {
+        pauseSc();
+        pauseAudio();
+      } else if (isAudio) {
+        pauseSc();
+        pauseYt();
+      } else {
+        pauseYt();
+        pauseAudio();
+      }
       if (isYt) {
         const vid = youtubeVideoId(item.url);
         if (!vid) {
@@ -235,6 +261,17 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         } else {
           pendingYtIdRef.current = vid;
         }
+      } else if (isAudio) {
+        const a = audioRef.current;
+        if (a) {
+          try {
+            a.src = item.url.trim();
+            const p = a.play();
+            if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
+          } catch {
+            /* ignore */
+          }
+        }
       } else {
         const w = scWidgetRef.current;
         if (w && scReadyRef.current) {
@@ -245,7 +282,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         }
       }
     },
-    [pauseSc, pauseYt]
+    [pauseSc, pauseYt, pauseAudio]
   );
 
   const playTrackRef = useRef(playTrack);
@@ -397,7 +434,38 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       }
     };
 
+    const createAudio = () => {
+      if (audioRef.current) return audioRef.current;
+      const a = document.createElement('audio');
+      a.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none;';
+      a.preload = 'metadata';
+      a.setAttribute('playsinline', 'true');
+      a.addEventListener('timeupdate', () => {
+        if (activeEngineRef.current !== 'audio') return;
+        setPos(Math.max(0, Math.round((a.currentTime || 0) * 1000)));
+      });
+      a.addEventListener('loadedmetadata', () => {
+        if (activeEngineRef.current === 'audio') setDur(isFinite(a.duration) ? Math.round(a.duration * 1000) : 0);
+      });
+      a.addEventListener('play', () => {
+        if (activeEngineRef.current === 'audio') setPlaying(true);
+      });
+      a.addEventListener('pause', () => {
+        if (activeEngineRef.current === 'audio') setPlaying(false);
+      });
+      a.addEventListener('ended', () => {
+        if (activeEngineRef.current === 'audio') {
+          setPlaying(false);
+          handleFinishRef.current();
+        }
+      });
+      document.body.appendChild(a);
+      audioRef.current = a;
+      return a;
+    };
+
     ensureYtApi(createYtPlayer);
+    createAudio();
   }, [startYtTimer, stopYtTimer]);
 
   useEffect(() => {
@@ -414,6 +482,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       ytPlayerRef.current = null;
       ytReadyRef.current = false;
       pendingYtIdRef.current = null;
+      audioRef.current?.remove();
+      audioRef.current = null;
     };
   }, [initEngines, stopYtTimer]);
 
@@ -434,6 +504,18 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         else p.playVideo();
       } catch {
         playTrackRef.current(target);
+      }
+    } else if (itemKind(item) === 'audio') {
+      const a = audioRef.current;
+      if (!a) {
+        playTrackRef.current(target);
+        return;
+      }
+      if (a.paused) {
+        const p = a.play();
+        if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
+      } else {
+        a.pause();
       }
     } else {
       const w = scWidgetRef.current;
@@ -475,6 +557,15 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       if (p && ytReadyRef.current) {
         try {
           p.seekTo(ms / 1000, true);
+        } catch {
+          /* ignore */
+        }
+      }
+    } else if (itemKind(item) === 'audio') {
+      const a = audioRef.current;
+      if (a) {
+        try {
+          a.currentTime = ms / 1000;
         } catch {
           /* ignore */
         }

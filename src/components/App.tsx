@@ -6,10 +6,12 @@ import TrackForm from './TrackForm';
 import TeamView from './TeamView';
 import ProfileView from './ProfileView';
 import AdminPanel from './AdminPanel';
+import BeatsView from './BeatsView';
 import type { Track, UserProfile, ArtistRequest, KanbanColumn } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import { asArray, resolveNames } from '../types/track';
-import ShippedPlayer, { toShippedItem, type ShippedTrackItem } from './ShippedPlayer';
+import type { Beat, BeatFormData } from '../types/beat';
+import ShippedPlayer, { toShippedItem, shippedFromUrl, type ShippedTrackItem } from './ShippedPlayer';
 import {
   subscribeToTracks,
   createTrack,
@@ -36,16 +38,23 @@ import {
   clearAllNotifications,
 } from '../services/notificationService';
 import type { AppNotification } from '../services/notificationService';
+import {
+  subscribeToBeats,
+  createBeat,
+  updateBeat,
+  deleteBeat,
+} from '../services/beatsService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 
-type View = 'board' | 'tracks' | 'team' | 'profile' | 'admin';
+type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin';
 
 export default function App() {
   const { user, profile, loading } = useAuth();
   const isOnline = useNetwork();
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [beats, setBeats] = useState<Beat[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -57,6 +66,8 @@ export default function App() {
   const isRoleAllowed = profile?.role === 'owner' || profile?.role === 'admin';
   const isArtistAllowed = !!profile?.artistVerified || isRoleAllowed;
   const canUseBoard = isArtistAllowed || (users.length === 0 && !profile?.artistVerified && !isRoleAllowed);
+  const isBeatmaker = !!profile?.roles?.includes('beatmaker');
+  const canManageBeats = isBeatmaker || isRoleAllowed;
 
   const userMap = useMemo(() => {
     const m = new Map<string, UserProfile>();
@@ -64,20 +75,34 @@ export default function App() {
     return m;
   }, [users]);
 
-  const shippedPlayerTracks = useMemo<ShippedTrackItem[]>(() => {
+  const playerTracks = useMemo<ShippedTrackItem[]>(() => {
     const items: ShippedTrackItem[] = [];
+    const seen = new Set<string>();
+    const push = (it: ShippedTrackItem | null) => {
+      if (!it || !it.platform || seen.has(it.id)) return;
+      seen.add(it.id);
+      items.push(it);
+    };
     for (const t of tracks) {
-      if (t.status === 'completed' || t.platformUrl) {
-        const it = toShippedItem(t);
-        if (it.platform) items.push(it);
+      if (t.status === 'completed' || t.platformUrl) push(toShippedItem(t));
+    }
+    for (const b of beats) {
+      if (b.status === 'published' && b.platformUrl) {
+        push(shippedFromUrl(b.id, b.title, b.platformUrl, b.coverUrl));
       }
     }
     return items;
-  }, [tracks]);
+  }, [tracks, beats]);
 
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToTracks((data) => setTracks(data), (e) => console.error('tracks sub', e));
+    return unsub;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToBeats((data) => setBeats(data), (e) => console.error('beats sub', e));
     return unsub;
   }, [user]);
 
@@ -291,6 +316,19 @@ export default function App() {
     }
   };
 
+  const handleSaveBeat = async (id: string | null, data: BeatFormData) => {
+    if (id) {
+      await updateBeat(id, data as any);
+    } else {
+      await createBeat(data as any);
+    }
+  };
+
+  const handleDeleteBeat = async (id: string) => {
+    if (!confirm('Удалить бит?')) return;
+    await deleteBeat(id);
+  };
+
   const handleMove = (id: string, col: KanbanColumn) => moveTrack(id, col);
 
   const myUid = profile?.uid || '';
@@ -348,7 +386,7 @@ export default function App() {
         onOpenAdminRequest={handleOpenAdminRequest}
       />
 
-      <ShippedPlayer tracks={shippedPlayerTracks}>
+      <ShippedPlayer tracks={playerTracks}>
         <main className="app-main">
         {!canUseBoard && (
           <div className="gate-block">
@@ -377,6 +415,18 @@ export default function App() {
             onUpdateTrack={async (id, patch) => {
               await updateTrack(id, patch as any);
             }}
+          />
+        )}
+
+        {view === 'beats' && (
+          <BeatsView
+            beats={beats}
+            currentUid={myUid}
+            currentName={profile?.artistName || profile?.displayName || ''}
+            canEdit={canManageBeats}
+            isAdmin={isRoleAllowed}
+            onSave={handleSaveBeat}
+            onDelete={handleDeleteBeat}
           />
         )}
 

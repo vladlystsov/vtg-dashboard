@@ -73,7 +73,13 @@ export interface Track {
   platformUrl?: string;
 }
 
-export type PlatformKind = 'soundcloud' | 'youtube' | 'yandex' | 'vkontakte' | 'other';
+export type PlatformKind = 'soundcloud' | 'youtube' | 'yandex' | 'vkontakte' | 'audio' | 'other';
+
+const AUDIO_EXT_RE = /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|wma)(?:$|[?#])/i;
+
+export function isDirectAudioUrl(url?: string): boolean {
+  return AUDIO_EXT_RE.test((url || '').trim());
+}
 
 export function detectPlatform(url?: string): PlatformKind {
   const host = (url || '').toLowerCase();
@@ -81,6 +87,7 @@ export function detectPlatform(url?: string): PlatformKind {
   if (host.includes('youtube.com') || host.includes('youtu.be')) return 'youtube';
   if (host.includes('music.yandex')) return 'yandex';
   if (host.includes('vk.com') || host.includes('vk.ru') || host.includes('vkontakte')) return 'vkontakte';
+  if (isDirectAudioUrl(url)) return 'audio';
   return 'other';
 }
 
