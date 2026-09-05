@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
 import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc, youtubeVideoId } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
-import ShippedPlayer, { ShippedMini, type ShippedTrackItem } from './ShippedPlayer';
+import { ShippedMini, toShippedItem } from './ShippedPlayer';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -70,21 +70,6 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
     [grouped]
   );
 
-  const shippedPlayerTracks = useMemo<ShippedTrackItem[]>(() => {
-    const items: ShippedTrackItem[] = [];
-    for (const t of shippedSingles) {
-      const it = toShipItem(t);
-      if (it.platform) items.push(it);
-    }
-    for (const a of shippedAlbums) {
-      for (const t of a.tracks) {
-        const it = toShipItem(t);
-        if (it.platform) items.push(it);
-      }
-    }
-    return items;
-  }, [shippedSingles, shippedAlbums]);
-
   return (
     <div className="tracks-view">
       <div className="tracks-toolbar">
@@ -134,26 +119,24 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
       )}
 
       {tab === 'shipped' && (
-        <ShippedPlayer tracks={shippedPlayerTracks}>
-          <div className="albums-grid">
-            {shippedSingles.map((track) => (
-              <SingleTrackCard
-                key={track.id}
-                track={track}
-                userMap={userMap}
-                onOpen={onOpen}
-                onDelete={onDelete}
-                shipped
-              />
-            ))}
-            {shippedAlbums.map((album) => (
-              <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} shipped />
-            ))}
-            {shippedSingles.length === 0 && shippedAlbums.length === 0 && (
-              <div className="empty-state">Нет отгруженных релизов. Отметьте трек статусом «Завершено» или укажите ссылку на платформу в карточке трека.</div>
-            )}
-          </div>
-        </ShippedPlayer>
+        <div className="albums-grid">
+          {shippedSingles.map((track) => (
+            <SingleTrackCard
+              key={track.id}
+              track={track}
+              userMap={userMap}
+              onOpen={onOpen}
+              onDelete={onDelete}
+              shipped
+            />
+          ))}
+          {shippedAlbums.map((album) => (
+            <AlbumCard key={album.name} album={album} userMap={userMap} onOpen={onOpen} onDelete={onDelete} onUpdateTrack={onUpdateTrack} shipped />
+          ))}
+          {shippedSingles.length === 0 && shippedAlbums.length === 0 && (
+            <div className="empty-state">Нет отгруженных релизов. Отметьте трек статусом «Завершено» или укажите ссылку на платформу в карточке трека.</div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -308,12 +291,6 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false }: { ur
   );
 }
 
-function toShipItem(t: Track): ShippedTrackItem {
-  const kind = t.platformUrl ? detectPlatform(t.platformUrl) : 'other';
-  const platform = kind === 'soundcloud' || kind === 'youtube' ? kind : undefined;
-  return { id: t.id, title: t.title, url: t.platformUrl || '', platform };
-}
-
 function isPlayerTrack(t: Track): boolean {
   return !!t.platformUrl && (detectPlatform(t.platformUrl) === 'soundcloud' || detectPlatform(t.platformUrl) === 'youtube');
 }
@@ -382,7 +359,7 @@ function SingleTrackCard({
         </div>
         {shipped ? (
           isPlayerTrack(track) ? (
-            <ShippedMini item={toShipItem(track)} />
+            <ShippedMini item={toShippedItem(track)} />
           ) : (
             <PlatformPlayer url={track.platformUrl} />
           )
@@ -673,7 +650,7 @@ function AlbumTrackRow({
       </div>
       {shipped ? (
         isPlayerTrack(track) ? (
-          <ShippedMini item={toShipItem(track)} />
+          <ShippedMini item={toShippedItem(track)} />
         ) : null
       ) : (
         <div className="at-bottom">

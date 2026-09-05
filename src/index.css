@@ -2137,6 +2137,7 @@ body {
 }
 
 .sp-title {
+  flex: 1;
   font-weight: 700;
   font-size: 14px;
   color: var(--gray-800);
@@ -2144,6 +2145,15 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+.sp-cover {
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--gray-100);
 }
 
 .sp-open {
@@ -2275,6 +2285,15 @@ body {
   width: 20px;
   text-align: center;
   flex-shrink: 0;
+}
+
+.sp-row-cover {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--gray-100);
 }
 
 .sp-row-title {

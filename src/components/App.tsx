@@ -9,6 +9,7 @@ import AdminPanel from './AdminPanel';
 import type { Track, UserProfile, ArtistRequest, KanbanColumn } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import { asArray, resolveNames } from '../types/track';
+import ShippedPlayer, { toShippedItem, type ShippedTrackItem } from './ShippedPlayer';
 import {
   subscribeToTracks,
   createTrack,
@@ -62,6 +63,17 @@ export default function App() {
     for (const u of users) m.set(u.uid, u);
     return m;
   }, [users]);
+
+  const shippedPlayerTracks = useMemo<ShippedTrackItem[]>(() => {
+    const items: ShippedTrackItem[] = [];
+    for (const t of tracks) {
+      if (t.status === 'completed' || t.platformUrl) {
+        const it = toShippedItem(t);
+        if (it.platform) items.push(it);
+      }
+    }
+    return items;
+  }, [tracks]);
 
   useEffect(() => {
     if (!user) return;
@@ -336,7 +348,8 @@ export default function App() {
         onOpenAdminRequest={handleOpenAdminRequest}
       />
 
-      <main className="app-main">
+      <ShippedPlayer tracks={shippedPlayerTracks}>
+        <main className="app-main">
         {!canUseBoard && (
           <div className="gate-block">
             <h2>Доска недоступна</h2>
@@ -399,24 +412,25 @@ export default function App() {
         )}
       </main>
 
-      {toast && <div className="toast">{toast}</div>}
+        {toast && <div className="toast">{toast}</div>}
 
-      {showForm && canUseBoard && (
-        <TrackForm
-          initialTrack={editingTrack || undefined}
-          members={members}
-          projects={projects}
-          projectData={projectData}
-          existingNumbers={existingNumbers}
-          users={users.map((u) => ({ uid: u.uid, displayName: u.artistName || u.displayName }))}
-          userMap={userMap}
-          onClose={() => {
-            setShowForm(false);
-            setEditingTrack(null);
-          }}
-          onSave={handleSave}
-        />
-      )}
+        {showForm && canUseBoard && (
+          <TrackForm
+            initialTrack={editingTrack || undefined}
+            members={members}
+            projects={projects}
+            projectData={projectData}
+            existingNumbers={existingNumbers}
+            users={users.map((u) => ({ uid: u.uid, displayName: u.artistName || u.displayName }))}
+            userMap={userMap}
+            onClose={() => {
+              setShowForm(false);
+              setEditingTrack(null);
+            }}
+            onSave={handleSave}
+          />
+        )}
+      </ShippedPlayer>
     </div>
   );
 }

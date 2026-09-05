@@ -2,12 +2,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { soundCloudEmbedSrc, youtubeVideoId, detectPlatform } from '../types/track';
+import type { Track } from '../types/track';
+
+const SC_API_URL = 'https://w.soundcloud.com/player/api.js';
+const YT_API_URL = 'https://www.youtube.com/iframe_api';
+const SC_NEUTRAL_URL = 'https://soundcloud.com';
+
+const FALLBACK_COVER = `${import.meta.env.BASE_URL}logo_vtg_default.jpg`;
 
 export interface ShippedTrackItem {
   id: string;
   title: string;
   url: string;
   platform?: 'soundcloud' | 'youtube';
+  coverUrl?: string;
 }
 
 type RepeatMode = 'off' | 'all' | 'one';
@@ -33,6 +41,18 @@ interface ShippedPlayerManager {
 }
 
 const ShippedPlayerContext = createContext<ShippedPlayerManager | null>(null);
+
+export function toShippedItem(track: Track): ShippedTrackItem {
+  const kind = track.platformUrl ? detectPlatform(track.platformUrl) : 'other';
+  const platform = kind === 'soundcloud' || kind === 'youtube' ? kind : undefined;
+  return {
+    id: track.id,
+    title: track.title,
+    url: track.platformUrl || '',
+    platform,
+    coverUrl: track.coverUrl,
+  };
+}
 
 export function useShippedPlayerManager(): ShippedPlayerManager {
   const ctx = useContext(ShippedPlayerContext);
@@ -65,10 +85,54 @@ function shuffleRestIds(arr: string[], keepIdx: number): string[] {
   return out;
 }
 
+function ensureScApi(): Promise<void> {
+  const g = window as any;
+  if (g.SC?.Widget) return Promise.resolve();
+  if (!g.__vtgScApiPromise) {
+    g.__vtgScApiPromise = new Promise<void>((resolve) => {
+      const s = document.createElement('script');
+      s.src = SC_API_URL;
+      s.async = true;
+      s.onload = () => resolve();
+      document.body.appendChild(s);
+    });
+  }
+  return g.__vtgScApiPromise;
+}
+
+let ytApiCallback: (() => void) | null = null;
+
+function ensureYtApi(cb: () => void): void {
+  const g = window as any;
+  if (g.YT?.Player) {
+    try {
+      cb();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  ytApiCallback = cb;
+  g.onYouTubeIframeAPIReady = () => {
+    try {
+      ytApiCallback?.();
+    } catch {
+      /* ignore */
+    }
+  };
+  if (g.__vtgYtScriptLoading) return;
+  g.__vtgYtScriptLoading = true;
+  const s = document.createElement('script');
+  s.src = YT_API_URL;
+  s.async = true;
+  document.body.appendChild(s);
+}
+
 export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTrackItem[]; children?: React.ReactNode }) {
   const scIframeRef = useRef<HTMLIFrameElement | null>(null);
   const scWidgetRef = useRef<any>(null);
   const scReadyRef = useRef(false);
+  const scBoundRef = useRef(false);
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<any>(null);
   const ytReadyRef = useRef(false);
@@ -88,11 +152,9 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
 
   const orderRef = useRef(order);
   const currentIdRef = useRef(currentId);
-  const shuffleRef = useRef(shuffle);
   const repeatRef = useRef(repeat);
   orderRef.current = order;
   currentIdRef.current = currentId;
-  shuffleRef.current = shuffle;
   repeatRef.current = repeat;
   lookupRef.current = new Map(tracks.map((t) => [t.id, t]));
 
@@ -189,15 +251,9 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const playTrackRef = useRef(playTrack);
   playTrackRef.current = playTrack;
 
-  const pickIndex = useCallback((from: number, wrap: boolean): number | null => {
+  const nextIndex = useCallback((from: number, wrap: boolean): number => {
     const len = orderRef.current.length;
-    if (len === 0) return null;
-    if (shuffleRef.current) {
-      if (len === 1) return 0;
-      const opts: number[] = [];
-      for (let i = 0; i < len; i++) if (i !== from) opts.push(i);
-      return opts[Math.floor(Math.random() * opts.length)];
-    }
+    if (len === 0) return -1;
     const i = from + 1;
     if (i >= len) return wrap ? 0 : -1;
     return i;
@@ -212,13 +268,13 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     }
     const from = orderRef.current.findIndex((x) => x.id === currentIdRef.current);
     if (from < 0) return;
-    const nextIdx = pickIndex(from, repeatRef.current === 'all');
-    if (nextIdx === null || nextIdx < 0) {
+    const nextIdx = nextIndex(from, repeatRef.current === 'all');
+    if (nextIdx < 0) {
       setPlaying(false);
       return;
     }
     playTrackRef.current(orderRef.current[nextIdx].id);
-  }, [pickIndex]);
+  }, [nextIndex]);
 
   const startYtTimer = useCallback(() => {
     stopYtTimer();
@@ -237,18 +293,6 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   }, [stopYtTimer]);
 
   const initEngines = useCallback(() => {
-    const ensureScScript = (cb: () => void) => {
-      if ((window as any).SC) {
-        cb();
-        return;
-      }
-      const s = document.createElement('script');
-      s.src = 'https://w.soundcloud.com/player/api.js';
-      s.async = true;
-      s.onload = () => cb();
-      document.body.appendChild(s);
-    };
-
     const createScIframe = () => {
       if (scIframeRef.current) return scIframeRef.current;
       const f = document.createElement('iframe');
@@ -256,104 +300,104 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       f.allow = 'autoplay';
       f.setAttribute('scrolling', 'no');
       f.style.cssText = 'position:fixed;left:-9999px;top:0;width:320px;height:166px;pointer-events:none;opacity:0.01;';
+      f.src = soundCloudEmbedSrc(SC_NEUTRAL_URL);
       document.body.appendChild(f);
       scIframeRef.current = f;
       return f;
     };
 
-    ensureScScript(() => {
-      const f = createScIframe();
-      const first = orderRef.current[0];
-      if (first) f.src = soundCloudEmbedSrc(first.url);
-      const w = (window as any).SC.Widget(f);
-      scWidgetRef.current = w;
-      w.bind((window as any).SC.Widget.Events.READY, () => {
-        scReadyRef.current = true;
-        w.bind((window as any).SC.Widget.Events.PLAY_PROGRESS, (d: any) => {
-          if (activeEngineRef.current !== 'sc') return;
-          setPos(d.currentPosition || 0);
-        });
-        w.bind((window as any).SC.Widget.Events.FINISH, () => {
-          if (activeEngineRef.current === 'sc') handleFinishRef.current();
-        });
-        w.bind((window as any).SC.Widget.Events.PLAY, () => {
-          if (activeEngineRef.current === 'sc') setPlaying(true);
-        });
-        w.bind((window as any).SC.Widget.Events.PAUSE, () => {
-          if (activeEngineRef.current === 'sc') setPlaying(false);
-        });
-        const target = currentIdRef.current || orderRef.current[0]?.id;
-        if (target) playTrackRef.current(target);
-      });
+    ensureScApi().then(() => {
+      try {
+        const f = createScIframe();
+        const first = orderRef.current[0];
+        if (first && first.url && first.url.trim()) {
+          f.src = soundCloudEmbedSrc(first.url.trim());
+        }
+        if (!scBoundRef.current) {
+          scBoundRef.current = true;
+          const w = (window as any).SC.Widget(f);
+          scWidgetRef.current = w;
+          w.bind((window as any).SC.Widget.Events.READY, () => {
+            scReadyRef.current = true;
+            w.bind((window as any).SC.Widget.Events.PLAY_PROGRESS, (d: any) => {
+              if (activeEngineRef.current !== 'sc') return;
+              setPos(d.currentPosition || 0);
+            });
+            w.bind((window as any).SC.Widget.Events.FINISH, () => {
+              if (activeEngineRef.current === 'sc') handleFinishRef.current();
+            });
+            w.bind((window as any).SC.Widget.Events.PLAY, () => {
+              if (activeEngineRef.current === 'sc') setPlaying(true);
+            });
+            w.bind((window as any).SC.Widget.Events.PAUSE, () => {
+              if (activeEngineRef.current === 'sc') setPlaying(false);
+            });
+            const target = currentIdRef.current;
+            if (target) playTrackRef.current(target);
+          });
+        }
+      } catch (e) {
+        console.error('SoundCloud engine init failed', e);
+      }
     });
 
     const createYtPlayer = () => {
       if (ytPlayerRef.current || !(window as any).YT?.Player) return;
-      if (!ytContainerRef.current) {
-        const d = document.createElement('div');
-        d.style.cssText = 'position:fixed;left:-9999px;top:0;width:240px;height:135px;opacity:0.01;pointer-events:none;';
-        d.innerHTML = '<div id="vtg-yt-player-host"></div>';
-        document.body.appendChild(d);
-        ytContainerRef.current = d;
-      }
-      const firstYt = orderRef.current.find((x) => itemKind(x) === 'youtube');
-      const firstId = firstYt ? youtubeVideoId(firstYt.url) : undefined;
-      ytPlayerRef.current = new (window as any).YT.Player('vtg-yt-player-host', {
-        width: 240,
-        height: 135,
-        videoId: firstId || undefined,
-        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1 },
-        events: {
-          onReady: () => {
-            ytReadyRef.current = true;
-            const pid = pendingYtIdRef.current;
-            pendingYtIdRef.current = null;
-            if (pid) ytPlayerRef.current.loadVideoById(pid);
-            const cur = currentIdRef.current;
-            const item = cur ? lookupRef.current.get(cur) : null;
-            if (item && itemKind(item) === 'youtube') {
-              try {
-                const d = ytPlayerRef.current.getDuration();
-                if (d) setDur(Math.round(d * 1000));
-              } catch {
-                /* ignore */
+      try {
+        if (!ytContainerRef.current) {
+          const d = document.createElement('div');
+          d.style.cssText = 'position:fixed;left:-9999px;top:0;width:240px;height:135px;opacity:0.01;pointer-events:none;';
+          d.innerHTML = '<div id="vtg-yt-player-host"></div>';
+          document.body.appendChild(d);
+          ytContainerRef.current = d;
+        }
+        const firstYt = orderRef.current.find((x) => itemKind(x) === 'youtube');
+        const firstId = firstYt ? youtubeVideoId(firstYt.url) : undefined;
+        ytPlayerRef.current = new (window as any).YT.Player('vtg-yt-player-host', {
+          width: 240,
+          height: 135,
+          videoId: firstId || undefined,
+          playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1 },
+          events: {
+            onReady: () => {
+              ytReadyRef.current = true;
+              const pid = pendingYtIdRef.current;
+              pendingYtIdRef.current = null;
+              if (pid) ytPlayerRef.current.loadVideoById(pid);
+              const cur = currentIdRef.current;
+              const item = cur ? lookupRef.current.get(cur) : null;
+              if (item && itemKind(item) === 'youtube') {
+                try {
+                  const d = ytPlayerRef.current.getDuration();
+                  if (d) setDur(Math.round(d * 1000));
+                } catch {
+                  /* ignore */
+                }
               }
-            }
+            },
+            onStateChange: (s: any) => {
+              if (activeEngineRef.current !== 'yt') return;
+              const code = s.data;
+              if (code === 1) {
+                setPlaying(true);
+                startYtTimer();
+              } else if (code === 2) {
+                setPlaying(false);
+                stopYtTimer();
+              } else if (code === 0) {
+                setPlaying(false);
+                stopYtTimer();
+                handleFinishRef.current();
+              }
+            },
           },
-          onStateChange: (s: any) => {
-            if (activeEngineRef.current !== 'yt') return;
-            const code = s.data;
-            if (code === 1) {
-              setPlaying(true);
-              startYtTimer();
-            } else if (code === 2) {
-              setPlaying(false);
-              stopYtTimer();
-            } else if (code === 0) {
-              setPlaying(false);
-              stopYtTimer();
-              handleFinishRef.current();
-            }
-          },
-        },
-      });
+        });
+      } catch (e) {
+        console.error('YouTube engine init failed', e);
+      }
     };
 
-    const ensureYtScript = () => {
-      if ((window as any).YT?.Player) {
-        createYtPlayer();
-        return;
-      }
-      (window as any).onYouTubeIframeAPIReady = createYtPlayer;
-      const s = document.createElement('script');
-      s.src = 'https://www.youtube.com/iframe_api';
-      s.async = true;
-      s.onload = () => {
-        if ((window as any).YT?.Player) createYtPlayer();
-      };
-      document.body.appendChild(s);
-    };
-    ensureYtScript();
+    ensureYtApi(createYtPlayer);
   }, [startYtTimer, stopYtTimer]);
 
   useEffect(() => {
@@ -362,8 +406,9 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       stopYtTimer();
       scIframeRef.current?.remove();
       scIframeRef.current = null;
-      scReadyRef.current = false;
       scWidgetRef.current = null;
+      scReadyRef.current = false;
+      scBoundRef.current = false;
       ytContainerRef.current?.remove();
       ytContainerRef.current = null;
       ytPlayerRef.current = null;
@@ -404,13 +449,13 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     const from = orderRef.current.findIndex((x) => x.id === currentIdRef.current);
     if (orderRef.current.length === 0) return;
     const base = from >= 0 ? from : -1;
-    const idx = pickIndex(base, repeatRef.current !== 'off');
-    if (idx === null || idx < 0) {
+    const idx = nextIndex(base, repeatRef.current !== 'off');
+    if (idx < 0) {
       setPlaying(false);
       return;
     }
     playTrackRef.current(orderRef.current[idx].id);
-  }, [pickIndex]);
+  }, [nextIndex]);
 
   const prev = useCallback(() => {
     if (orderRef.current.length === 0) return;
@@ -442,8 +487,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
 
   const toggleShuffle = useCallback(() => {
     setShuffle((v) => {
-      const next = !v;
-      if (next) {
+      const nextV = !v;
+      if (nextV) {
         setOrder((o) => {
           const idx = Math.max(0, orderRef.current.findIndex((x) => x.id === currentIdRef.current));
           const newIds = shuffleRestIds(o.map((x) => x.id), idx);
@@ -463,7 +508,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
           return out.map((id) => byId.get(id)).filter((x): x is ShippedTrackItem => !!x);
         });
       }
-      return next;
+      return nextV;
     });
   }, [tracks]);
 
@@ -540,6 +585,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
             </div>
             <div className="sp-main">
               <div className="sp-info">
+                {current && <img className="sp-cover" src={current.coverUrl?.trim() || FALLBACK_COVER} alt="" />}
                 <span className="sp-title">{current ? current.title : '—'}</span>
                 {current && (
                   <a className="sp-open" href={current.url} target="_blank" rel="noopener noreferrer" title="Открыть на платформе">↗</a>
@@ -586,6 +632,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                             >
                               <span className="sp-grip" {...p.dragHandleProps}>⠿</span>
                               <span className="sp-row-num">{idx + 1}</span>
+                              <img className="sp-row-cover" src={item.coverUrl?.trim() || FALLBACK_COVER} alt="" />
                               <span className="sp-row-title">{item.title}</span>
                               {item.id === currentId && <span className="sp-row-state">{playing ? '▶' : '⏸'}</span>}
                             </div>
