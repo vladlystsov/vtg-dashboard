@@ -263,7 +263,7 @@ export default function App() {
     }
   };
 
-  const handleSave = async (data: TrackFormData, id?: string) => {
+  const handleSave = async (data: TrackFormData, id?: string, file?: File) => {
     const payload = {
       ...data,
       artist: data.artists[0] || '',
@@ -274,16 +274,40 @@ export default function App() {
       beatmakerUids: data.beatmakerUids || [],
       mixBy: data.mixBy || [],
       mixByUids: data.mixByUids || [],
+      // карточка сохраняется сразу, прикреплённый mp3 публикуется в фоне
+      archiveStatus: (file ? 'uploading' : undefined) as 'uploading' | undefined,
     };
 
     const isUpdate = !!id;
     const oldTrack = isUpdate ? tracks.find((t) => t.id === id) : null;
 
     if (isOnline) {
+      let trackId = id;
       if (id) {
         await updateTrack(id, payload as any);
       } else {
-        await createTrack(payload as any);
+        trackId = await createTrack(payload as any);
+      }
+
+      if (file && trackId) {
+        publishBeatAudioInBackground({
+          file,
+          title: payload.title,
+          description: payload.artists?.join(', ') || undefined,
+          creator: payload.artists?.[0],
+          callbacks: {
+            onReady: (url: string) => {
+              void updateTrack(trackId as string, {
+                platformUrl: url,
+                archiveStatus: 'ready',
+                archiveError: undefined,
+              });
+            },
+            onError: (message: string) => {
+              void updateTrack(trackId as string, { archiveStatus: 'error', archiveError: message });
+            },
+          },
+        });
       }
 
       if (!isUpdate) {
@@ -306,6 +330,8 @@ export default function App() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         coverUrl: undefined,
+        // в офлайне mp3 не публикуется — загрузка файла при синхронизации не сохранится
+        archiveStatus: undefined,
       } as any;
       await saveTrackOffline(offlineTrack);
       await addPendingSync(id ? 'update' : 'create', offlineTrack.id, offlineTrack);

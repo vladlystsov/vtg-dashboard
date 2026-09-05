@@ -10,6 +10,9 @@ export type ArtistRole = 'artist' | 'beatmaker' | 'mixer' | 'feat';
 
 export type ReleaseType = 'single' | 'ep' | 'album' | 'auto';
 
+// Состояние фоновой публикации прямого mp3 в Archive.org
+export type TrackArchiveStatus = 'uploading' | 'ready' | 'error';
+
 export const RELEASE_TYPE_LABELS: Record<Exclude<ReleaseType, 'auto'>, string> = {
   single: 'Сингл',
   ep: 'EP',
@@ -71,6 +74,8 @@ export interface Track {
   albumBeatmakers?: string[] | string;
   albumMixBy?: string[] | string;
   platformUrl?: string;
+  archiveStatus?: TrackArchiveStatus;
+  archiveError?: string;
 }
 
 export type PlatformKind = 'soundcloud' | 'youtube' | 'yandex' | 'vkontakte' | 'audio' | 'other';

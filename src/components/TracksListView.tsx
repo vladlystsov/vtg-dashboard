@@ -333,6 +333,12 @@ function SingleTrackCard({
             <div className="album-track-title-text">
               <span className="album-track-title-name">{track.title}</span>
               {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
+              {track.archiveStatus === 'uploading' && (
+                <span className="at-archive-badge at-archive-uploading" title="Звук публикуется в Archive.org">звук…</span>
+              )}
+              {track.archiveStatus === 'error' && (
+                <span className="at-archive-badge at-archive-error" title={track.archiveError || 'Ошибка публикации звука'}>ошибка звука</span>
+              )}
             </div>
             {artistNamesStr(track, userMap) && (
               <div className="album-track-credits">
@@ -613,6 +619,12 @@ function AlbumTrackRow({
           <div className="at-title-line">
             <span className="at-title">{track.title}</span>
             {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
+            {track.archiveStatus === 'uploading' && (
+              <span className="at-archive-badge at-archive-uploading" title="Звук публикуется в Archive.org">звук…</span>
+            )}
+            {track.archiveStatus === 'error' && (
+              <span className="at-archive-badge at-archive-error" title={track.archiveError || 'Ошибка публикации звука'}>ошибка звука</span>
+            )}
           </div>
           {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}
           {(beatmakerNamesStr(track, userMap) || mixByNamesStr(track, userMap)) && (

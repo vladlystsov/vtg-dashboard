@@ -5,6 +5,7 @@ import { PlatformPlayer } from './TracksListView';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadCover } from '../services/fileService';
+import { checkBeatAudioFile } from '../services/archiveService';
 
 interface TrackFormProps {
   initialTrack?: Track;
@@ -15,7 +16,7 @@ interface TrackFormProps {
   users: { uid: string; displayName: string }[];
   userMap?: Map<string, UserProfile>;
   onClose: () => void;
-  onSave: (data: any, id?: string) => Promise<void>;
+  onSave: (data: any, id?: string, file?: File) => Promise<void>;
 }
 
 const CHECKLIST_STATUS_ORDER: ChecklistItem['status'][] = ['pending', 'in_progress', 'done', 'review', 'verified'];
@@ -158,6 +159,7 @@ export default function TrackForm({
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(initialTrack?.coverUrl || null);
   const [platformUrl, setPlatformUrl] = useState(initialTrack?.platformUrl || '');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [coverUrlExternal, setCoverUrlExternal] = useState('');
   const [saving, setSaving] = useState(false);
   const [fetchingPlatform, setFetchingPlatform] = useState(false);
@@ -316,6 +318,14 @@ export default function TrackForm({
       return;
     }
 
+    if (audioFile) {
+      const fileErr = checkBeatAudioFile(audioFile);
+      if (fileErr) {
+        setError(fileErr);
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
 
@@ -370,7 +380,7 @@ export default function TrackForm({
         releaseType,
         platformUrl: platformUrl.trim() || undefined,
       };
-      await withTimeout(onSave(data, initialTrack?.id), 20000, 'сохранение в Firestore');
+      await withTimeout(onSave(data, initialTrack?.id, audioFile || undefined), 20000, 'сохранение в Firestore');
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Не удалось сохранить. Проверьте подключение и повторите.');
@@ -580,6 +590,40 @@ export default function TrackForm({
             {detectPlatform(platformUrl) === 'youtube' && !!youtubeVideoId(platformUrl.trim()) && (
               <PlatformPlayer url={platformUrl.trim()} compact />
             )}
+          </div>
+
+          <div className="form-group">
+            <label>Или загрузите прямой mp3</label>
+            <input
+              type="file"
+              accept="audio/mpeg,audio/wav,audio/ogg,audio/x-m4a,audio/aac,audio/flac,audio/ogg"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                if (f) {
+                  const err = checkBeatAudioFile(f);
+                  if (err) {
+                    setError(err);
+                    setAudioFile(null);
+                  } else {
+                    setError('');
+                    setAudioFile(f);
+                  }
+                } else {
+                  setAudioFile(null);
+                }
+              }}
+            />
+            {audioFile && (
+              <div className="form-hint" style={{ marginTop: 4 }}>
+                Файл «{audioFile.name}» ({((audioFile.size || 0) / 1024 / 1024).toFixed(1)} МБ) будет опубликован
+                в Archive.org в фоне после сохранения. Трек сразу появится, а звук — через пару минут.
+                Такие треки кэшируются на устройство и играют офлайн.
+              </div>
+            )}
+            <div className="form-hint" style={{ marginTop: 4 }}>
+              Звук публикуется на бесплатном Archive.org (до 30 МБ). Ссылка на платформу и mp3 можно указать вместе —
+              mp3 будет основным источником прослушивания.
+            </div>
           </div>
 
           <div className="form-group">
