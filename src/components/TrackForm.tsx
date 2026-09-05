@@ -308,12 +308,13 @@ export default function TrackForm({
 
     const myName = profile?.artistName || profile?.displayName || '';
     const myUid = profile?.uid || '';
+    const isPrivileged = profile?.role === 'owner' || profile?.role === 'admin';
     const isInArtists = artistUids.includes(myUid) || artists.some((a) => a.toLowerCase() === myName.toLowerCase());
     const isInBeatmakers = beatmakerUids.includes(myUid) || beatmakers.some((b) => b.toLowerCase() === myName.toLowerCase());
     const isInMixBy = mixByUids.includes(myUid) || mixBy.some((m) => m.toLowerCase() === myName.toLowerCase());
     const isInFeat = feat.toLowerCase().includes(myName.toLowerCase());
 
-    if (!isInArtists && !isInBeatmakers && !isInMixBy && !isInFeat) {
+    if (!isPrivileged && !isInArtists && !isInBeatmakers && !isInMixBy && !isInFeat) {
       setError('Ты должен быть указан хотя бы в одном из разделов: Артисты, Битмейкеры, Mix by или Feat.');
       return;
     }

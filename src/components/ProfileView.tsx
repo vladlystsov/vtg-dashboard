@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ArtistRole } from '../types/track';
+import type { ArtistRole, PlaybackMode } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import { createArtistRequest } from '../services/artistRequestService';
 import { updateMyProfile } from '../services/userService';
@@ -23,6 +23,8 @@ export default function ProfileView() {
   const { profile, refreshProfile } = useAuth();
   const [artistName, setArtistName] = useState(profile?.artistName || '');
   const [roles, setRoles] = useState<ArtistRole[]>(profile?.roles || ['artist']);
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>(profile?.playbackMode || 'platform');
+  const [downloadTracks, setDownloadTracks] = useState(!!profile?.downloadTracks);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -41,6 +43,8 @@ export default function ProfileView() {
       await updateMyProfile(profile.uid, {
         artistName: artistName.trim() || profile.displayName,
         roles,
+        playbackMode,
+        downloadTracks,
         ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
       });
       await renameArtistInTracks(profile.uid, profile.artistName || profile.displayName || '', artistName.trim() || profile.displayName);
@@ -61,6 +65,8 @@ export default function ProfileView() {
       await updateMyProfile(profile.uid, {
         artistName: artistName.trim() || profile.displayName,
         roles,
+        playbackMode,
+        downloadTracks,
         ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
       });
       await renameArtistInTracks(profile.uid, profile.artistName || profile.displayName || '', artistName.trim() || profile.displayName);
@@ -140,6 +146,60 @@ export default function ProfileView() {
           )}
           {message && <div className="success-msg">{message}</div>}
           {error && <div className="error-msg">{error}</div>}
+        </div>
+
+        <div className="profile-card" style={{ marginTop: 16 }}>
+          <div className="profile-form-section">
+            <h3>Настройки воспроизведения</h3>
+
+            <div className="form-group">
+              <label>Предпочтительный источник</label>
+              <div className="role-checkboxes">
+                <label className="role-checkbox">
+                  <input
+                    type="radio"
+                    name="playbackMode"
+                    checked={playbackMode === 'platform'}
+                    onChange={() => setPlaybackMode('platform')}
+                  />
+                  Платформы (SoundCloud / YouTube)
+                </label>
+                <label className="role-checkbox">
+                  <input
+                    type="radio"
+                    name="playbackMode"
+                    checked={playbackMode === 'local'}
+                    onChange={() => setPlaybackMode('local')}
+                  />
+                  Локально (аудио на сайте)
+                </label>
+              </div>
+              <div className="form-hint">
+                {playbackMode === 'platform'
+                  ? 'Треки будут воспроизводиться через встроенные плееры SoundCloud/YouTube.'
+                  : 'Треки будут воспроизводиться через встроенный аудиоплеер на сайте (если загружены в Archive.org).'}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="role-checkbox">
+                <input
+                  type="checkbox"
+                  checked={downloadTracks}
+                  onChange={(e) => setDownloadTracks(e.target.checked)}
+                />
+                Разрешить скачивание треков с сайта
+              </label>
+              <div className="form-hint">
+                Если включено, рядом с треками будет кнопка скачивания.
+              </div>
+            </div>
+
+            <button className="btn-primary" onClick={handleSaveProfile} disabled={saving}>
+              {saving ? 'Сохранение...' : 'Сохранить настройки'}
+            </button>
+            {message && <div className="success-msg">{message}</div>}
+          </div>
         </div>
       </div>
     </div>

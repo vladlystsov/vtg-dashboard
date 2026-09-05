@@ -7,7 +7,8 @@ import TeamView from './TeamView';
 import ProfileView from './ProfileView';
 import AdminPanel from './AdminPanel';
 import BeatsView from './BeatsView';
-import type { Track, UserProfile, ArtistRequest, KanbanColumn } from '../types/track';
+import ProjectsView from './ProjectsView';
+import type { Track, UserProfile, ArtistRequest, KanbanColumn, SoundProject } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import { asArray, resolveNames } from '../types/track';
 import type { Beat, BeatFormData } from '../types/beat';
@@ -45,11 +46,12 @@ import {
   deleteBeat,
 } from '../services/beatsService';
 import { publishBeatAudioInBackground } from '../services/archiveService';
+import { subscribeToProjects } from '../services/projectService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 
-type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin';
+type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
 
 function beatIdFromHash(): string | undefined {
   const m = window.location.hash.match(/#beat=([A-Za-z0-9_-]+)/);
@@ -64,6 +66,7 @@ export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [soundProjects, setSoundProjects] = useState<SoundProject[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>(beatIdFromHash() ? 'beats' : 'board');
   const requestedBeatId = beatIdFromHash();
@@ -178,6 +181,14 @@ export default function App() {
       setNotifications(data);
     }, (e) => console.error('notif sub', e), user.uid);
     return () => { notifUnsubRef.current?.(); notifUnsubRef.current = null; };
+  }, [user]);
+
+  const projectsUnsubRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    projectsUnsubRef.current = subscribeToProjects((data) => setSoundProjects(data), (e) => console.error('projects sub', e));
+    return () => { projectsUnsubRef.current?.(); projectsUnsubRef.current = null; };
   }, [user]);
 
   const seenNotif = useRef<Set<string>>(new Set());
@@ -461,6 +472,8 @@ export default function App() {
             onOpenTrack={handleOpenTrack}
             onMove={handleMove}
             userMap={userMap}
+            currentUid={profile?.uid}
+            currentName={profile?.artistName || profile?.displayName}
           />
         )}
 
@@ -504,6 +517,10 @@ export default function App() {
         )}
 
         {view === 'profile' && <ProfileView />}
+
+        {view === 'projects' && canUseBoard && (
+          <ProjectsView projects={soundProjects} />
+        )}
 
         {view === 'admin' && isRoleAllowed && (
           <AdminPanel

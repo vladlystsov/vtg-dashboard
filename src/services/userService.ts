@@ -1,6 +1,6 @@
 import { collection, onSnapshot, doc, updateDoc, getDocs, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import type { UserProfile, UserRole, ArtistRole } from '../types/track';
+import type { UserProfile, UserRole, ArtistRole, PlaybackMode } from '../types/track';
 
 const usersRef = collection(db, 'users');
 
@@ -31,7 +31,7 @@ export async function setUserRole(uid: string, role: UserRole) {
 
 export async function updateMyProfile(
   uid: string,
-  data: { artistName?: string; roles?: ArtistRole[]; artistVerified?: boolean; isArtist?: boolean }
+  data: { artistName?: string; roles?: ArtistRole[]; artistVerified?: boolean; isArtist?: boolean; playbackMode?: PlaybackMode; downloadTracks?: boolean }
 ) {
   const ref = doc(db, 'users', uid);
   await updateDoc(ref, data);

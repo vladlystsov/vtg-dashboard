@@ -25,6 +25,8 @@ export function autoDetectReleaseType(trackCount: number): Exclude<ReleaseType, 
   return 'album';
 }
 
+export type PlaybackMode = 'platform' | 'local';
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -35,6 +37,8 @@ export interface UserProfile {
   isArtist?: boolean;
   artistVerified?: boolean;
   roles?: ArtistRole[];
+  playbackMode?: PlaybackMode;
+  downloadTracks?: boolean;
 }
 
 export interface ChecklistItem {
@@ -202,4 +206,25 @@ export interface ArtistRequest {
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   reviewedBy?: string;
+}
+
+export interface ProjectFile {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  uploadedAt: string;
+}
+
+export interface SoundProject {
+  id: string;
+  name: string;
+  description: string;
+  beatmakerUid: string;
+  beatmakerName: string;
+  coverUrl?: string;
+  files: ProjectFile[];
+  createdAt: string;
+  updatedAt: string;
 }

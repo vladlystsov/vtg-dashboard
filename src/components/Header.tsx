@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import type { AppNotification } from '../services/notificationService';
 
-type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin';
+type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
 
 interface HeaderProps {
   view: View;
@@ -21,6 +21,7 @@ const NAV: { id: View; label: string }[] = [
   { id: 'board', label: 'Доска' },
   { id: 'tracks', label: 'Треки' },
   { id: 'beats', label: 'Биты' },
+  { id: 'projects', label: 'Проекты' },
   { id: 'team', label: 'Команда' },
 ];
 
