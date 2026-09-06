@@ -51,6 +51,10 @@ service cloud.firestore {
       );
     }
 
+    match /projects/{projectId} {
+      allow read, write: if isAuthenticated();
+    }
+
     match /artistRequests/{requestId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;

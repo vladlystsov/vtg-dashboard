@@ -1,11 +1,13 @@
 const ALLOWED_EXT = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus'];
 const MAX_BYTES = 30 * 1024 * 1024;
+const MAX_PROJECT_ZIP_BYTES = 1024 * 1024 * 1024; // 1 GB
 
 const S3_HOST = 'https://s3.us.archive.org';
 const METADATA_HOST = 'https://archive.org';
 const COLLECTION = 'opensource_audio';
 const META_POLL_MS = 10000;
 const META_TIMEOUT_MS = 150000;
+const META_ZIP_TIMEOUT_MS = 300000;
 
 // LOW-ключи S3-аккаунта Archive.org. Светятся в бандле — для приложения
 // рекомендуется отдельный «издательский» аккаунт archive.org.
@@ -22,6 +24,14 @@ export function checkBeatAudioFile(file: File): string | null {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   if (!ALLOWED_EXT.includes(ext)) return `Формат .${ext} не поддерживается (mp3/wav/ogg/m4a/aac/flac/opus)`;
   if (file.size > MAX_BYTES) return 'Файл больше 30 МБ';
+  return null;
+}
+
+export function checkProjectZipFile(file: File): string | null {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (ext !== 'zip') return 'Формат .' + ext + ' не поддерживается, нужен .zip архив';
+  if (file.size > MAX_PROJECT_ZIP_BYTES) return 'Архив больше 1 ГБ (максимум 1 ГБ)';
+  if (file.size <= 0) return 'Пустой архив';
   return null;
 }
 
@@ -52,31 +62,33 @@ async function metaReady(itemId: string, filename: string, timeoutMs = META_TIME
 }
 
 /**
- * Прямая загрузка mp3 в командный аккаунт Archive.org из браузера.
+ * Общая загрузка файла в командный аккаунт Archive.org из браузера.
  * После PUT ждёт появления файла в метаданных и возвращает прямую ссылку.
  */
-export async function uploadBeatAudio(params: {
+async function uploadArchiveFile(params: {
   file: File;
+  itemPrefix: string;
   title: string;
   description?: string;
   creator?: string;
+  mediatype: string;
+  timeoutMs?: number;
 }): Promise<{ url: string; identifier: string; ready: boolean }> {
   if (!ARCHIVE_ORG_ACCESS_KEY || !ARCHIVE_ORG_SECRET_KEY) {
     throw new Error('Ключи Archive.org не настроены на сервере');
   }
 
-  const itemId = `vtgbeat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const itemId = `${params.itemPrefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const ext = (params.file.name.split('.').pop() || '').toLowerCase();
-  const extOk = ALLOWED_EXT.includes(ext) ? ext : 'mp3';
-  const base = (params.file.name.replace(/\.[^.]+$/, '') || 'beat')
+  const base = (params.file.name.replace(/\.[^.]+$/, '') || params.itemPrefix)
     .replace(/[^a-z0-9-]+/gi, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .toLowerCase();
-  const filename = `${base || 'beat'}-${Date.now().toString(36)}.${extOk}`;
+  const filename = `${base || params.itemPrefix}-${Date.now().toString(36)}.${ext}`;
 
   const title = params.title.trim().slice(0, 200);
-  if (!title) throw new Error('Укажите название бита');
+  if (!title) throw new Error('Укажите название');
   const description = (params.description || '').trim().slice(0, 1000);
   const creator = (params.creator || '').trim().slice(0, 200);
 
@@ -85,10 +97,10 @@ export async function uploadBeatAudio(params: {
     'x-archive-auto-make-bucket': '1',
     'x-archive-queue-derive': '0',
     'x-archive-interactive-priority': '1',
-    'x-archive-meta-mediatype': 'audio',
+    'x-archive-meta-mediatype': params.mediatype,
     'x-archive-meta01-collection': COLLECTION,
     'x-archive-meta-title': `uri(${encodeURIComponent(title)})`,
-    'content-type': params.file.type || 'audio/mpeg',
+    'content-type': params.file.type || 'application/octet-stream',
   };
   if (description) headers['x-archive-meta-description'] = `uri(${encodeURIComponent(description)})`;
   if (creator) headers['x-archive-meta-creator'] = `uri(${encodeURIComponent(creator)})`;
@@ -100,7 +112,6 @@ export async function uploadBeatAudio(params: {
   });
   let last = put;
   if (!put.ok) {
-    // archive.org редко отдаёт 403/429/5xx транзитно (лимиты, обслуживание) — пробуем ещё пару раз
     const transient = [403, 429, 500, 502, 503, 504].includes(put.status);
     if (transient) {
       await sleep(2500);
@@ -125,11 +136,39 @@ export async function uploadBeatAudio(params: {
   const url = `https://archive.org/download/${itemId}/${filename}`;
   let ready = false;
   try {
-    ready = await metaReady(itemId, filename);
+    ready = await metaReady(itemId, filename, params.timeoutMs || META_TIMEOUT_MS);
   } catch {
     // не критично: ссылка всё равно скоро станет доступной
   }
   return { url, identifier: itemId, ready };
+}
+
+/**
+ * Прямая загрузка mp3 в командный аккаунт Archive.org из браузера.
+ * После PUT ждёт появления файла в метаданных и возвращает прямую ссылку.
+ */
+export async function uploadBeatAudio(params: {
+  file: File;
+  title: string;
+  description?: string;
+  creator?: string;
+}): Promise<{ url: string; identifier: string; ready: boolean }> {
+  return uploadArchiveFile({ ...params, itemPrefix: 'vtgbeat', mediatype: 'audio' });
+}
+
+/**
+ * Загрузка .zip архива проекта трека (до 1 ГБ) в Archive.org.
+ */
+export async function uploadProjectZip(params: {
+  file: File;
+  title: string;
+  description?: string;
+  creator?: string;
+}): Promise<{ url: string; identifier: string; ready: boolean }> {
+  const ext = (params.file.name.split('.').pop() || '').toLowerCase();
+  if (ext !== 'zip') throw new Error('Проекты должны загружаться как .zip архивы');
+  if (params.file.size > MAX_PROJECT_ZIP_BYTES) throw new Error('Архив больше 1 ГБ');
+  return uploadArchiveFile({ ...params, itemPrefix: 'vtgproj', mediatype: 'zip', timeoutMs: META_ZIP_TIMEOUT_MS });
 }
 
 export interface PublishBeatCallbacks {
@@ -155,6 +194,26 @@ export function publishBeatAudioInBackground(params: {
       params.callbacks.onReady(url);
     } catch (e) {
       params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации');
+    }
+  })();
+}
+
+/**
+ * Фоновая публикация .zip проекта в Archive.org.
+ */
+export function publishProjectZipInBackground(params: {
+  file: File;
+  title: string;
+  description?: string;
+  creator?: string;
+  callbacks: PublishBeatCallbacks;
+}): void {
+  (async () => {
+    try {
+      const { url } = await uploadProjectZip(params);
+      params.callbacks.onReady(url);
+    } catch (e) {
+      params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации проекта');
     }
   })();
 }

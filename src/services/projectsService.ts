@@ -9,8 +9,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import type { SoundProject, ProjectFile } from '../types/track';
-import { v4 as uuidv4 } from 'uuid';
+import type { Project } from '../types/track';
 
 const projectsRef = collection(db, 'projects');
 
@@ -32,7 +31,6 @@ function sanitize(data: any): any {
     }
     return clean;
   }
-  if (data === undefined || data === null) return undefined;
   return data;
 }
 
@@ -42,34 +40,27 @@ function cleanForFirestore(data: any): Record<string, any> {
 }
 
 export function subscribeToProjects(
-  callback: (projects: SoundProject[]) => void,
+  callback: (projects: Project[]) => void,
   onError?: (e: Error) => void
 ) {
   const q = query(projectsRef, orderBy('updatedAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
-    const projects = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SoundProject));
+    const projects = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
     callback(projects);
   }, onError);
 }
 
-export async function createProject(data: {
-  name: string;
-  description: string;
-  beatmakerUid: string;
-  beatmakerName: string;
-  coverUrl?: string;
-}): Promise<string> {
+export async function createProject(data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const now = new Date().toISOString();
   const docRef = await addDoc(projectsRef, cleanForFirestore({
     ...data,
-    files: [],
     createdAt: now,
     updatedAt: now,
   }));
   return docRef.id;
 }
 
-export async function updateProject(id: string, data: Partial<SoundProject>) {
+export async function updateProject(id: string, data: Partial<Project>) {
   const ref = doc(db, 'projects', id);
   await updateDoc(ref, cleanForFirestore({
     ...data,
@@ -79,33 +70,4 @@ export async function updateProject(id: string, data: Partial<SoundProject>) {
 
 export async function deleteProject(id: string) {
   await deleteDoc(doc(db, 'projects', id));
-}
-
-export async function addFileToProject(
-  projectId: string,
-  file: { name: string; url: string; type: string; size: number },
-  existingFiles: ProjectFile[]
-): Promise<void> {
-  const newFile: ProjectFile = {
-    id: uuidv4(),
-    ...file,
-    uploadedAt: new Date().toISOString(),
-  };
-  const ref = doc(db, 'projects', projectId);
-  await updateDoc(ref, cleanForFirestore({
-    files: [...existingFiles, newFile],
-    updatedAt: new Date().toISOString(),
-  }));
-}
-
-export async function removeFileFromProject(
-  projectId: string,
-  fileId: string,
-  existingFiles: ProjectFile[]
-): Promise<void> {
-  const ref = doc(db, 'projects', projectId);
-  await updateDoc(ref, cleanForFirestore({
-    files: existingFiles.filter((f) => f.id !== fileId),
-    updatedAt: new Date().toISOString(),
-  }));
 }

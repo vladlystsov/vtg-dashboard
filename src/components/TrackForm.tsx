@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile } from '../types/track';
-import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform, youtubeVideoId } from '../types/track';
+import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile, ProjectVariant, ProjectVocalType } from '../types/track';
+import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform, youtubeVideoId, PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS, PROJECT_VOCAL_TYPES } from '../types/track';
 import { PlatformPlayer } from './TracksListView';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadCover } from '../services/fileService';
-import { checkBeatAudioFile } from '../services/archiveService';
+import { checkBeatAudioFile, checkProjectZipFile, publishProjectZipInBackground } from '../services/archiveService';
 
 interface TrackFormProps {
   initialTrack?: Track;
@@ -16,7 +16,7 @@ interface TrackFormProps {
   users: { uid: string; displayName: string }[];
   userMap?: Map<string, UserProfile>;
   onClose: () => void;
-  onSave: (data: any, id?: string, file?: File) => Promise<void>;
+  onSave: (data: any, id?: string, file?: File) => Promise<string | undefined>;
 }
 
 const CHECKLIST_STATUS_ORDER: ChecklistItem['status'][] = ['pending', 'in_progress', 'done', 'review', 'verified'];
@@ -164,6 +164,12 @@ export default function TrackForm({
   const [saving, setSaving] = useState(false);
   const [fetchingPlatform, setFetchingPlatform] = useState(false);
   const [error, setError] = useState('');
+  const [projectZipFile, setProjectZipFile] = useState<File | null>(null);
+  const [projectVariant, setProjectVariant] = useState<ProjectVariant>(initialTrack?.projectVariant || 'main');
+  const [projectVocalType, setProjectVocalType] = useState<ProjectVocalType | undefined>(initialTrack?.projectVocalType);
+  const [personalCoverFile, setPersonalCoverFile] = useState<File | null>(null);
+  const [personalCoverUrl, setPersonalCoverUrl] = useState(initialTrack?.personalCoverUrl || '');
+  const [personalCoverPreview, setPersonalCoverPreview] = useState<string | null>(initialTrack?.personalCoverUrl || null);
 
   const hasProject = !!project;
   const prevProject = useRef(project);
@@ -331,11 +337,15 @@ export default function TrackForm({
     setError('');
 
     let coverUrl = initialTrack?.coverUrl;
+    let finalPersonalCoverUrl = personalCoverUrl;
     try {
       if (coverUrlExternal.trim()) {
         coverUrl = coverUrlExternal.trim();
       } else if (coverFile) {
         coverUrl = await withTimeout(uploadCover(coverFile), 20000, 'обработка обложки');
+      }
+      if (personalCoverFile) {
+        finalPersonalCoverUrl = await withTimeout(uploadCover(personalCoverFile), 20000, 'обработка персональной обложки');
       }
       const finalProject = project.trim();
 
@@ -380,8 +390,32 @@ export default function TrackForm({
         createdBy: profile?.uid || '',
         releaseType,
         platformUrl: platformUrl.trim() || undefined,
+        projectVariant,
+        projectVocalType,
+        personalCoverUrl: finalPersonalCoverUrl.trim() || undefined,
+        ...(projectZipFile ? {
+          projectZipStatus: 'uploading' as const,
+          projectZipError: undefined,
+        } : {}),
       };
-      await withTimeout(onSave(data, initialTrack?.id, audioFile || undefined), 20000, 'сохранение в Firestore');
+      const id = await withTimeout(onSave(data, initialTrack?.id, audioFile || undefined), 20000, 'сохранение в Firestore');
+
+      if (projectZipFile && id) {
+        publishProjectZipInBackground({
+          file: projectZipFile,
+          title: `VTG ${finalProject || title.trim()}`,
+          description: `Проект трека «${title.trim()}»`,
+          creator: profile?.artistName || profile?.displayName,
+          callbacks: {
+            onReady: (url) => {
+              void onSave({ ...data, platformUrl: platformUrl.trim() || undefined, projectZipUrl: url, projectZipStatus: 'ready', projectZipError: undefined }, id);
+            },
+            onError: (message) => {
+              void onSave({ ...data, projectZipStatus: 'error', projectZipError: message }, id);
+            },
+          },
+        });
+      }
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Не удалось сохранить. Проверьте подключение и повторите.');
@@ -638,6 +672,87 @@ export default function TrackForm({
               }}
               placeholder="https://.../cover.jpg"
             />
+          </div>
+
+          {hasProject && (
+            <div className="form-group">
+              <label>Персональная обложка трека (если отличается от обложки альбома)</label>
+              <div className="cover-upload">
+                {personalCoverPreview && <img className="cover-preview" src={personalCoverPreview} alt="Персональная обложка" />}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setPersonalCoverFile(file);
+                      setPersonalCoverPreview(URL.createObjectURL(file));
+                      setPersonalCoverUrl('');
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label>Проект трека (архив .zip, до 1 ГБ)</label>
+            <input
+              type="file"
+              accept=".zip"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                if (f) {
+                  const err = checkProjectZipFile(f);
+                  if (err) {
+                    setError(err);
+                    setProjectZipFile(null);
+                  } else {
+                    setError('');
+                    setProjectZipFile(f);
+                  }
+                } else {
+                  setProjectZipFile(null);
+                }
+              }}
+            />
+            {projectZipFile && (
+              <div className="form-hint" style={{ marginTop: 4 }}>
+                Архив «{projectZipFile.name}» ({(projectZipFile.size / 1024 / 1024).toFixed(1)} МБ) будет загружен
+                в Archive.org после сохранения.
+              </div>
+            )}
+            {initialTrack?.projectZipUrl && initialTrack.projectZipStatus === 'ready' && (
+              <div className="form-hint success" style={{ marginTop: 4 }}>
+                ✓ Архив загружен:{' '}
+                <a href={initialTrack.projectZipUrl} target="_blank" rel="noreferrer">
+                  скачать
+                </a>
+              </div>
+            )}
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Версия</label>
+              <select value={projectVariant} onChange={(e) => setProjectVariant(e.target.value as ProjectVariant)}>
+                {Object.entries(PROJECT_VARIANT_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Тип вокала / материала</label>
+              <select
+                value={projectVocalType || ''}
+                onChange={(e) => setProjectVocalType((e.target.value || undefined) as ProjectVocalType | undefined)}
+              >
+                <option value="">—</option>
+                {PROJECT_VOCAL_TYPES.map((t) => (
+                  <option key={t} value={t}>{PROJECT_VOCAL_TYPE_LABELS[t]}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="form-row">

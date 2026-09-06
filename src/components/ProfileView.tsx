@@ -25,9 +25,67 @@ export default function ProfileView() {
   const [roles, setRoles] = useState<ArtistRole[]>(profile?.roles || ['artist']);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>(profile?.playbackMode || 'platform');
   const [downloadTracks, setDownloadTracks] = useState(!!profile?.downloadTracks);
+  const [youtubeUrl, setYoutubeUrl] = useState(profile?.youtubeUrl || '');
+  const [soundcloudUrl, setSoundcloudUrl] = useState(profile?.soundcloudUrl || '');
+  const [linkStatus, setLinkStatus] = useState<Record<string, 'valid' | 'invalid' | 'empty'>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  const validateLink = (url: string, platform: 'youtube' | 'soundcloud'): 'valid' | 'invalid' | 'empty' => {
+    const t = url.trim();
+    if (!t) {
+      return 'empty';
+    }
+    try {
+      const parsed = new URL(t);
+      if (platform === 'youtube') {
+        return parsed.hostname === 'www.youtube.com' || parsed.hostname === 'youtube.com' || parsed.hostname === 'youtu.be' ? 'valid' : 'invalid';
+      }
+      return parsed.hostname === 'soundcloud.com' || parsed.hostname === 'www.soundcloud.com' ? 'valid' : 'invalid';
+    } catch {
+      return 'invalid';
+    }
+  };
+
+  const normalizeChannelUrl = (url: string, platform: 'youtube' | 'soundcloud'): string => {
+    const t = url.trim();
+    if (!t) return t;
+    if (platform === 'soundcloud' && t.startsWith('soundcloud.com/')) {
+      return 'https://' + t;
+    }
+    if (platform === 'soundcloud' && t.startsWith('www.soundcloud.com/')) {
+      return 'https://' + t;
+    }
+    return t;
+  };
+
+  const handleUpdateLinks = async () => {
+    setMessage('');
+    setError('');
+    const statuses: Record<string, 'valid' | 'invalid' | 'empty'> = {
+      youtube: validateLink(youtubeUrl, 'youtube'),
+      soundcloud: validateLink(soundcloudUrl, 'soundcloud'),
+    };
+    setLinkStatus(statuses);
+    if (statuses.youtube === 'invalid' || statuses.soundcloud === 'invalid') {
+      setError('Проверьте ссылки: YouTube должен вести на youtube.com/youtu.be, SoundCloud — на soundcloud.com.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateMyProfile(profile!.uid, {
+        youtubeUrl: normalizeChannelUrl(youtubeUrl, 'youtube') || undefined,
+        soundcloudUrl: normalizeChannelUrl(soundcloudUrl, 'soundcloud') || undefined,
+      });
+      await refreshProfile();
+      setMessage('Ссылки сохранены.');
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось сохранить ссылки.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!profile) return null;
 
@@ -105,6 +163,45 @@ export default function ProfileView() {
                 : '❌ Ещё не артист'}
             </div>
           </div>
+        </div>
+
+        <div className="profile-form-section">
+          <h3>Мои каналы</h3>
+          <p className="form-hint">Укажи ссылки на свои каналы — они появятся в шапке профиля. По кнопке &laquo;Импортировать&raquo; релизы с этих страниц будут добавлены в кабинет из импортированных треков.</p>
+
+          <div className="form-group">
+            <label>YouTube</label>
+            <input
+              type="url"
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              placeholder="https://www.youtube.com/@channel"
+            />
+            <div className={`link-status ${linkStatus.youtube === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.youtube === 'valid' ? 'link-status-valid' : ''}`}>
+              {linkStatus.youtube === 'invalid' && '⚠️ Это не похоже на ссылку YouTube'}
+              {linkStatus.youtube === 'valid' && '✓ Это ссылка YouTube'}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>SoundCloud</label>
+            <input
+              type="url"
+              value={soundcloudUrl}
+              onChange={(e) => setSoundcloudUrl(e.target.value)}
+              placeholder="https://soundcloud.com/artist"
+            />
+            <div className={`link-status ${linkStatus.soundcloud === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.soundcloud === 'valid' ? 'link-status-valid' : ''}`}>
+              {linkStatus.soundcloud === 'invalid' && '⚠️ Это не похоже на ссылку SoundCloud'}
+              {linkStatus.soundcloud === 'valid' && '✓ Это ссылка SoundCloud'}
+            </div>
+          </div>
+
+          <button className="btn-primary" onClick={handleUpdateLinks} disabled={saving}>
+            Импортировать из каналов
+          </button>
+          {message && <div className="success-msg">{message}</div>}
+          {error && <div className="error-msg">{error}</div>}
         </div>
 
         <div className="profile-form-section">

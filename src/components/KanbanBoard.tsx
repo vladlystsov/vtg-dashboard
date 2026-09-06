@@ -1,26 +1,29 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import type { Track, KanbanColumn, UserProfile } from '../types/track';
 import { KANBAN_COLUMNS, resolveNames } from '../types/track';
 import TrackCard from './TrackCard';
 
-type BoardFilter = 'all' | 'mine_all' | 'mine_artist' | 'participant';
+type BoardFilter = 'mine_all' | 'mine_artist' | 'participant' | 'all';
 
 interface KanbanBoardProps {
   tracks: Track[];
   onOpenTrack: (track: Track) => void;
   onMove: (id: string, column: KanbanColumn) => Promise<void>;
+  onArchive: (id: string, archived: boolean) => Promise<void>;
   userMap: Map<string, UserProfile>;
   currentUid?: string;
   currentName?: string;
 }
 
+const ARCHIVE_ID = 'archive';
+
 const FILTER_OPTIONS: { value: BoardFilter; label: string }[] = [
-  { value: 'all', label: 'Все' },
-  { value: 'mine_all', label: 'Мои (все)' },
+  { value: 'mine_all', label: 'Мои (Все)' },
   { value: 'mine_artist', label: 'Мои (артист)' },
   { value: 'participant', label: 'Участник' },
+  { value: 'all', label: 'Все' },
 ];
 
 function isArtistOnTrack(track: Track, myName: string, userMap: Map<string, UserProfile>): boolean {
@@ -35,87 +38,137 @@ function isParticipantOnTrack(track: Track, myName: string, userMap: Map<string,
     || resolveNames(track.mixBy, track.mixByUids, userMap).some((n) => n.toLowerCase() === key);
 }
 
-export default function KanbanBoard({ tracks, onOpenTrack, onMove, userMap, currentName }: KanbanBoardProps) {
+export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, userMap, currentName }: KanbanBoardProps) {
   const [filter, setFilter] = useState<BoardFilter>('all');
+  const [showArchive, setShowArchive] = useState(false);
 
   const myName = (currentName || '').toLowerCase();
 
   const filteredTracks = useMemo(() => {
-    if (filter === 'all') return tracks;
-    if (!myName) return tracks;
-    return tracks.filter((t) => {
-      const isArtist = isArtistOnTrack(t, myName, userMap);
-      const isParticipant = isParticipantOnTrack(t, myName, userMap);
+    const apply = (track: Track): boolean => {
+      if (filter === 'all' || !myName) return true;
+      const isArtist = isArtistOnTrack(track, myName, userMap);
+      const isParticipant = isParticipantOnTrack(track, myName, userMap);
       switch (filter) {
         case 'mine_all': return isArtist || isParticipant;
         case 'mine_artist': return isArtist;
         case 'participant': return isParticipant && !isArtist;
         default: return true;
       }
-    });
+    };
+    return tracks.filter(apply);
   }, [tracks, filter, myName, userMap]);
 
-  const handleDragEnd = (result: DropResult) => {
+  const archivedTracks = filteredTracks.filter((t) => t.archived);
+
+  const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
     if (destination.droppableId === source.droppableId) return;
 
+    if (destination.droppableId === ARCHIVE_ID) {
+      onArchive(draggableId, true).catch(console.error);
+      return;
+    }
+    if (source.droppableId === ARCHIVE_ID) {
+      onArchive(draggableId, false).catch(console.error);
+      return;
+    }
+
     const newColumn = destination.droppableId as KanbanColumn;
     onMove(draggableId, newColumn).catch(console.error);
-  };
+  }, [onArchive, onMove]);
 
   return (
-    <div className="kanban-wrapper">
-      <div className="kanban-filter">
-        <span className="kanban-filter-label">Фильтр:</span>
-        <div className="kanban-filter-btns">
-          {FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              className={`kanban-filter-btn ${filter === opt.value ? 'active' : ''}`}
-              onClick={() => setFilter(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className="kanban-toolbar">
+        <div className="kanban-filter">
+          <span className="kanban-filter-label">Фильтр:</span>
+          <div className="kanban-filter-btns">
+            {FILTER_OPTIONS.map((opt) => (
+              <button
+                type="button"
+                key={opt.value}
+                className={`kanban-filter-btn ${filter === opt.value ? 'active' : ''}`}
+                onClick={() => setFilter(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
+        <button
+          type="button"
+          className={`beat-filter ${showArchive ? 'active' : ''}`}
+          onClick={() => setShowArchive((v) => !v)}
+        >
+          📦 Архив {archivedTracks.length > 0 && `(${archivedTracks.length})`}
+        </button>
       </div>
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="kanban-board">
-          {KANBAN_COLUMNS.map((col) => {
-            const colTracks = filteredTracks.filter((t) => t.column === col.id);
-            return (
-              <div className="kanban-column" key={col.id}>
-                <div className="column-header" style={{ borderBottomColor: col.color }}>
-                  <span className="column-dot" style={{ backgroundColor: col.color }} />
-                  <span className="column-title">{col.title}</span>
-                  <span className="column-count">{colTracks.length}</span>
-                </div>
-                <Droppable droppableId={col.id}>
-                  {(provided) => (
-                    <div
-                      className="column-body"
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                    >
-                      {colTracks.map((track, index) => (
-                        <TrackCard
-                          key={track.id}
-                          track={track}
-                          index={index}
-                          onOpen={onOpenTrack}
-                          userMap={userMap}
-                        />
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
+      <div className="kanban-board">
+        {KANBAN_COLUMNS.map((col) => {
+          const colTracks = filteredTracks.filter((t) => t.column === col.id && !t.archived);
+          return (
+            <div className="kanban-column" key={col.id}>
+              <div className="column-header" style={{ borderBottomColor: col.color }}>
+                <span className="column-dot" style={{ backgroundColor: col.color }} />
+                <span className="column-title">{col.title}</span>
+                <span className="column-count">{colTracks.length}</span>
               </div>
-            );
-          })}
-        </div>
-      </DragDropContext>
-    </div>
+              <Droppable droppableId={col.id}>
+                {(provided) => (
+                  <div
+                    className="column-body"
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                  >
+                    {colTracks.map((track, index) => (
+                      <TrackCard
+                        key={track.id}
+                        track={track}
+                        index={index}
+                        onOpen={onOpenTrack}
+                        userMap={userMap}
+                      />
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </div>
+          );
+        })}
+        {showArchive && (
+          <div className="kanban-column kanban-column-archive">
+            <div className="column-header" style={{ borderBottomColor: '#6b7280' }}>
+              <span className="column-dot" style={{ backgroundColor: '#6b7280' }} />
+              <span className="column-title">Архив</span>
+              <span className="column-count">{archivedTracks.length}</span>
+            </div>
+            <Droppable droppableId={ARCHIVE_ID}>
+              {(provided) => (
+                <div
+                  className="column-body"
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                >
+                  {archivedTracks.map((track, index) => (
+                    <TrackCard
+                      key={track.id}
+                      track={track}
+                      index={index}
+                      onOpen={onOpenTrack}
+                      userMap={userMap}
+                      onRestore={(id) => onArchive(id, false).catch(console.error)}
+                    />
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </div>
+        )}
+      </div>
+    </DragDropContext>
   );
 }

@@ -2,6 +2,44 @@ export type TrackStatus = 'draft' | 'recording' | 'mixing' | 'mastering' | 'read
 
 export type KanbanColumn = 'ideas' | 'in_progress' | 'review' | 'ready_to_publish' | 'released';
 
+// Статус "версии" проекта: основной или другая версия
+export type ProjectVariant = 'main' | 'other';
+
+// Тип вокала/материала для версии проекта
+export type ProjectVocalType =
+  | 'loop'
+  | 'beat'
+  | 'first_vocal'
+  | 'part_vocal'
+  | 'full_vocal'
+  | 'mixed'
+  | 'mastered';
+
+export const PROJECT_VARIANT_LABELS: Record<ProjectVariant, string> = {
+  main: 'Основной',
+  other: 'Другая версия',
+};
+
+export const PROJECT_VOCAL_TYPE_LABELS: Record<ProjectVocalType, string> = {
+  loop: 'Луп',
+  beat: 'Бит',
+  first_vocal: 'First vocal',
+  part_vocal: 'Part vocal',
+  full_vocal: 'Full vocal',
+  mixed: 'Сведено',
+  mastered: 'Отмастерено',
+};
+
+export const PROJECT_VOCAL_TYPES: ProjectVocalType[] = [
+  'loop',
+  'beat',
+  'first_vocal',
+  'part_vocal',
+  'full_vocal',
+  'mixed',
+  'mastered',
+];
+
 export type ChecklistStatus = 'pending' | 'in_progress' | 'done' | 'review' | 'verified';
 
 export type UserRole = 'member' | 'admin' | 'owner';
@@ -39,6 +77,8 @@ export interface UserProfile {
   roles?: ArtistRole[];
   playbackMode?: PlaybackMode;
   downloadTracks?: boolean;
+  youtubeUrl?: string;
+  soundcloudUrl?: string;
 }
 
 export interface ChecklistItem {
@@ -80,6 +120,29 @@ export interface Track {
   platformUrl?: string;
   archiveStatus?: TrackArchiveStatus;
   archiveError?: string;
+  // Проект (zip) — архив с проектом трека, загружается через Archive.org
+  projectZipUrl?: string;
+  projectZipStatus?: TrackArchiveStatus;
+  projectZipError?: string;
+  projectVariant?: ProjectVariant;
+  projectVocalType?: ProjectVocalType;
+  // Персональная обложка трека в альбоме (если отличается от обложки альбома)
+  personalCoverUrl?: string;
+  // Архив доски (пункт «Поместить в архив»)
+  archived?: boolean;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  tracks?: string[];
+  zipUrl?: string;
+  zipStatus?: TrackArchiveStatus;
+  zipError?: string;
+  variants?: Record<string, { variant?: ProjectVariant; vocalType?: ProjectVocalType }>;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
 }
 
 export type PlatformKind = 'soundcloud' | 'youtube' | 'yandex' | 'vkontakte' | 'audio' | 'other';
@@ -208,23 +271,4 @@ export interface ArtistRequest {
   reviewedBy?: string;
 }
 
-export interface ProjectFile {
-  id: string;
-  name: string;
-  url: string;
-  type: string;
-  size: number;
-  uploadedAt: string;
-}
 
-export interface SoundProject {
-  id: string;
-  name: string;
-  description: string;
-  beatmakerUid: string;
-  beatmakerName: string;
-  coverUrl?: string;
-  files: ProjectFile[];
-  createdAt: string;
-  updatedAt: string;
-}

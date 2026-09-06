@@ -17,6 +17,10 @@ export interface ShippedTrackItem {
   url: string;
   platform?: 'soundcloud' | 'youtube' | 'audio';
   coverUrl?: string;
+  // Отгруженный (завершённый) трек — для фильтра «только отгруженное»
+  shipped?: boolean;
+  // Источник: трек или бит
+  source?: 'track' | 'beat';
 }
 
 type RepeatMode = 'off' | 'all' | 'one';
@@ -29,6 +33,7 @@ interface ShippedPlayerManager {
   dur: number;
   shuffle: boolean;
   repeat: RepeatMode;
+  onlyShipped: boolean;
   open: boolean;
   playTrack: (id: string) => void;
   togglePlay: () => void;
@@ -37,6 +42,7 @@ interface ShippedPlayerManager {
   seekTo: (ms: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
+  toggleOnlyShipped: () => void;
   setOrder: (items: ShippedTrackItem[]) => void;
   toggleOpen: () => void;
 }
@@ -47,16 +53,25 @@ export function shippedFromUrl(
   id: string,
   title: string,
   url: string,
-  coverUrl?: string
+  coverUrl?: string,
+  shipped?: boolean,
+  source?: 'track' | 'beat'
 ): ShippedTrackItem {
   const kind = detectPlatform(url);
   const platform =
     kind === 'soundcloud' || kind === 'youtube' || kind === 'audio' ? kind : undefined;
-  return { id, title, url, platform, coverUrl };
+  return { id, title, url, platform, coverUrl, shipped, source };
 }
 
 export function toShippedItem(track: Track): ShippedTrackItem {
-  return shippedFromUrl(track.id, track.title, track.platformUrl || '', track.coverUrl);
+  return shippedFromUrl(
+    track.id,
+    track.title,
+    track.platformUrl || '',
+    track.coverUrl || track.personalCoverUrl,
+    track.status === 'completed',
+    'track'
+  );
 }
 
 export function useShippedPlayerManager(): ShippedPlayerManager {
@@ -156,22 +171,26 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const [dur, setDur] = useState(0);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
+  const [onlyShipped, setOnlyShipped] = useState(false);
   const [open, setOpen] = useState(false);
 
   const orderRef = useRef(order);
   const currentIdRef = useRef(currentId);
   const repeatRef = useRef(repeat);
+  const onlyShippedRef = useRef(onlyShipped);
   orderRef.current = order;
   currentIdRef.current = currentId;
   repeatRef.current = repeat;
+  onlyShippedRef.current = onlyShipped;
   lookupRef.current = new Map(tracks.map((t) => [t.id, t]));
 
-  // sync order with incoming list
+  // sync order with incoming list (respecting "only shipped" filter)
   useEffect(() => {
-    const ids = tracks.map((t) => t.id);
+    const base = onlyShippedRef.current ? tracks.filter((t) => t.shipped) : tracks;
+    const ids = base.map((t) => t.id);
     const idSet = new Set(ids);
     const keep = orderRef.current.filter((x) => idSet.has(x.id));
-    const added = tracks.filter((t) => !keep.some((x) => x.id === t.id));
+    const added = base.filter((t) => !keep.some((x) => x.id === t.id));
     setOrder([...keep, ...added]);
     const cur = currentIdRef.current;
     if (cur && !idSet.has(cur)) {
@@ -180,7 +199,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       setPos(0);
       setDur(0);
     }
-  }, [tracks]);
+  }, [tracks, onlyShipped]);
 
   const stopYtTimer = useCallback(() => {
     if (ytTimerRef.current != null) {
@@ -663,6 +682,10 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
 
   const toggleOpen = useCallback(() => setOpen((v) => !v), []);
 
+  const toggleOnlyShipped = useCallback(() => {
+    setOnlyShipped((v) => !v);
+  }, []);
+
   const handleRowDrag = useCallback((result: DropResult) => {
     const { destination, source } = result;
     if (!destination) return;
@@ -684,6 +707,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       dur,
       shuffle,
       repeat,
+      onlyShipped,
       open,
       playTrack,
       togglePlay,
@@ -692,10 +716,11 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       seekTo,
       toggleShuffle,
       cycleRepeat,
+      toggleOnlyShipped,
       setOrder,
       toggleOpen,
     }),
-    [order, currentId, playing, pos, dur, shuffle, repeat, open, playTrack, togglePlay, next, prev, seekTo, toggleShuffle, cycleRepeat, toggleOpen]
+    [order, currentId, playing, pos, dur, shuffle, repeat, onlyShipped, open, playTrack, togglePlay, next, prev, seekTo, toggleShuffle, cycleRepeat, toggleOnlyShipped, toggleOpen]
   );
 
   const current = order.find((x) => x.id === currentId);
@@ -727,6 +752,14 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               >
                 {repeat === 'one' ? '↻1' : '↻'}
               </button>
+              <button
+                type="button"
+                className={`sp-btn sp-only-shipped ${onlyShipped ? 'sp-active' : ''}`}
+                onClick={toggleOnlyShipped}
+                title={onlyShipped ? 'Показывать только отгруженное: вкл' : 'Показывать только отгруженное'}
+              >
+                📦
+              </button>
             </div>
             <div className="sp-main">
               <div className="sp-info">
@@ -744,6 +777,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                   min={0}
                   max={Math.max(dur, 1)}
                   value={Math.min(pos, Math.max(dur, 1))}
+                  style={{ ['--fill' as any]: `${Math.min(pos, Math.max(dur, 1)) / Math.max(dur, 1) * 100}%` }}
                   onChange={(e) => seekTo(Number(e.target.value))}
                 />
                 <span className="sp-time">{fmt(dur)}</span>
@@ -826,6 +860,7 @@ export function ShippedMini({ item }: { item: ShippedTrackItem }) {
         max={maxDur}
         value={value}
         disabled={!isCurrent}
+        style={{ ['--fill' as any]: `${value / maxDur * 100}%` }}
         onChange={(e) => m.seekTo(Number(e.target.value))}
       />
       <span className="sp-time">{fmt(pos)}</span>

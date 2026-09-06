@@ -1,251 +1,282 @@
-import { useState, useMemo, useRef } from 'react';
-import type { SoundProject } from '../types/track';
-import { useAuth } from '../contexts/AuthContext';
-import {
-  createProject,
-  deleteProject,
-  addFileToProject,
-  removeFileFromProject,
-} from '../services/projectService';
+import { useMemo, useRef, useState } from 'react';
+import type { Project, Track, UserProfile } from '../types/track';
+import { PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS } from '../types/track';
+import { checkProjectZipFile, publishProjectZipInBackground } from '../services/archiveService';
+import { format } from 'date-fns';
 
 interface ProjectsViewProps {
-  projects: SoundProject[];
+  projects: Project[];
+  tracks: Track[];
+  userMap: Map<string, UserProfile>;
+  canEdit: boolean;
+  onSave: (id: string | null, data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
-export default function ProjectsView({ projects }: ProjectsViewProps) {
-  const { profile } = useAuth();
-  const [showForm, setShowForm] = useState(false);
+export default function ProjectsView({
+  projects,
+  tracks,
+  userMap,
+  canEdit,
+  onSave,
+  onDelete,
+}: ProjectsViewProps) {
   const [newName, setNewName] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
+  const fileInputs = useRef(new Map<string, HTMLInputElement>());
 
-  const myProjects = useMemo(
-    () => projects.filter((p) => p.beatmakerUid === profile?.uid),
-    [projects, profile]
-  );
+  const trackById = useMemo(() => {
+    const m = new Map<string, Track>();
+    for (const t of tracks) m.set(t.id, t);
+    return m;
+  }, [tracks]);
 
-  const isBeatmaker = profile?.roles?.includes('beatmaker') || profile?.role === 'admin' || profile?.role === 'owner';
+  const projectTracks = (p: Project): Track[] =>
+    (p.tracks || []).map((id) => trackById.get(id)).filter(Boolean) as Track[];
 
-  const handleCreate = async () => {
-    if (!newName.trim() || !profile) return;
-    setSaving(true);
-    setError('');
+  const create = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
     try {
-      await createProject({
-        name: newName.trim(),
-        description: newDesc.trim(),
-        beatmakerUid: profile.uid,
-        beatmakerName: profile.artistName || profile.displayName,
-      });
+      await onSave(null, { name: newName.trim(), createdBy: '' });
       setNewName('');
-      setNewDesc('');
-      setShowForm(false);
-    } catch (e: any) {
-      setError(e?.message || 'Не удалось создать проект.');
     } finally {
-      setSaving(false);
+      setCreating(false);
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Удалить проект «${name}»?`)) return;
-    try {
-      await deleteProject(id);
-    } catch (e: any) {
-      alert(e?.message || 'Не удалось удалить.');
-    }
+  const pickZip = (p: Project) => {
+    const input = fileInputs.current.get(p.id);
+    input?.click();
   };
 
-  const handleFileUpload = async (projectId: string) => {
-    const input = fileInputRef.current;
-    if (!input || !input.files || input.files.length === 0) return;
-    const project = projects.find((p) => p.id === projectId);
-    if (!project) return;
-
-    setUploadingId(projectId);
-    try {
-      for (const file of Array.from(input.files)) {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
-          reader.readAsDataURL(file);
-        });
-        await addFileToProject(
-          projectId,
-          { name: file.name, url: dataUrl, type: file.type, size: file.size },
-          project.files || []
-        );
-      }
-      input.value = '';
-    } catch (e: any) {
-      alert(e?.message || 'Не удалось загрузить файл.');
-    } finally {
-      setUploadingId(null);
+  const uploadZip = (p: Project, file: File) => {
+    const err = checkProjectZipFile(file);
+    if (err) {
+      setZipError(`${p.name}: ${err}`);
+      setTimeout(() => setZipError(null), 4000);
+      return;
     }
+    setUploadingId(p.id);
+    void onSave(p.id, {
+      ...p,
+      zipStatus: 'uploading',
+      zipError: undefined,
+    }).then(async () => {
+      publishProjectZipInBackground({
+        file,
+        title: `VTG ${p.name}`,
+        description: `Проект ${p.name}`,
+        creator: 'VTG',
+        callbacks: {
+          onReady: (url) => {
+            void onSave(p.id, { ...p, zipUrl: url, zipStatus: 'ready' as const, zipError: undefined }).finally(() =>
+              setUploadingId(null)
+            );
+          },
+          onError: (message) => {
+            void onSave(p.id, {
+              ...p,
+              zipStatus: 'error' as const,
+              zipError: message,
+            }).finally(() => setUploadingId(null));
+          },
+        },
+      });
+    });
   };
 
-  const handleRemoveFile = async (projectId: string, fileId: string) => {
-    const project = projects.find((p) => p.id === projectId);
-    if (!project) return;
-    if (!confirm('Удалить файл?')) return;
-    try {
-      await removeFileFromProject(projectId, fileId, project.files || []);
-    } catch (e: any) {
-      alert(e?.message || 'Не удалось удалить файл.');
-    }
+  const addTrack = async (p: Project, id: string) => {
+    const ids = (p.tracks || []).filter((x) => x !== id);
+    if (!ids.includes(id)) ids.push(id);
+    await onSave(p.id, { ...p, tracks: ids });
+    setEditingTrackId(null);
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} Б`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+  const removeTrack = async (p: Project, id: string) => {
+    await onSave(p.id, { ...p, tracks: (p.tracks || []).filter((x) => x !== id) });
+  };
+
+  const renderZipSection = (p: Project) => {
+    const status = p.zipStatus;
+    if (uploadingId === p.id || status === 'uploading') {
+      return (
+        <div className="project-zip project-zip-uploading">
+          <span className="project-zip-spinner" /> Загружаем архив проекта в Archive.org…
+        </div>
+      );
+    }
+    if (status === 'error' || p.zipError) {
+      return (
+        <div className="project-zip project-zip-error">
+          <span>{p.zipError || 'Ошибка публикации'}</span>
+          <button type="button" className="btn-small-ghost" onClick={() => pickZip(p)}>
+            Попробовать снова
+          </button>
+        </div>
+      );
+    }
+    if (p.zipUrl) {
+      return (
+        <div className="project-zip project-zip-ready">
+          <span className="project-zip-ok">✓</span>
+          <a href={p.zipUrl} target="_blank" rel="noreferrer">
+            Скачать архив проекта
+          </a>
+          <button type="button" className="btn-small-ghost" onClick={() => pickZip(p)}>
+            Заменить
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button type="button" className="btn-small-ghost" onClick={() => pickZip(p)}>
+        ⬆ Загрузить архив проекта (.zip до 1 ГБ)
+      </button>
+    );
   };
 
   return (
     <div className="projects-view">
-      <div className="projects-header">
-        <h2>Мои проекты</h2>
-        {isBeatmaker && (
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? 'Отмена' : '+ Новый проект'}
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <div className="project-create-form">
-          <div className="form-group">
-            <label>Название проекта *</label>
+      <div className="beats-head">
+        <h2>Проекты</h2>
+        {canEdit && (
+          <div className="project-create-row">
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Название проекта"
+              placeholder="Название нового проекта"
+              onKeyDown={(e) => e.key === 'Enter' && void create()}
             />
-          </div>
-          <div className="form-group">
-            <label>Описание</label>
-            <textarea
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="Описание проекта (для звукорежиссёра)"
-              rows={3}
-            />
-          </div>
-          <div className="project-form-actions">
-            <button className="btn-primary" onClick={handleCreate} disabled={saving || !newName.trim()}>
-              {saving ? 'Создание...' : 'Создать проект'}
+            <button className="btn-primary" disabled={creating || !newName.trim()} onClick={() => void create()}>
+              Создать
             </button>
-            <button className="btn-secondary" onClick={() => setShowForm(false)}>Отмена</button>
-          </div>
-          {error && <div className="error-msg">{error}</div>}
-        </div>
-      )}
-
-      <div className="projects-list">
-        {myProjects.length === 0 && (
-          <div className="empty-state">
-            {isBeatmaker
-              ? 'Пока нет проектов. Создайте проект и загрузите биты для звукорежиссёра.'
-              : 'Нет доступных проектов.'}
           </div>
         )}
-        {myProjects.map((project) => (
-          <div className="project-card" key={project.id}>
-            <div className="project-card-header" onClick={() => setExpandedId(expandedId === project.id ? null : project.id)}>
-              <div className="project-card-info">
-                <div className="project-card-name">{project.name}</div>
-                {project.description && (
-                  <div className="project-card-desc">{project.description}</div>
-                )}
-                <div className="project-card-meta">
-                  <span>{project.files?.length || 0} файлов</span>
-                  <span>{new Date(project.updatedAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <div className="project-card-actions">
-                {isBeatmaker && (
-                  <>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      style={{ display: 'none' }}
-                      accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus"
-                      multiple
-                      onChange={() => {
-                        if (selectedProjectId) handleFileUpload(selectedProjectId);
-                      }}
-                    />
-                    <button
-                      className="btn-small-ghost"
-                      disabled={uploadingId === project.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedProjectId(project.id);
-                        fileInputRef.current?.click();
-                      }}
-                      title="Загрузить файлы"
-                    >
-                      {uploadingId === project.id ? '...' : 'Файлы'}
-                    </button>
-                  </>
-                )}
-                {project.beatmakerUid === profile?.uid && (
-                  <button
-                    className="btn-small-ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(project.id, project.name);
-                    }}
-                    title="Удалить проект"
-                  >
-                    x
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {expandedId === project.id && (
-              <div className="project-files">
-                {(project.files || []).length === 0 && (
-                  <div className="project-files-empty">Нет загруженных файлов</div>
-                )}
-                {(project.files || []).map((file) => (
-                  <div className="project-file" key={file.id}>
-                    <div className="project-file-info">
-                      <span className="project-file-name">{file.name}</span>
-                      <span className="project-file-size">{formatSize(file.size)}</span>
-                    </div>
-                    {file.url && file.type.startsWith('audio/') && (
-                      <audio controls preload="metadata" style={{ width: '100%', height: 36 }} src={file.url} />
-                    )}
-                    {file.url && !file.type.startsWith('audio/') && (
-                      <a className="btn-small-ghost" href={file.url} target="_blank" rel="noopener noreferrer" download={file.name}>
-                        Скачать
-                      </a>
-                    )}
-                    {project.beatmakerUid === profile?.uid && (
-                      <button
-                        className="btn-small-ghost"
-                        onClick={() => handleRemoveFile(project.id, file.id)}
-                        title="Удалить файл"
-                      >
-                        x
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
       </div>
+
+      {zipError && <div className="error-msg">{zipError}</div>}
+
+      {projects.length === 0 ? (
+        <div className="beats-empty">
+          Проектов пока нет. Создайте проект, чтобы собрать треки и загрузить архивы (.zip).
+        </div>
+      ) : (
+        <div className="projects-grid">
+          {projects.map((p) => {
+            const ptracks = projectTracks(p);
+            return (
+              <div className="project-card" key={p.id}>
+                <div className="project-card-header">
+                  <span className="project-card-title">{p.name}</span>
+                  <span className="column-count">{ptracks.length}</span>
+                </div>
+                <div className="project-card-meta">
+                  {p.createdAt && format(new Date(p.createdAt), 'dd.MM.yyyy')}
+                </div>
+
+                <div className="project-card-section">{renderZipSection(p)}</div>
+
+                <input
+                  ref={(el) => {
+                    if (el) fileInputs.current.set(p.id, el);
+                    else fileInputs.current.delete(p.id);
+                  }}
+                  type="file"
+                  accept=".zip"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadZip(p, f);
+                    e.target.value = '';
+                  }}
+                />
+
+                <div className="project-card-tracks">
+                  <div className="project-card-section-title">Треки</div>
+                  {ptracks.length === 0 ? (
+                    <div className="project-card-empty">Треки появятся здесь после назначения в карточке трека</div>
+                  ) : (
+                    ptracks.map((t) => {
+                      const meta = p.variants?.[t.id];
+                      const label = [
+                        ...(meta?.variant ? [PROJECT_VARIANT_LABELS[meta.variant]] : []),
+                        ...(meta?.vocalType ? [PROJECT_VOCAL_TYPE_LABELS[meta.vocalType]] : []),
+                      ].join(' · ');
+                      const artistName = (t.artists || [])
+                        .map((a) => (a ? String(a) : ''))
+                        .filter(Boolean)[0];
+                      return (
+                        <div className="project-track-row" key={t.id}>
+                          <span className="project-track-title">
+                            {t.trackNumber ? `${t.trackNumber}. ` : ''}
+                            {t.title}
+                          </span>
+                          <span className="project-track-meta">
+                            {label || artistName || userMap.get(t.artistUids?.[0] || '')?.artistName || ''}
+                          </span>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              className="at-delete"
+                              title="Убрать из проекта"
+                              onClick={() => void removeTrack(p, t.id)}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                  {canEdit && (
+                    <div className="project-track-add">
+                      <select
+                        value={editingTrackId || ''}
+                        onChange={(e) => {
+                          if (e.target.value) void addTrack(p, e.target.value);
+                        }}
+                      >
+                        <option value="">+ Добавить трек…</option>
+                        {tracks
+                          .filter((t) => !(p.tracks || []).includes(t.id))
+                          .slice(0, 100)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.title}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {canEdit && (
+                  <div className="project-card-actions">
+                    <button
+                      type="button"
+                      className="btn-small-ghost btn-danger"
+                      disabled={deletingId === p.id}
+                      onClick={() => {
+                        if (!window.confirm(`Удалить проект «${p.name}»?`)) return;
+                        setDeletingId(p.id);
+                        void onDelete(p.id).finally(() => setDeletingId(null));
+                      }}
+                    >
+                      Удалить проект
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

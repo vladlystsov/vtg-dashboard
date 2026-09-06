@@ -61,6 +61,8 @@ interface BeatFormState {
   platformUrl: string;
   status: BeatStatus;
   free: boolean;
+  collection: string;
+  collectionNumber: string;
   archiveStatus?: BeatArchiveStatus;
 }
 
@@ -76,6 +78,8 @@ const EMPTY_FORM: BeatFormState = {
   platformUrl: '',
   status: 'published',
   free: false,
+  collection: '',
+  collectionNumber: '',
   archiveStatus: 'ready',
 };
 
@@ -92,6 +96,8 @@ function toFormState(b: Beat): BeatFormState {
     platformUrl: b.platformUrl || '',
     status: b.status,
     free: !!b.free,
+    collection: b.collection || '',
+    collectionNumber: b.collectionNumber ? String(b.collectionNumber) : '',
     archiveStatus: b.archiveStatus || 'ready',
   };
 }
@@ -99,11 +105,13 @@ function toFormState(b: Beat): BeatFormState {
 function BeatFormModal({
   initial,
   saving,
+  collections,
   onCancel,
   onSubmit,
 }: {
   initial: BeatFormState;
   saving: boolean;
+  collections: string[];
   onCancel: () => void;
   onSubmit: (f: BeatFormState, file?: File) => Promise<void>;
 }) {
@@ -265,6 +273,29 @@ function BeatFormModal({
 
           <div className="form-row">
             <div className="form-group">
+              <label>Сборник</label>
+              <select value={f.collection} onChange={(e) => set({ collection: e.target.value })}>
+                <option value="">Нет сборника</option>
+                {collections.map((c) => <option key={c} value={c}>{c}</option>)}
+                {f.collection && !collections.includes(f.collection) && <option value={f.collection}>{f.collection}</option>}
+              </select>
+            </div>
+            {f.collection && (
+              <div className="form-group">
+                <label>№ в сборнике</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={f.collectionNumber}
+                  onChange={(e) => set({ collectionNumber: e.target.value })}
+                  placeholder="1"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
               <label>Обложка (ссылка)</label>
               <input
                 type="text"
@@ -333,6 +364,7 @@ export default function BeatsView({
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'beats' | 'collections'>('beats');
   const autoPlayedRef = useRef(false);
   const [cached, setCached] = useState<{ ids: Set<string>; bytes: number }>({
     ids: new Set(),
@@ -391,16 +423,40 @@ export default function BeatsView({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return beats.filter((b) => {
+      if (tab === 'collections' && !b.collection) return false;
       if (filter === 'mine' && b.beatmakerUid !== currentUid) return false;
       if (q) {
-        const hay = [b.title, b.genre || '', b.beatmakerName || '', (b.tags || []).join(' ')]
+        const hay = [b.title, b.genre || '', b.beatmakerName || '', (b.tags || []).join(' '), b.collection || '']
           .join(' ')
           .toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [beats, filter, query, currentUid]);
+  }, [beats, filter, query, currentUid, tab]);
+
+  const collections = useMemo(() => {
+    const names = new Set<string>();
+    for (const b of beats) if (b.collection) names.add(b.collection);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [beats]);
+
+  const groupedCollections = useMemo(() => {
+    const map = new Map<string, Beat[]>();
+    for (const b of visible) {
+      const key = b.collection || '';
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(b);
+    }
+    const out: { name: string; beats: Beat[] }[] = [];
+    for (const [name, items] of map) {
+      items.sort((a, b) => (a.collectionNumber || 0) - (b.collectionNumber || 0));
+      out.push({ name, beats: items });
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return out;
+  }, [visible]);
 
   const canManage = (b: Beat) => canEdit && (isAdmin || b.beatmakerUid === currentUid);
 
@@ -423,6 +479,8 @@ export default function BeatsView({
         platform,
         status: f.status,
         free: f.free,
+        collection: f.collection.trim() || undefined,
+        collectionNumber: f.collectionNumber.trim() ? Number(f.collectionNumber) : undefined,
         beatmakerUid: currentUid,
         beatmakerName: currentName,
         createdBy: currentUid,
@@ -448,6 +506,22 @@ export default function BeatsView({
     <div className="beats-view">
       <div className="beats-head">
         <h2>Биты</h2>
+        <div className="beats-filters">
+          <button
+            type="button"
+            className={`beat-filter ${tab === 'beats' ? 'active' : ''}`}
+            onClick={() => setTab('beats')}
+          >
+            Биты
+          </button>
+          <button
+            type="button"
+            className={`beat-filter ${tab === 'collections' ? 'active' : ''}`}
+            onClick={() => setTab('collections')}
+          >
+            Сборники
+          </button>
+        </div>
         <input
           className="beats-search"
           type="text"
@@ -487,7 +561,72 @@ export default function BeatsView({
         </button>
       </div>
 
-      {visible.length === 0 ? (
+      {tab === 'collections' ? (
+        groupedCollections.length === 0 ? (
+          <div className="beats-empty">
+            {beats.length === 0
+              ? 'Битов пока нет. Добавьте первый бит по ссылке на SoundCloud, YouTube или прямой аудио-файл.'
+              : 'Сборников пока нет. Назначьте битам сборник при редактировании.'}
+          </div>
+        ) : (
+          <div className="albums-grid">
+            {groupedCollections.map((c) => {
+              const cover =
+                c.beats.find((b) => b.coverUrl)?.coverUrl || FALLBACK_COVER;
+              return (
+                <div className="album-card album-card-editable" key={c.name}>
+                  <div className="album-cover-full">
+                    <img className="album-cover" src={cover} alt="" />
+                  </div>
+                  <div className="album-header">
+                    <div className="album-links-row">
+                      <a className="album-title" title={c.name}>{c.name}</a>
+                    </div>
+                    <div className="album-subtitle">{c.beats.length} бит(ов)</div>
+                  </div>
+                  <div className="album-tracklist">
+                    {c.beats.map((b, i) => (
+                      <div
+                        className="album-track-row"
+                        key={b.id}
+                        onClick={() => {
+                          if (beatPlayable(b)) manager.playTrack(b.id);
+                        }}
+                      >
+                        <span className="at-num">{i + 1}</span>
+                        <span className="at-title">{b.title}</span>
+                        <span className="at-artists">{b.beatmakerName || 'Битмейкер'}</span>
+                        {beatPlatform(b) === 'audio' && b.platformUrl && (
+                          <a
+                            className="at-download"
+                            href={b.platformUrl}
+                            download
+                            title="Скачать аудио"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            ⬇
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {canManage(c.beats[0]) && (
+                    <div className="album-actions">
+                      <button
+                        type="button"
+                        className="btn-small-ghost"
+                        onClick={() => setForm(toFormState(c.beats[0]))}
+                      >
+                        Редактировать сборник
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : visible.length === 0 ? (
         <div className="beats-empty">
           {beats.length === 0
             ? 'Битов пока нет. Добавьте первый бит по ссылке на SoundCloud, YouTube или прямой аудио-файл.'
@@ -532,16 +671,45 @@ export default function BeatsView({
                   )}
                 </div>
                 <div className="beat-card-body">
-                  <div className="beat-card-title">{b.title}</div>
-                  <div className="beat-card-meta">
+                  <div className="beat-card-title-row">
+                    <span className="beat-card-title">{b.title}</span>
+                    {b.collection && (
+                      <span className="beat-chip beat-collection-chip" title="Сборник">
+                        {b.collection}
+                      </span>
+                    )}
                     {!!b.bpm && <span className="beat-chip">{b.bpm} BPM</span>}
                     {!!b.key && <span className="beat-chip">{b.key}</span>}
-                    {!!b.genre && <span className="beat-chip">{b.genre}</span>}
+                    {beatPlatform(b) === 'audio' && !!b.platformUrl && (
+                      <a
+                        className="at-download"
+                        href={b.platformUrl}
+                        download
+                        title="Скачать аудио"
+                      >
+                        ⬇
+                      </a>
+                    )}
+                    {le && (
+                      <button
+                        type="button"
+                        className="at-delete"
+                        title="Удалить бит"
+                        disabled={deletingId === b.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void remove(b.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                   <div className="beat-card-sub">
                     <span>{b.beatmakerName || 'Битмейкер'}</span>
                     <span className="beat-platform">{PLATFORM_LABELS[beatPlatform(b)]}</span>
                   </div>
+                  {!!b.genre && <div className="beat-card-meta"><span className="beat-chip">{b.genre}</span></div>}
                   {beatPlatform(b) === 'audio' && (
                     <div className="beat-cache-row">
                       {cached.ids.has(b.id) ? (
@@ -587,14 +755,6 @@ export default function BeatsView({
                       >
                         {copiedId === b.id ? 'Ссылка ✓' : 'Ссылка'}
                       </button>
-                      <button
-                        type="button"
-                        className="btn-small-ghost btn-danger"
-                        disabled={deletingId === b.id}
-                        onClick={() => remove(b.id)}
-                      >
-                        Удалить
-                      </button>
                     </div>
                   )}
                 </div>
@@ -608,6 +768,7 @@ export default function BeatsView({
         <BeatFormModal
           initial={form}
           saving={saving}
+          collections={collections}
           onCancel={() => setForm(null)}
           onSubmit={save}
         />

@@ -25,6 +25,9 @@ export interface Beat {
   // Карточка создаётся сразу, публикация mp3 в Archive.org идёт в фоне
   archiveStatus?: BeatArchiveStatus;
   archiveError?: string;
+  // Сборник (коллекция), в которую входит бит
+  collection?: string;
+  collectionNumber?: number;
 }
 
 export const BEAT_STATUS_LABELS: Record<BeatStatus, string> = {
@@ -67,4 +70,6 @@ export type BeatFormData = {
   beatmakerName: string;
   createdBy: string;
   archiveStatus?: BeatArchiveStatus;
+  collection?: string;
+  collectionNumber?: number;
 };

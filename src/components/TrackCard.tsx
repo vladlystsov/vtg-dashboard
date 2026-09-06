@@ -8,9 +8,10 @@ interface TrackCardProps {
   index: number;
   onOpen: (track: Track) => void;
   userMap: Map<string, UserProfile>;
+  onRestore?: (id: string) => void;
 }
 
-export default function TrackCard({ track, index, onOpen, userMap }: TrackCardProps) {
+export default function TrackCard({ track, index, onOpen, userMap, onRestore }: TrackCardProps) {
   const checklist = track.checklist || [];
   const doneCount = checklist.filter((c) => c.status === 'verified' || c.status === 'done').length;
   const totalCount = checklist.length;
@@ -80,6 +81,21 @@ export default function TrackCard({ track, index, onOpen, userMap }: TrackCardPr
                 </span>
               )}
             </div>
+            {track.archived && onRestore && (
+              <div className="track-card-archived">
+                <span className="track-archive-badge">В архиве</span>
+                <button
+                  type="button"
+                  className="btn-small-ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestore(track.id);
+                  }}
+                >
+                  Восстановить
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

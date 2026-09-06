@@ -8,7 +8,7 @@ import ProfileView from './ProfileView';
 import AdminPanel from './AdminPanel';
 import BeatsView from './BeatsView';
 import ProjectsView from './ProjectsView';
-import type { Track, UserProfile, ArtistRequest, KanbanColumn, SoundProject } from '../types/track';
+import type { Track, UserProfile, ArtistRequest, KanbanColumn } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import { asArray, resolveNames } from '../types/track';
 import type { Beat, BeatFormData } from '../types/beat';
@@ -46,10 +46,16 @@ import {
   deleteBeat,
 } from '../services/beatsService';
 import { publishBeatAudioInBackground } from '../services/archiveService';
-import { subscribeToProjects } from '../services/projectService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
+import {
+  subscribeToProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+} from '../services/projectsService';
+import type { Project } from '../types/track';
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
 
@@ -63,10 +69,10 @@ export default function App() {
   const isOnline = useNetwork();
   const [tracks, setTracks] = useState<Track[]>([]);
   const [beats, setBeats] = useState<Beat[]>([]);
+  const [projectList, setProjectList] = useState<Project[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [soundProjects, setSoundProjects] = useState<SoundProject[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>(beatIdFromHash() ? 'beats' : 'board');
   const requestedBeatId = beatIdFromHash();
@@ -98,7 +104,7 @@ export default function App() {
     }
     for (const b of beats) {
       if (b.status === 'published' && b.platformUrl) {
-        push(shippedFromUrl(b.id, b.title, b.platformUrl, b.coverUrl));
+        push(shippedFromUrl(b.id, b.title, b.platformUrl, b.coverUrl, true, 'beat'));
       }
     }
     return items;
@@ -113,6 +119,12 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToBeats((data) => setBeats(data), (e) => console.error('beats sub', e));
+    return unsub;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToProjects((data) => setProjectList(data), (e) => console.error('projects sub', e));
     return unsub;
   }, [user]);
 
@@ -181,14 +193,6 @@ export default function App() {
       setNotifications(data);
     }, (e) => console.error('notif sub', e), user.uid);
     return () => { notifUnsubRef.current?.(); notifUnsubRef.current = null; };
-  }, [user]);
-
-  const projectsUnsubRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    projectsUnsubRef.current = subscribeToProjects((data) => setSoundProjects(data), (e) => console.error('projects sub', e));
-    return () => { projectsUnsubRef.current?.(); projectsUnsubRef.current = null; };
   }, [user]);
 
   const seenNotif = useRef<Set<string>>(new Set());
@@ -274,7 +278,7 @@ export default function App() {
     }
   };
 
-  const handleSave = async (data: TrackFormData, id?: string, file?: File) => {
+  const handleSave = async (data: TrackFormData, id?: string, file?: File): Promise<string | undefined> => {
     const payload = {
       ...data,
       artist: data.artists[0] || '',
@@ -299,7 +303,6 @@ export default function App() {
       } else {
         trackId = await createTrack(payload as any);
       }
-
       if (file && trackId) {
         publishBeatAudioInBackground({
           file,
@@ -334,6 +337,7 @@ export default function App() {
           `Статус трека «${payload.title}» изменён: ${statusLabels[oldTrack.status] || oldTrack.status} → ${statusLabels[payload.status] || payload.status}`
         );
       }
+      return trackId;
     } else {
       const offlineTrack: Track = {
         ...payload,
@@ -347,6 +351,7 @@ export default function App() {
       await saveTrackOffline(offlineTrack);
       await addPendingSync(id ? 'update' : 'create', offlineTrack.id, offlineTrack);
       setTracks((prev) => (id ? prev.map((t) => (t.id === id ? offlineTrack : t)) : [offlineTrack, ...prev]));
+      return offlineTrack.id;
     }
   };
 
@@ -400,6 +405,25 @@ export default function App() {
   };
 
   const handleMove = (id: string, col: KanbanColumn) => moveTrack(id, col);
+
+  const handleArchive = async (id: string, archived: boolean) => {
+    await updateTrack(id as any, { archived } as any);
+  };
+
+  const handleSaveProject = async (
+    id: string | null,
+    data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>
+  ) => {
+    if (id) {
+      await updateProject(id, data as any);
+    } else {
+      await createProject({ ...data, createdBy: data.createdBy || profile?.uid || '' } as any);
+    }
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    await deleteProject(id);
+  };
 
   const myUid = profile?.uid || '';
   const ownerCount = users.filter((u) => u.role === 'owner').length;
@@ -468,9 +492,10 @@ export default function App() {
 
         {canUseBoard && view === 'board' && (
           <KanbanBoard
-            tracks={tracks.filter((t) => t.status !== 'completed')}
+            tracks={tracks.filter((t) => t.status !== 'completed' || t.archived)}
             onOpenTrack={handleOpenTrack}
             onMove={handleMove}
+            onArchive={handleArchive}
             userMap={userMap}
             currentUid={profile?.uid}
             currentName={profile?.artistName || profile?.displayName}
@@ -503,6 +528,17 @@ export default function App() {
           />
         )}
 
+        {view === 'projects' && (
+          <ProjectsView
+            projects={projectList}
+            tracks={tracks}
+            userMap={userMap}
+            canEdit={isRoleAllowed}
+            onSave={handleSaveProject}
+            onDelete={handleDeleteProject}
+          />
+        )}
+
         {view === 'team' && (
           <TeamView
             users={users}
@@ -517,10 +553,6 @@ export default function App() {
         )}
 
         {view === 'profile' && <ProfileView />}
-
-        {view === 'projects' && canUseBoard && (
-          <ProjectsView projects={soundProjects} />
-        )}
 
         {view === 'admin' && isRoleAllowed && (
           <AdminPanel
