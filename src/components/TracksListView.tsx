@@ -1,11 +1,12 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
 import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc, youtubeVideoId } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
-import { ShippedMini, toShippedItem } from './ShippedPlayer';
+import { ShippedMini, toShippedItem, useShippedPlayerManager } from './ShippedPlayer';
 import { uploadCover } from '../services/fileService';
+import { listCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -28,7 +29,10 @@ interface AlbumGroup {
 export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUpdateTrack }: TracksListViewProps) {
   const [tab, setTab] = useState<'singles' | 'compilations' | 'shipped'>('singles');
   const [filterArtist, setFilterArtist] = useState('');
+  const [shippedQuery, setShippedQuery] = useState('');
   const [editingAlbum, setEditingAlbum] = useState<AlbumGroup | null>(null);
+  const cachedIds = useCachedAudioIds();
+  const manager = useShippedPlayerManager();
 
   const allArtistNames = useMemo(() => {
     const names = new Set<string>();
@@ -60,6 +64,12 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
     });
   }, [tracks, filterArtist, userMap]);
 
+  // Плеер: раздел «Треки» = текущая выборка (без режима (All))
+  const scopeTracks = useMemo(() => filteredTracks.map(toShippedItem), [filteredTracks]);
+  useEffect(() => {
+    manager.setScope(scopeTracks);
+  }, [scopeTracks, manager]);
+
   const singles = useMemo(() => filteredTracks.filter((t) => !t.project), [filteredTracks]);
   const compilations = useMemo(() => filteredTracks.filter((t) => !!t.project), [filteredTracks]);
 
@@ -73,6 +83,18 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
     () => grouped.filter((g) => g.tracks.every(isCompleted) || g.tracks.some((t) => !!t.platformUrl)),
     [grouped]
   );
+
+  const shipsHay = (t: Track) => [t.title, ...(t.artists || []), t.feat || ''].join(' ').toLowerCase();
+  const filteredShippedSingles = useMemo(() => {
+    const q = shippedQuery.trim().toLowerCase();
+    if (!q) return shippedSingles;
+    return shippedSingles.filter((t) => shipsHay(t).includes(q));
+  }, [shippedSingles, shippedQuery]);
+  const filteredShippedAlbums = useMemo(() => {
+    const q = shippedQuery.trim().toLowerCase();
+    if (!q) return shippedAlbums;
+    return shippedAlbums.filter((a) => shipsHay(a.tracks[0]).includes(q) || a.tracks.some((t) => shipsHay(t).includes(q)));
+  }, [shippedAlbums, shippedQuery]);
 
   return (
     <div className="tracks-view">
@@ -88,6 +110,15 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
             Отгружено ({shippedSingles.length + shippedAlbums.length})
           </button>
         </div>
+        {tab === 'shipped' && (
+          <input
+            className="beats-search"
+            type="text"
+            value={shippedQuery}
+            onChange={(e) => setShippedQuery(e.target.value)}
+            placeholder="Поиск по отгруженному…"
+          />
+        )}
         <div className="tracks-filter">
           <select value={filterArtist} onChange={(e) => setFilterArtist(e.target.value)}>
             <option value="">Все артисты</option>
@@ -107,6 +138,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
               userMap={userMap}
               onOpen={onOpen}
               onDelete={onDelete}
+              cachedIds={cachedIds}
             />
           ))}
           {activeSingles.length === 0 && <div className="empty-state">Нет синглов</div>}
@@ -130,32 +162,15 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
       )}
 
       {tab === 'shipped' && (
-        <div className="albums-grid">
-          {shippedSingles.map((track) => (
-            <SingleTrackCard
-              key={track.id}
-              track={track}
-              userMap={userMap}
-              onOpen={onOpen}
-              onDelete={onDelete}
-              shipped
-            />
-          ))}
-          {shippedAlbums.map((album) => (
-            <AlbumCard
-              key={album.name}
-              album={album}
-              userMap={userMap}
-              onOpen={onOpen}
-              onDelete={onDelete}
-              shipped
-              onEditAlbum={() => setEditingAlbum(album)}
-            />
-          ))}
-          {shippedSingles.length === 0 && shippedAlbums.length === 0 && (
-            <div className="empty-state">Нет отгруженных релизов. Отметьте трек статусом «Завершено» или укажите ссылку на платформу в карточке трека.</div>
-          )}
-        </div>
+        <ShippedMasonry
+          singles={filteredShippedSingles}
+          albums={filteredShippedAlbums}
+          userMap={userMap}
+          onOpen={onOpen}
+          onDelete={onDelete}
+          onEditAlbum={(a) => setEditingAlbum(a)}
+          cachedIds={cachedIds}
+        />
       )}
 
       {editingAlbum && (
@@ -345,18 +360,176 @@ function effectiveTrackCover(track: Track, albumCover?: string): string | undefi
   return track.personalCoverUrl || track.coverUrl || albumCover;
 }
 
+function useCachedAudioIds(): Set<string> {
+  const [ids, setIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const items = await listCachedAudio();
+      if (!active) return;
+      setIds(new Set(items.map((i) => i.id)));
+    })();
+    const unsub = onAudioCacheChange((changedId) => {
+      if (!active) return;
+      setIds((prev) => {
+        const next = new Set(prev);
+        if (changedId) {
+          if (next.has(changedId)) next.delete(changedId);
+          else next.add(changedId);
+        }
+        return next;
+      });
+    });
+    return () => { active = false; unsub(); };
+  }, []);
+
+  return ids;
+}
+
 function DownloadAudioButton({ url, title }: { url?: string; title: string }) {
   if (!url || detectPlatform(url) !== 'audio') return null;
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    let blobUrl: string | null = null;
+    try {
+      const res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      blobUrl = URL.createObjectURL(blob);
+    } catch {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `${title.replace(/[^\wа-яА-ЯёЁ\s-]+/g, '').trim() || 'audio'}.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, 4000);
+  };
   return (
     <a
       className="at-download"
       href={url}
-      download={title}
       title="Скачать mp3"
-      onClick={(e) => e.stopPropagation()}
+      onClick={handleDownload}
     >
       ⬇
     </a>
+  );
+}
+
+function ShippedMasonry({
+  singles,
+  albums,
+  userMap,
+  onOpen,
+  onDelete,
+  onEditAlbum,
+  cachedIds,
+}: {
+  singles: Track[];
+  albums: AlbumGroup[];
+  userMap: Map<string, UserProfile>;
+  onOpen: (t: Track) => void;
+  onDelete: (id: string) => void;
+  onEditAlbum: (a: AlbumGroup) => void;
+  cachedIds?: Set<string>;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [columns, setColumns] = useState(5);
+
+  useEffect(() => {
+    const update = () => {
+      const w = containerRef.current?.clientWidth || window.innerWidth;
+      const n = w >= 1300 ? 5 : w >= 1100 ? 4 : w >= 850 ? 3 : w >= 560 ? 2 : 1;
+      setColumns(n);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // Стабильное распределение карточек по колонкам: каждый элемент закрепляется за
+  // одной колонкой один раз, чтобы при раскрытии треклиста не пересчитывался весь
+  // макет (сдвигается только то, что ниже в той же колонке).
+  const layout = useMemo(() => {
+    type Card = { key: string; isAlbum: boolean; tracks: number };
+    const cards: Card[] = [
+      ...singles.map((s) => ({ key: s.id, isAlbum: false as const, tracks: 1 })),
+      ...albums.map((a) => ({ key: a.name, isAlbum: true as const, tracks: a.tracks.length })),
+    ];
+    if (cards.length === 0) return [];
+    const cols: Card[][] = Array.from({ length: columns }, () => []);
+    const colHeight: number[] = new Array(columns).fill(0);
+    for (const c of cards) {
+      const h = c.isAlbum ? 260 + Math.min(c.tracks, 10) * 46 : 380;
+      let minIdx = 0;
+      for (let i = 1; i < columns; i++) {
+        if (colHeight[i] < colHeight[minIdx]) minIdx = i;
+      }
+      cols[minIdx].push(c);
+      colHeight[minIdx] += h + 18;
+    }
+    return cols;
+  }, [singles, albums, columns]);
+
+  const cardById = useMemo(() => {
+    const m = new Map<string, Track>();
+    for (const s of singles) m.set(s.id, s);
+    return m;
+  }, [singles]);
+
+  const cardByAlbum = useMemo(() => {
+    const m = new Map<string, AlbumGroup>();
+    for (const a of albums) m.set(a.name, a);
+    return m;
+  }, [albums]);
+
+  return (
+    <div className="shipped-masonry" ref={containerRef}>
+      {layout.map((col, ci) => (
+        <div className="shipped-masonry-col" key={ci}>
+          {col.map((c) => {
+            if (!c.isAlbum) {
+              const track = cardById.get(c.key);
+              if (!track) return null;
+              return (
+                <SingleTrackCard
+                  key={track.id}
+                  track={track}
+                  userMap={userMap}
+                  onOpen={onOpen}
+                  onDelete={onDelete}
+                  shipped
+                  cachedIds={cachedIds}
+                />
+              );
+            }
+            const album = cardByAlbum.get(c.key);
+            if (!album) return null;
+            return (
+              <AlbumCard
+                key={album.name}
+                album={album}
+                userMap={userMap}
+                onOpen={onOpen}
+                onDelete={onDelete}
+                shipped
+                onEditAlbum={() => onEditAlbum(album)}
+                cachedIds={cachedIds}
+              />
+            );
+          })}
+        </div>
+      ))}
+      {singles.length === 0 && albums.length === 0 && (
+        <div className="empty-state">Нет отгруженных релизов. Отметьте трек статусом «Завершено» или укажите ссылку на платформу в карточке трека.</div>
+      )}
+    </div>
   );
 }
 
@@ -366,12 +539,14 @@ function SingleTrackCard({
   onOpen,
   onDelete,
   shipped = false,
+  cachedIds = new Set<string>(),
 }: {
   track: Track;
   userMap: Map<string, UserProfile>;
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
   shipped?: boolean;
+  cachedIds?: Set<string>;
 }) {
   const { profile } = useAuth();
   const effectiveIsOwner = profile?.role === 'owner' || profile?.role === 'admin';
@@ -399,6 +574,7 @@ function SingleTrackCard({
             <div className="album-track-title-text">
               <span className="album-track-title-name">{track.title}</span>
               {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
+              {cachedIds.has(track.id) && <span className="at-cached-badge" title="Сохранено в кэше">✓</span>}
               {track.archiveStatus === 'uploading' && (
                 <span className="at-archive-badge at-archive-uploading" title="Звук публикуется в Archive.org">звук…</span>
               )}
@@ -460,6 +636,7 @@ function AlbumCard({
   onDelete,
   onEditAlbum,
   shipped = false,
+  cachedIds = new Set<string>(),
 }: {
   album: AlbumGroup;
   userMap: Map<string, UserProfile>;
@@ -467,6 +644,7 @@ function AlbumCard({
   onDelete: (id: string) => void;
   onEditAlbum: () => void;
   shipped?: boolean;
+  cachedIds?: Set<string>;
 }) {
   const { profile } = useAuth();
   const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
@@ -543,7 +721,7 @@ function AlbumCard({
             <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
           </div>
         )}
-        {!shipped && <PlatformPlayer url={albumPlatformUrl} track={albumPlatformTrack} />}
+        {!shipped && album.tracks.length > 1 && <PlatformPlayer url={albumPlatformUrl} track={albumPlatformTrack} />}
         <button
           className="album-tracklist-toggle"
           onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
@@ -561,8 +739,15 @@ function AlbumCard({
                 onOpen={onOpen}
                 onDelete={onDelete}
                 shipped={shipped}
+                cachedIds={cachedIds}
               />
             ))}
+          </div>
+        )}
+        {/* Сборник из одного трека: плеер под треком, а не выше треклиста */}
+        {!shipped && album.tracks.length === 1 && (
+          <div className="album-single-player">
+            <PlatformPlayer url={albumPlatformUrl} track={albumPlatformTrack} />
           </div>
         )}
       </div>
@@ -577,6 +762,7 @@ function AlbumTrackRow({
   onOpen,
   onDelete,
   shipped = false,
+  cachedIds = new Set<string>(),
 }: {
   track: Track;
   albumCover?: string;
@@ -584,6 +770,7 @@ function AlbumTrackRow({
   onOpen: (t: Track) => void;
   onDelete: (id: string) => void;
   shipped?: boolean;
+  cachedIds?: Set<string>;
 }) {
   const { profile } = useAuth();
   const myName = (profile?.artistName || profile?.displayName || '').toLowerCase();
@@ -607,6 +794,7 @@ function AlbumTrackRow({
           <div className="at-title-line">
             <span className="at-title">{track.title}</span>
             {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
+            {cachedIds.has(track.id) && <span className="at-cached-badge" title="Сохранено в кэше">✓</span>}
             {track.archiveStatus === 'uploading' && (
               <span className="at-archive-badge at-archive-uploading" title="Звук публикуется в Archive.org">звук…</span>
             )}
@@ -700,6 +888,38 @@ function AlbumEditModal({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const coverFileRef = useRef<HTMLInputElement | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverExternal, setCoverExternal] = useState(album.coverUrl || '');
+
+  const onPickAlbumCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !repTrack || !onUpdateTrack) return;
+    setCoverUploading(true);
+    try {
+      const dataUrl = await uploadCover(file);
+      await onUpdateTrack(repTrack.id, { coverUrl: dataUrl });
+      if (coverFileRef.current) coverFileRef.current.value = '';
+    } catch {
+      /* ignore */
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const applyAlbumCoverToAll = async () => {
+    if (!repTrack || !album.coverUrl || !onUpdateTrack) return;
+    if (!window.confirm(`Применить обложку альбома ко всем ${album.tracks.length} трекам сборника?`)) return;
+    setSaving(true);
+    try {
+      await Promise.all(album.tracks.map((t) => onUpdateTrack(t.id, { coverUrl: album.coverUrl })));
+      setMsg('Обложка альбома применена ко всем трекам.');
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось применить обложку.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const gatherFromTracks = () => {
     setProducers(trackBeatmakersUnion);
@@ -777,6 +997,62 @@ function AlbumEditModal({
           </div>
           {msg && <div className="form-hint">{msg}</div>}
           {error && <div className="form-error" style={{ color: 'var(--crimson-500)' }}>{error}</div>}
+        </div>
+
+        <div className="form-section">
+          <h3>Обложка альбома</h3>
+          <div className="form-group">
+            <label>Ссылка на обложку</label>
+            <div className="collection-input-row">
+              <input
+                type="text"
+                value={coverExternal}
+                placeholder="https://…/cover.jpg"
+                disabled={coverUploading}
+                onChange={(e) => setCoverExternal(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!repTrack || !onUpdateTrack || coverUploading}
+                onClick={async () => {
+                  if (!repTrack || !onUpdateTrack) return;
+                  const v = coverExternal.trim();
+                  if (!v) return;
+                  setSaving(true);
+                  try {
+                    await onUpdateTrack(repTrack.id, { coverUrl: v });
+                    setMsg(`Обложка альбома обновлена${album.coverUrl && v !== album.coverUrl ? '' : ''}.`);
+                  } catch (e: any) {
+                    setError(e?.message || 'Не удалось обновить обложку.');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                Сохранить обложку
+              </button>
+            </div>
+          </div>
+          <div className="album-credits-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={!repTrack || !onUpdateTrack}
+              onClick={() => coverFileRef.current?.click()}
+            >
+              {coverUploading ? 'Загрузка…' : 'Загрузить обложку с устройства'}
+            </button>
+            <button
+              type="button"
+              className="btn-small-ghost"
+              disabled={!album.coverUrl || !onUpdateTrack || saving}
+              onClick={applyAlbumCoverToAll}
+            >
+              Применить ко всем трекам
+            </button>
+            <input ref={coverFileRef} type="file" accept="image/*" onChange={onPickAlbumCover} style={{ display: 'none' }} />
+          </div>
         </div>
 
         <div className="form-section">
@@ -865,6 +1141,18 @@ function AlbumEditTrackRow({
             >
               {uploading ? '⏳' : '🖼'}
             </button>
+            {track.personalCoverUrl && (
+              <button
+                className="at-cover-remove"
+                title="Убрать персональную обложку трека (вернуть обложку альбома по умолчанию)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onUpdateTrack) void onUpdateTrack(track.id, { personalCoverUrl: undefined });
+                }}
+              >
+                ✕
+              </button>
+            )}
             <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: 'none' }} />
           </div>
           <div className="at-info">

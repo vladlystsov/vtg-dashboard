@@ -536,6 +536,7 @@ export default function App() {
             canEdit={isRoleAllowed}
             onSave={handleSaveProject}
             onDelete={handleDeleteProject}
+            onUpdateTrack={updateTrack as any}
           />
         )}
 

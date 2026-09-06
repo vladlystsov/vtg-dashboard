@@ -482,16 +482,16 @@ export default function TrackForm({
 
           <div className="form-row">
             <div className="form-group">
-              <label>Проект / Альбом</label>
+              <label>Сборник</label>
               {!newProjectOpen ? (
                 <div className="project-picker">
                   <select value={project} onChange={(e) => setProject(e.target.value)}>
-                    <option value="">Выберите проект/альбом</option>
+                    <option value="">Выберите сборник</option>
                     {project && !projects.includes(project) && <option value={project}>{project}</option>}
                     {projects.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
                   <button type="button" className="btn-add-inline" onClick={() => setNewProjectOpen(true)}>
-                    + Новый проект
+                    + Новый сборник
                   </button>
                 </div>
               ) : (
@@ -501,7 +501,7 @@ export default function TrackForm({
                     type="text"
                     value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="Название нового альбома"
+                    placeholder="Название нового сборника"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { e.preventDefault(); applyNewProject(); }
                       if (e.key === 'Escape') { setNewProjectOpen(false); setNewProjectName(''); }
@@ -522,7 +522,7 @@ export default function TrackForm({
             </div>
             {hasProject && (
               <div className="form-group">
-                <label>№ трека в альбоме</label>
+                <label>№ трека в сборнике</label>
                 <input
                   type="number"
                   min={1}
@@ -537,12 +537,12 @@ export default function TrackForm({
           {hasProject && (
             <>
               <PersonSelector
-                label="Авторы (альбом)"
+                label="Авторы (сборник)"
                 options={users}
                 value={artists}
                 valueUids={artistUids}
                 onChange={(names, uids) => { setArtists(names); setArtistUids(uids); }}
-                placeholder="Участники альбома"
+                placeholder="Участники сборника"
               />
               <button
                 className="btn-add-inline"
@@ -722,7 +722,22 @@ export default function TrackForm({
                 в Archive.org после сохранения.
               </div>
             )}
-            {initialTrack?.projectZipUrl && initialTrack.projectZipStatus === 'ready' && (
+            {(initialTrack?.projectZips || []).length > 0 && (
+              <div className="track-projects-list" style={{ marginTop: 8 }}>
+                <div className="form-hint" style={{ marginBottom: 4 }}>Загруженные проекты трека:</div>
+                {(initialTrack?.projectZips || []).map((pz) => (
+                  <div key={pz.projectId} className="track-project-zip">
+                    <span className="track-project-zip-name">{pz.projectName}</span>
+                    {pz.zipStatus === 'ready' && pz.zipUrl && (
+                      <a className="at-download" href={pz.zipUrl} target="_blank" rel="noreferrer" title="Скачать архив проекта">⬇</a>
+                    )}
+                    {pz.zipStatus === 'uploading' && <span className="at-archive-badge at-archive-uploading">архив…</span>}
+                    {pz.zipStatus === 'error' && <span className="at-archive-badge at-archive-error" title={pz.zipError || 'Ошибка загрузки архива'}>ошибка</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {initialTrack?.projectZipUrl && !(initialTrack.projectZips || []).length && (
               <div className="form-hint success" style={{ marginTop: 4 }}>
                 ✓ Архив загружен:{' '}
                 <a href={initialTrack.projectZipUrl} target="_blank" rel="noreferrer">

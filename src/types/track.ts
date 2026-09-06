@@ -128,8 +128,19 @@ export interface Track {
   projectVocalType?: ProjectVocalType;
   // Персональная обложка трека в альбоме (если отличается от обложки альбома)
   personalCoverUrl?: string;
+  // Список загруженных на Archive.org проектов (.zip), привязанных к этому треку
+  projectZips?: TrackProjectZip[];
   // Архив доски (пункт «Поместить в архив»)
   archived?: boolean;
+}
+
+export interface TrackProjectZip {
+  projectId: string;
+  projectName: string;
+  zipUrl?: string;
+  zipStatus?: TrackArchiveStatus;
+  zipError?: string;
+  uploadedAt: string;
 }
 
 export interface Project {

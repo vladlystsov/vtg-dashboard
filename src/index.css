@@ -439,7 +439,7 @@ body {
 
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: 260px repeat(5, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -661,7 +661,7 @@ body {
 
 @media (max-width: 1200px) {
   .kanban-board {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 220px repeat(3, 1fr);
     overflow-x: auto;
   }
 }
@@ -672,6 +672,34 @@ body {
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
   min-height: 200px;
+}
+
+.kanban-column-archive {
+  background: var(--gray-100);
+  border-style: dashed;
+  border-color: var(--gray-300);
+  min-height: 120px;
+  align-self: stretch;
+}
+
+.kanban-column-archive-window {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+}
+
+.kanban-archive-hint {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--gray-400);
+  text-align: center;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.kanban-column-archive-open .kanban-archive-hint {
+  display: none;
 }
 
 .column-header {
@@ -1544,6 +1572,28 @@ body {
   margin-bottom: 16px;
 }
 
+.shipped-masonry {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.shipped-masonry-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shipped-masonry-col .album-card {
+  width: 100%;
+}
+
+.album-single-player {
+  margin-top: 8px;
+}
+
 .album-track {
   display: grid;
   grid-template-columns: 36px 56px 1fr auto auto;
@@ -2395,6 +2445,28 @@ body {
   background: var(--blue-600);
 }
 
+.at-cover-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.at-cover-remove:hover {
+  background: var(--crimson-red);
+}
+
 .album-tracklist {
   display: flex;
   flex-direction: column;
@@ -2491,6 +2563,22 @@ body {
 
 .at-mine.at-participant {
   background: var(--gray-400);
+}
+
+.at-cached-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #16a34a;
+  border-radius: 999px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  cursor: help;
 }
 
 .at-archive-badge {
@@ -2789,6 +2877,28 @@ body {
   );
   border-radius: 999px;
   outline: none;
+}
+
+.sp-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--blue-600) var(--fill, 0%),
+    var(--gray-300) var(--fill, 0%)
+  );
+}
+
+.sp-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--gray-300);
+}
+
+.sp-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--blue-600);
 }
 
 .sp-range::-webkit-slider-thumb {
@@ -3342,7 +3452,7 @@ body {
     display: none;
   }
   .kanban-board {
-    grid-template-columns: repeat(5, 240px);
+    grid-template-columns: 220px repeat(5, 240px);
     overflow-x: auto;
     padding-bottom: 12px;
   }
@@ -3974,6 +4084,24 @@ body {
   min-width: 0;
 }
 
+.beat-card-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.beat-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.beat-card-body-clickable {
+  cursor: pointer;
+}
+
 .beat-card-title {
   font-size: 15px;
   font-weight: 700;
@@ -4007,9 +4135,19 @@ body {
 
 .beat-card-title-row .at-download,
 .beat-card-title-row .at-delete {
-  width: 22px;
-  height: 22px;
-  font-size: 14px;
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+}
+
+.beat-card-player {
+  margin-bottom: 8px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.beat-card-player .platform-player {
+  border-radius: var(--radius-sm);
 }
 
 .beat-card-sub {
@@ -4051,6 +4189,45 @@ body {
 
 .beat-link-hint {
   font-size: 12px;
+}
+
+.collection-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collection-input-row select {
+  flex: 1;
+}
+
+.track-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-project-zip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.track-project-zip-name {
+  font-size: 13px;
+  color: var(--gray-700);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-zip-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .beat-link-hint.ok {

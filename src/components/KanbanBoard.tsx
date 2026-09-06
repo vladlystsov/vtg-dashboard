@@ -39,8 +39,8 @@ function isParticipantOnTrack(track: Track, myName: string, userMap: Map<string,
 }
 
 export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, userMap, currentName }: KanbanBoardProps) {
-  const [filter, setFilter] = useState<BoardFilter>('all');
-  const [showArchive, setShowArchive] = useState(false);
+  const [filter, setFilter] = useState<BoardFilter>('mine_all');
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const myName = (currentName || '').toLowerCase();
 
@@ -97,15 +97,48 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, us
             ))}
           </div>
         </div>
-        <button
-          type="button"
-          className={`beat-filter ${showArchive ? 'active' : ''}`}
-          onClick={() => setShowArchive((v) => !v)}
-        >
-          📦 Архив {archivedTracks.length > 0 && `(${archivedTracks.length})`}
-        </button>
       </div>
       <div className="kanban-board">
+        <div className={`kanban-column kanban-column-archive ${archiveOpen ? 'kanban-column-archive-open' : ''}`}>
+          <Droppable droppableId={ARCHIVE_ID}>
+            {(provided) => (
+              <div
+                className="kanban-column-archive-window"
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                onClick={() => setArchiveOpen((v) => !v)}
+              >
+                <div className="column-header" style={{ borderBottomColor: '#6b7280' }}>
+                  <span className="column-dot" style={{ backgroundColor: '#6b7280' }} />
+                  <span className="column-title">Архив {archiveOpen ? '▼' : '▶'}</span>
+                  <span className="column-count">{archivedTracks.length}</span>
+                </div>
+                {archiveOpen ? (
+                  <div className="column-body">
+                    {archivedTracks.length === 0 && (
+                      <div className="kanban-archive-hint">Пусто</div>
+                    )}
+                    {archivedTracks.map((track, index) => (
+                      <TrackCard
+                        key={track.id}
+                        track={track}
+                        index={index}
+                        onOpen={onOpenTrack}
+                        userMap={userMap}
+                        onRestore={(id) => onArchive(id, false).catch(console.error)}
+                      />
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                ) : (
+                  <div className="kanban-archive-hint">
+                    Перетащите карточку сюда, чтобы поместить в архив
+                  </div>
+                )}
+              </div>
+            )}
+          </Droppable>
+        </div>
         {KANBAN_COLUMNS.map((col) => {
           const colTracks = filteredTracks.filter((t) => t.column === col.id && !t.archived);
           return (
@@ -138,36 +171,6 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, us
             </div>
           );
         })}
-        {showArchive && (
-          <div className="kanban-column kanban-column-archive">
-            <div className="column-header" style={{ borderBottomColor: '#6b7280' }}>
-              <span className="column-dot" style={{ backgroundColor: '#6b7280' }} />
-              <span className="column-title">Архив</span>
-              <span className="column-count">{archivedTracks.length}</span>
-            </div>
-            <Droppable droppableId={ARCHIVE_ID}>
-              {(provided) => (
-                <div
-                  className="column-body"
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                >
-                  {archivedTracks.map((track, index) => (
-                    <TrackCard
-                      key={track.id}
-                      track={track}
-                      index={index}
-                      onOpen={onOpenTrack}
-                      userMap={userMap}
-                      onRestore={(id) => onArchive(id, false).catch(console.error)}
-                    />
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </div>
-        )}
       </div>
     </DragDropContext>
   );

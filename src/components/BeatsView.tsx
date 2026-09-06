@@ -8,7 +8,8 @@ import {
   type BeatFormData,
 } from '../types/beat';
 import { detectPlatform, type PlatformKind } from '../types/track';
-import { useShippedPlayerManager } from './ShippedPlayer';
+import { useShippedPlayerManager, shippedFromUrl } from './ShippedPlayer';
+import { PlatformPlayer } from './TracksListView';
 import { checkBeatAudioFile } from '../services/archiveService';
 import { listCachedAudio, deleteCachedAudio, clearAudioCache, onAudioCacheChange } from '../services/audioCacheService';
 
@@ -274,11 +275,24 @@ function BeatFormModal({
           <div className="form-row">
             <div className="form-group">
               <label>Сборник</label>
-              <select value={f.collection} onChange={(e) => set({ collection: e.target.value })}>
-                <option value="">Нет сборника</option>
-                {collections.map((c) => <option key={c} value={c}>{c}</option>)}
-                {f.collection && !collections.includes(f.collection) && <option value={f.collection}>{f.collection}</option>}
-              </select>
+              <div className="collection-input-row">
+                <select value={f.collection} onChange={(e) => set({ collection: e.target.value })}>
+                  <option value="">Нет сборника</option>
+                  {collections.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {f.collection && !collections.includes(f.collection) && <option value={f.collection}>{f.collection}</option>}
+                </select>
+                <button
+                  type="button"
+                  className="btn-small-ghost"
+                  title="Создать новый сборник и назначить его этому биту"
+                  onClick={() => {
+                    const name = window.prompt('Название нового сборника:');
+                    if (name && name.trim()) set({ collection: name.trim() });
+                  }}
+                >
+                  Новый сборник
+                </button>
+              </div>
             </div>
             {f.collection && (
               <div className="form-group">
@@ -363,7 +377,6 @@ export default function BeatsView({
   const [form, setForm] = useState<BeatFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [tab, setTab] = useState<'beats' | 'collections'>('beats');
   const autoPlayedRef = useRef(false);
   const [cached, setCached] = useState<{ ids: Set<string>; bytes: number }>({
@@ -406,20 +419,6 @@ export default function BeatsView({
     if (beatPlayable(b)) manager.playTrack(b.id);
   }, [beats, autoPlayId, manager]);
 
-  const baseUrl = window.location.origin + import.meta.env.BASE_URL;
-
-  const copyLink = async (id: string) => {
-    try {
-      await navigator.clipboard.writeText(`${baseUrl}#beat=${id}`);
-      setCopiedId(id);
-      if (copiedId !== id) {
-        setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
-      }
-    } catch {
-      /* ignore */
-    }
-  };
-
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return beats.filter((b) => {
@@ -440,6 +439,15 @@ export default function BeatsView({
     for (const b of beats) if (b.collection) names.add(b.collection);
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [beats]);
+
+  // Плеер: пока раздел «Биты» открыт (без режима (All)) играть только из текущей выборки
+  const scopeItems = useMemo(
+    () => visible.map((b) => shippedFromUrl(b.id, b.title, b.platformUrl || '', b.coverUrl, b.status === 'published', 'beat')),
+    [visible]
+  );
+  useEffect(() => {
+    manager.setScope(scopeItems);
+  }, [scopeItems, manager]);
 
   const groupedCollections = useMemo(() => {
     const map = new Map<string, Beat[]>();
@@ -640,7 +648,7 @@ export default function BeatsView({
             const le = canManage(b);
             return (
               <div className="beat-card" key={b.id}>
-                <div className="beat-cover-wrap">
+                <div className="beat-cover-wrap" onClick={le ? () => setForm(toFormState(b)) : undefined}>
                   <img className="beat-cover" src={b.coverUrl?.trim() || FALLBACK_COVER} alt="" />
                   {b.free && <span className="beat-badge-free">FREE</span>}
                   {b.status === 'hidden' && <span className="beat-badge-hidden">Скрыт</span>}
@@ -670,7 +678,10 @@ export default function BeatsView({
                     </button>
                   )}
                 </div>
-                <div className="beat-card-body">
+                <div
+                  className="beat-card-body beat-card-body-clickable"
+                  onClick={le ? () => setForm(toFormState(b)) : undefined}
+                >
                   <div className="beat-card-title-row">
                     <span className="beat-card-title">{b.title}</span>
                     {b.collection && (
@@ -678,38 +689,43 @@ export default function BeatsView({
                         {b.collection}
                       </span>
                     )}
+                    <div className="beat-card-title-actions">
+                      {beatPlatform(b) === 'audio' && !!b.platformUrl && (
+                        <a
+                          className="at-download"
+                          href={b.platformUrl}
+                          title="Скачать аудио"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          ⬇
+                        </a>
+                      )}
+                      {le && (
+                        <button
+                          type="button"
+                          className="at-delete"
+                          title="Удалить бит"
+                          disabled={deletingId === b.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!window.confirm(`Удалить бит «${b.title}»?`)) return;
+                            void remove(b.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="beat-card-tags">
                     {!!b.bpm && <span className="beat-chip">{b.bpm} BPM</span>}
                     {!!b.key && <span className="beat-chip">{b.key}</span>}
-                    {beatPlatform(b) === 'audio' && !!b.platformUrl && (
-                      <a
-                        className="at-download"
-                        href={b.platformUrl}
-                        download
-                        title="Скачать аудио"
-                      >
-                        ⬇
-                      </a>
-                    )}
-                    {le && (
-                      <button
-                        type="button"
-                        className="at-delete"
-                        title="Удалить бит"
-                        disabled={deletingId === b.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void remove(b.id);
-                        }}
-                      >
-                        ×
-                      </button>
-                    )}
+                    {!!b.genre && <span className="beat-chip">{b.genre}</span>}
                   </div>
                   <div className="beat-card-sub">
                     <span>{b.beatmakerName || 'Битмейкер'}</span>
                     <span className="beat-platform">{PLATFORM_LABELS[beatPlatform(b)]}</span>
                   </div>
-                  {!!b.genre && <div className="beat-card-meta"><span className="beat-chip">{b.genre}</span></div>}
                   {beatPlatform(b) === 'audio' && (
                     <div className="beat-cache-row">
                       {cached.ids.has(b.id) ? (
@@ -719,7 +735,7 @@ export default function BeatsView({
                             type="button"
                             className="btn-small-ghost"
                             title="Удалить этот трек из локального кэша"
-                            onClick={() => removeCached(b.id)}
+                            onClick={(e) => { e.stopPropagation(); void removeCached(b.id); }}
                           >
                             Удалить из кэша
                           </button>
@@ -731,30 +747,16 @@ export default function BeatsView({
                       )}
                     </div>
                   )}
+                  {playable && b.platformUrl && (
+                    <div className="beat-card-player" onClick={(e) => e.stopPropagation()}>
+                      <PlatformPlayer url={b.platformUrl} compact />
+                    </div>
+                  )}
                   {!!(b.tags && b.tags.length) && (
                     <div className="beat-tags">
                       {b.tags!.map((t) => (
                         <span key={t} className="beat-tag">#{t}</span>
                       ))}
-                    </div>
-                  )}
-                  {le && (
-                    <div className="beat-card-actions">
-                      <button
-                        type="button"
-                        className="btn-small-ghost"
-                        onClick={() => setForm(toFormState(b))}
-                      >
-                        Редактировать
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-small-ghost"
-                        title="Скопировать ссылку на бит"
-                        onClick={() => copyLink(b.id)}
-                      >
-                        {copiedId === b.id ? 'Ссылка ✓' : 'Ссылка'}
-                      </button>
                     </div>
                   )}
                 </div>
