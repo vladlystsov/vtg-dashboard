@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import type { Project, Track, TrackProjectZip, UserProfile } from '../types/track';
-import { PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS } from '../types/track';
+import type { Project, Track, TrackProjectZip, TrackStatus, UserProfile } from '../types/track';
+import { PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS, STATUS_LABELS } from '../types/track';
 import { checkProjectZipFile, publishProjectZipInBackground } from '../services/archiveService';
 import { format } from 'date-fns';
 
@@ -20,6 +20,26 @@ interface ZipUploadState {
   file: File;
 }
 
+interface ProjectFormState {
+  name: string;
+  description: string;
+  genre: string;
+  tags: string;
+  artists: string;
+  coverUrl: string;
+  status: TrackStatus;
+}
+
+const EMPTY_PROJECT_FORM: ProjectFormState = {
+  name: '',
+  description: '',
+  genre: '',
+  tags: '',
+  artists: '',
+  coverUrl: '',
+  status: 'draft',
+};
+
 export default function ProjectsView({
   projects,
   tracks,
@@ -29,8 +49,10 @@ export default function ProjectsView({
   onDelete,
   onUpdateTrack,
 }: ProjectsViewProps) {
-  const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<ProjectFormState>(EMPTY_PROJECT_FORM);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
@@ -48,11 +70,26 @@ export default function ProjectsView({
     (p.tracks || []).map((id) => trackById.get(id)).filter(Boolean) as Track[];
 
   const create = async () => {
-    if (!newName.trim()) return;
+    if (!createForm.name.trim()) return;
     setCreating(true);
     try {
-      await onSave(null, { name: newName.trim(), createdBy: '' });
-      setNewName('');
+      const artists = createForm.artists.split(',').map((s) => s.trim()).filter(Boolean);
+      await onSave(editingProjectId, {
+        name: createForm.name.trim(),
+        description: createForm.description.trim() || undefined,
+        genre: createForm.genre.trim() || undefined,
+        tags: createForm.tags.split(',').map((s) => s.trim()).filter(Boolean).length
+          ? createForm.tags.split(',').map((s) => s.trim()).filter(Boolean)
+          : undefined,
+        artists: artists.length ? artists : undefined,
+        artistUids: undefined,
+        coverUrl: createForm.coverUrl.trim() || undefined,
+        status: createForm.status,
+        createdBy: '',
+      });
+      setCreateOpen(false);
+      setEditingProjectId(null);
+      setCreateForm(EMPTY_PROJECT_FORM);
     } finally {
       setCreating(false);
     }
@@ -183,18 +220,17 @@ export default function ProjectsView({
       <div className="beats-head">
         <h2>Проекты</h2>
         {canEdit && (
-          <div className="project-create-row">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Название нового проекта"
-              onKeyDown={(e) => e.key === 'Enter' && void create()}
-            />
-            <button className="btn-primary" disabled={creating || !newName.trim()} onClick={() => void create()}>
-              Создать
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setEditingProjectId(null);
+              setCreateForm(EMPTY_PROJECT_FORM);
+              setCreateOpen(true);
+            }}
+          >
+            + Новый проект
+          </button>
         )}
       </div>
 
@@ -210,13 +246,33 @@ export default function ProjectsView({
             const ptracks = projectTracks(p);
             return (
               <div className="project-card" key={p.id}>
+                {p.coverUrl && (
+                  <div className="project-card-cover">
+                    <img src={p.coverUrl} alt={p.name} />
+                  </div>
+                )}
                 <div className="project-card-header">
                   <span className="project-card-title">{p.name}</span>
                   <span className="column-count">{ptracks.length}</span>
                 </div>
                 <div className="project-card-meta">
                   {p.createdAt && format(new Date(p.createdAt), 'dd.MM.yyyy')}
+                  {p.status && STATUS_LABELS[p.status] && (
+                    <span className={`at-status status-${p.status}`}>{STATUS_LABELS[p.status]}</span>
+                  )}
                 </div>
+
+                {(p.description || p.genre || (p.tags && p.tags.length > 0)) && (
+                  <div className="project-card-info">
+                    {p.description && <div className="project-card-desc">{p.description}</div>}
+                    <div className="project-card-tags">
+                      {p.genre && <span className="beat-chip">{p.genre}</span>}
+                      {(p.tags || []).map((t) => (
+                        <span key={t} className="beat-chip">#{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="project-card-section">{renderZipSection(p)}</div>
 
@@ -300,6 +356,25 @@ export default function ProjectsView({
                   <div className="project-card-actions">
                     <button
                       type="button"
+                      className="btn-small-ghost"
+                      onClick={() => {
+                        setEditingProjectId(p.id);
+                        setCreateForm({
+                          name: p.name,
+                          description: p.description || '',
+                          genre: p.genre || '',
+                          tags: (p.tags || []).join(', '),
+                          artists: (p.artists || []).join(', '),
+                          coverUrl: p.coverUrl || '',
+                          status: p.status || 'draft',
+                        });
+                        setCreateOpen(true);
+                      }}
+                    >
+                      Редактировать проект
+                    </button>
+                    <button
+                      type="button"
                       className="btn-small-ghost btn-danger"
                       disabled={deletingId === p.id}
                       onClick={() => {
@@ -315,6 +390,100 @@ export default function ProjectsView({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {createOpen && (
+        <div className="modal-overlay" onClick={() => { if (!creating) setCreateOpen(false); }}>
+          <div className="track-form-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{editingProjectId ? `Редактировать проект: ${createForm.name}` : 'Новый проект'}</h2>
+              <button className="modal-close" onClick={() => { if (!creating) setCreateOpen(false); }}>×</button>
+            </div>
+
+            <div className="form-section">
+              <div className="form-group">
+                <label>Название *</label>
+                <input
+                  type="text"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  placeholder="Название проекта/сборника"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Жанр</label>
+                  <input
+                    type="text"
+                    value={createForm.genre}
+                    onChange={(e) => setCreateForm({ ...createForm, genre: e.target.value })}
+                    placeholder="Hip-Hop"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Статус</label>
+                  <select
+                    value={createForm.status}
+                    onChange={(e) => setCreateForm({ ...createForm, status: e.target.value as TrackStatus })}
+                  >
+                    {Object.entries(STATUS_LABELS).map(([id, label]) => (
+                      <option key={id} value={id}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Описание</label>
+                <textarea
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  placeholder="Пара слов о проекте: задача, идея, детали"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Артисты (через запятую)</label>
+                <input
+                  type="text"
+                  value={createForm.artists}
+                  onChange={(e) => setCreateForm({ ...createForm, artists: e.target.value })}
+                  placeholder="Основные исполнители проекта"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Теги (через запятую)</label>
+                <input
+                  type="text"
+                  value={createForm.tags}
+                  onChange={(e) => setCreateForm({ ...createForm, tags: e.target.value })}
+                  placeholder="dark, концепт, альбом"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Обложка (ссылка)</label>
+                <input
+                  type="url"
+                  value={createForm.coverUrl}
+                  onChange={(e) => setCreateForm({ ...createForm, coverUrl: e.target.value })}
+                  placeholder="https://…/cover.jpg"
+                />
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setCreateOpen(false)} disabled={creating}>
+                Отмена
+              </button>
+              <button className="btn-primary" onClick={() => void create()} disabled={creating || !createForm.name.trim()}>
+                {creating ? 'Создание…' : editingProjectId ? 'Сохранить проект' : 'Создать проект'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

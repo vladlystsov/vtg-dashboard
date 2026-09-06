@@ -309,6 +309,7 @@ export default function App() {
           title: payload.title,
           description: payload.artists?.join(', ') || undefined,
           creator: payload.artists?.[0],
+          itemPrefix: 'vtgtrack',
           callbacks: {
             onReady: (url: string) => {
               void updateTrack(trackId as string, {
@@ -415,7 +416,8 @@ export default function App() {
     data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>
   ) => {
     if (id) {
-      await updateProject(id, data as any);
+      const { createdBy, ...patch } = data as any;
+      await updateProject(id, patch as any);
     } else {
       await createProject({ ...data, createdBy: data.createdBy || profile?.uid || '' } as any);
     }
@@ -560,6 +562,8 @@ export default function App() {
             users={users}
             requests={requests}
             tracks={tracks}
+            beats={beats}
+            projects={projectList}
             onSetRole={setUserRole}
             onDeleteTrack={handleDelete}
             onApprove={approveArtistRequest}

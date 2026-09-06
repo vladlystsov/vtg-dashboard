@@ -130,7 +130,7 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
       </div>
 
       {tab === 'singles' && (
-        <div className="albums-grid">
+        <div className="deck-grid">
           {activeSingles.map((track) => (
             <SingleTrackCard
               key={track.id}
@@ -721,7 +721,6 @@ function AlbumCard({
             <span className={`at-status status-${overallStatus}`}>{STATUS_LABELS[overallStatus]}</span>
           </div>
         )}
-        {!shipped && album.tracks.length > 1 && <PlatformPlayer url={albumPlatformUrl} track={albumPlatformTrack} />}
         <button
           className="album-tracklist-toggle"
           onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
@@ -921,6 +920,23 @@ function AlbumEditModal({
     }
   };
 
+  const removeAlbumCover = async () => {
+    if (!repTrack || !onUpdateTrack) return;
+    if (!window.confirm('Удалить обложку альбома? Обложки у треков сборника останутся как были.')) return;
+    setSaving(true);
+    setError('');
+    setMsg('');
+    try {
+      await onUpdateTrack(repTrack.id, { coverUrl: null as any });
+      setCoverExternal('');
+      setMsg('Обложка альбома удалена.');
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось удалить обложку.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const gatherFromTracks = () => {
     setProducers(trackBeatmakersUnion);
     setMixers(trackMixByUnion);
@@ -1050,6 +1066,14 @@ function AlbumEditModal({
               onClick={applyAlbumCoverToAll}
             >
               Применить ко всем трекам
+            </button>
+            <button
+              type="button"
+              className="btn-small-ghost btn-danger"
+              disabled={(!album.coverUrl && !coverExternal) || !repTrack || !onUpdateTrack || saving}
+              onClick={removeAlbumCover}
+            >
+              Удалить обложку
             </button>
             <input ref={coverFileRef} type="file" accept="image/*" onChange={onPickAlbumCover} style={{ display: 'none' }} />
           </div>

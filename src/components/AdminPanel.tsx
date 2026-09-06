@@ -1,12 +1,18 @@
 import { useState } from 'react';
-import type { UserProfile, Track, ArtistRequest, UserRole } from '../types/track';
-import { denyArtistRole } from '../services/artistRequestService';
+import type { UserProfile, Track, ArtistRequest, UserRole, Project } from '../types/track';
+import type { Beat } from '../types/beat';
+import {
+  denyArtistRole,
+} from '../services/artistRequestService';
 import { getRoleOptionsFor, canChangeRole, canDenyArtist, isSoleOwnerDemoting } from '../utils/roles';
+import ArchiveExplorer from './ArchiveExplorer';
 
 interface AdminPanelProps {
   users: UserProfile[];
   requests: ArtistRequest[];
   tracks: Track[];
+  beats?: Beat[];
+  projects?: Project[];
   onSetRole: (uid: string, role: UserRole) => Promise<void>;
   onDeleteTrack: (id: string) => void;
   onApprove: (id: string, req: ArtistRequest) => Promise<void>;
@@ -23,8 +29,8 @@ const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Владелец',
 };
 
-export default function AdminPanel({ users, requests, tracks, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid, ownerCount = 1 }: AdminPanelProps) {
-  const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'stats'>('requests');
+export default function AdminPanel({ users, requests, tracks, beats, projects, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid, ownerCount = 1 }: AdminPanelProps) {
+  const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'storage' | 'stats'>('requests');
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
@@ -46,6 +52,9 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
         </button>
         <button className={`nav-btn ${tab === 'tracks' ? 'active' : ''}`} onClick={() => setTab('tracks')}>
           Треки ({tracks.length})
+        </button>
+        <button className={`nav-btn ${tab === 'storage' ? 'active' : ''}`} onClick={() => setTab('storage')}>
+          Хранилище
         </button>
         <button className={`nav-btn ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')}>
           Состояние
@@ -150,6 +159,12 @@ export default function AdminPanel({ users, requests, tracks, onSetRole, onDelet
             </div>
           ))}
           {tracks.length === 0 && <div className="empty-state">Нет треков</div>}
+        </div>
+      )}
+
+      {tab === 'storage' && (
+        <div className="admin-section">
+          <ArchiveExplorer tracks={tracks} beats={beats || []} projects={projects || []} />
         </div>
       )}
 

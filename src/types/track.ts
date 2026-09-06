@@ -154,6 +154,14 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  // Сопутствующая информация проекта (задаётся в окне создания/редактирования)
+  description?: string;
+  coverUrl?: string;
+  tags?: string[];
+  artists?: string[];
+  artistUids?: string[];
+  genre?: string;
+  status?: TrackStatus;
 }
 
 export type PlatformKind = 'soundcloud' | 'youtube' | 'yandex' | 'vkontakte' | 'audio' | 'other';
@@ -166,7 +174,8 @@ export function isDirectAudioUrl(url?: string): boolean {
 
 export function detectPlatform(url?: string): PlatformKind {
   const host = (url || '').toLowerCase();
-  if (host.includes('soundcloud.com') || host.includes('w.soundcloud.com')) return 'soundcloud';
+  if (host.includes('soundcloud.com') || host.includes('w.soundcloud.com')
+      || host.includes('on.soundcloud.com') || host.includes('snd.sc')) return 'soundcloud';
   if (host.includes('youtube.com') || host.includes('youtu.be')) return 'youtube';
   if (host.includes('music.yandex')) return 'yandex';
   if (host.includes('vk.com') || host.includes('vk.ru') || host.includes('vkontakte')) return 'vkontakte';

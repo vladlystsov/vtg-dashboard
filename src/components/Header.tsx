@@ -19,10 +19,9 @@ interface HeaderProps {
 
 const NAV: { id: View; label: string }[] = [
   { id: 'board', label: 'Доска' },
-  { id: 'tracks', label: 'Треки' },
   { id: 'beats', label: 'Биты' },
+  { id: 'tracks', label: 'Треки' },
   { id: 'projects', label: 'Проекты' },
-  { id: 'team', label: 'Команда' },
 ];
 
 export default function Header({
@@ -163,6 +162,9 @@ export default function Header({
                   Админ панель
                 </button>
               )}
+              <button className="dd-item" onClick={() => go('team')}>
+                Команда
+              </button>
               <button className="dd-item dd-logout" onClick={signOut}>
                 Выйти
               </button>

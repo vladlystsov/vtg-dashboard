@@ -8,7 +8,7 @@ import {
   type BeatFormData,
 } from '../types/beat';
 import { detectPlatform, type PlatformKind } from '../types/track';
-import { useShippedPlayerManager, shippedFromUrl } from './ShippedPlayer';
+import { useShippedPlayerManager, shippedFromUrl, ShippedMini } from './ShippedPlayer';
 import { PlatformPlayer } from './TracksListView';
 import { checkBeatAudioFile } from '../services/archiveService';
 import { listCachedAudio, deleteCachedAudio, clearAudioCache, onAudioCacheChange } from '../services/audioCacheService';
@@ -60,6 +60,7 @@ interface BeatFormState {
   description: string;
   coverUrl: string;
   platformUrl: string;
+  artists: string;
   status: BeatStatus;
   free: boolean;
   collection: string;
@@ -77,6 +78,7 @@ const EMPTY_FORM: BeatFormState = {
   description: '',
   coverUrl: '',
   platformUrl: '',
+  artists: '',
   status: 'published',
   free: false,
   collection: '',
@@ -95,6 +97,7 @@ function toFormState(b: Beat): BeatFormState {
     description: b.description || '',
     coverUrl: b.coverUrl || '',
     platformUrl: b.platformUrl || '',
+    artists: (b.artists || []).join(', '),
     status: b.status,
     free: !!b.free,
     collection: b.collection || '',
@@ -263,6 +266,19 @@ function BeatFormModal({
           </div>
 
           <div className="form-group">
+            <label>Артисты (через запятую)</label>
+            <input
+              type="text"
+              value={f.artists}
+              onChange={(e) => set({ artists: e.target.value })}
+              placeholder="Например: VTG, DJ Ghost"
+            />
+            <span className="beat-link-hint">
+              Основные исполнители бита. Если не указаны — используются данные битмейкера.
+            </span>
+          </div>
+
+          <div className="form-group">
             <label>Теги (через запятую)</label>
             <input
               type="text"
@@ -353,7 +369,7 @@ function BeatFormModal({
           {error && <span className="form-error">{error}</span>}
           <button className="btn-secondary" onClick={onCancel} disabled={busy}>Отмена</button>
           <button className="btn-primary" onClick={submit} disabled={busy}>
-            {saving || stage === 'saving' ? 'Сохраняем…' : 'Сохранить'}
+            {saving || stage === 'saving' ? 'Загрузка…' : 'Сохранить'}
           </button>
         </div>
       </div>
@@ -485,6 +501,10 @@ export default function BeatsView({
         coverUrl: f.coverUrl.trim() || undefined,
         platformUrl,
         platform,
+        artists: f.artists.split(',').map((a) => a.trim()).filter(Boolean).length
+          ? f.artists.split(',').map((a) => a.trim()).filter(Boolean)
+          : undefined,
+        artistUids: undefined,
         status: f.status,
         free: f.free,
         collection: f.collection.trim() || undefined,
@@ -584,39 +604,71 @@ export default function BeatsView({
               return (
                 <div className="album-card album-card-editable" key={c.name}>
                   <div className="album-cover-full">
-                    <img className="album-cover" src={cover} alt="" />
+                    <img className="album-cover album-cover-img" src={cover} alt={c.name} />
                   </div>
                   <div className="album-header">
                     <div className="album-links-row">
-                      <a className="album-title" title={c.name}>{c.name}</a>
+                      <span className="album-title" title={c.name}>{c.name}</span>
                     </div>
                     <div className="album-subtitle">{c.beats.length} бит(ов)</div>
                   </div>
                   <div className="album-tracklist">
-                    {c.beats.map((b, i) => (
-                      <div
-                        className="album-track-row"
-                        key={b.id}
-                        onClick={() => {
-                          if (beatPlayable(b)) manager.playTrack(b.id);
-                        }}
-                      >
-                        <span className="at-num">{i + 1}</span>
-                        <span className="at-title">{b.title}</span>
-                        <span className="at-artists">{b.beatmakerName || 'Битмейкер'}</span>
-                        {beatPlatform(b) === 'audio' && b.platformUrl && (
-                          <a
-                            className="at-download"
-                            href={b.platformUrl}
-                            download
-                            title="Скачать аудио"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            ⬇
-                          </a>
-                        )}
-                      </div>
-                    ))}
+                    {c.beats.map((b, i) => {
+                      const playable = beatPlayable(b);
+                      const playing = manager.currentId === b.id && manager.playing;
+                      return (
+                        <div className="album-track-row" key={b.id}>
+                          <div className="at-row-top">
+                            <span className="at-num">{i + 1}</span>
+                            <div className="at-info">
+                              <div className="at-title-line">
+                                <span className="at-title">{b.title}</span>
+                                {b.collection && (
+                                  <span className="album-type-badge" title="Сборник">{b.collection}</span>
+                                )}
+                              </div>
+                              <div className="at-artists">
+                                {(b.artists && b.artists.length ? b.artists.join(', ') : b.beatmakerName) || 'Битмейкер'}
+                              </div>
+                            </div>
+                            {playable && (
+                              <button
+                                type="button"
+                                className={`sp-btn sp-mini-play ${playing ? 'sp-playing' : ''}`}
+                                title={playing ? 'Пауза' : 'Играть'}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (manager.currentId === b.id) manager.togglePlay();
+                                  else manager.playTrack(b.id);
+                                }}
+                              >
+                                {playing ? '⏸' : '▶'}
+                              </button>
+                            )}
+                            {beatPlatform(b) === 'audio' && b.platformUrl && (
+                              <a
+                                className="at-download"
+                                href={b.platformUrl}
+                                download
+                                title="Скачать аудио"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                ⬇
+                              </a>
+                            )}
+                          </div>
+                          {playable && b.platformUrl && (
+                            <div className="beat-row-player" onClick={(e) => e.stopPropagation()}>
+                              {beatPlatform(b) === 'audio' ? (
+                                <ShippedMini item={shippedFromUrl(b.id, b.title, b.platformUrl, b.coverUrl, b.status === 'published', 'beat')} />
+                              ) : (
+                                <PlatformPlayer url={b.platformUrl} compact />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   {canManage(c.beats[0]) && (
                     <div className="album-actions">
@@ -723,7 +775,7 @@ export default function BeatsView({
                     {!!b.genre && <span className="beat-chip">{b.genre}</span>}
                   </div>
                   <div className="beat-card-sub">
-                    <span>{b.beatmakerName || 'Битмейкер'}</span>
+                    <span>{(b.artists && b.artists.length ? b.artists.join(', ') : b.beatmakerName) || 'Битмейкер'}</span>
                     <span className="beat-platform">{PLATFORM_LABELS[beatPlatform(b)]}</span>
                   </div>
                   {beatPlatform(b) === 'audio' && (
@@ -749,7 +801,11 @@ export default function BeatsView({
                   )}
                   {playable && b.platformUrl && (
                     <div className="beat-card-player" onClick={(e) => e.stopPropagation()}>
-                      <PlatformPlayer url={b.platformUrl} compact />
+                      {beatPlatform(b) === 'audio' ? (
+                        <ShippedMini item={shippedFromUrl(b.id, b.title, b.platformUrl, b.coverUrl, b.status === 'published', 'beat')} />
+                      ) : (
+                        <PlatformPlayer url={b.platformUrl} compact />
+                      )}
                     </div>
                   )}
                   {!!(b.tags && b.tags.length) && (

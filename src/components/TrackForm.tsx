@@ -76,18 +76,30 @@ function PersonSelector({ label, options, value, valueUids, onChange, placeholde
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
       >
-        <input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') { e.preventDefault(); addCustom(); }
-            else if (e.key === 'Escape') setOpen(false);
-          }}
-          placeholder={placeholder}
-        />
+        <div className="combobox-row">
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); addCustom(); }
+              else if (e.key === 'Escape') setOpen(false);
+            }}
+            placeholder={placeholder}
+          />
+          {/* Кнопка подтверждения справа: на телефоне Enter переводит на другую строку */}
+          <button
+            type="button"
+            className="btn-add-inline"
+            title="Подтвердить имя"
+            onClick={(e) => { e.preventDefault(); addCustom(); }}
+            disabled={!trimmed}
+          >
+            +
+          </button>
+        </div>
         {open && filtered.length > 0 && (
           <div className="combobox-list">
             {filtered.map((o) => (
@@ -144,6 +156,7 @@ export default function TrackForm({
   const [mixBy, setMixBy] = useState<string[]>(asArray(initialTrack?.mixBy));
   const [mixByUids, setMixByUids] = useState<string[]>(asArray(initialTrack?.mixByUids));
   const [feat, setFeat] = useState(initialTrack?.feat || '');
+  const [featPart, setFeatPart] = useState('');
   const [project, setProject] = useState(initialTrack?.project || '');
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -208,6 +221,23 @@ export default function TrackForm({
     updateChecklistItem(id, { status: next });
   };
 
+  const featList = feat.split(',').map((s) => s.trim()).filter(Boolean);
+
+  const addFeat = () => {
+    const v = featPart.trim();
+    if (!v) return;
+    const items = feat.split(',').map((s) => s.trim()).filter(Boolean);
+    if (!items.some((x) => x.toLowerCase() === v.toLowerCase())) items.push(v);
+    setFeat(items.join(', '));
+    setFeatPart('');
+  };
+
+  const removeFeat = (idx: number) => {
+    const items = feat.split(',').map((s) => s.trim()).filter(Boolean);
+    items.splice(idx, 1);
+    setFeat(items.join(', '));
+  };
+
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -227,8 +257,11 @@ export default function TrackForm({
 
   const fetchSoundCloudData = async () => {
     const url = platformUrl.trim();
-    if (!/^https:\/\/soundcloud\.com\//i.test(url)) {
-      setError('Вставь ссылку на трек SoundCloud вида https://soundcloud.com/...');
+    const scRegex = /^https?:\/\/(?:(?:www|m|on)\.)?soundcloud\.com\//i;
+    const shortRegex = /^https?:\/\/snd\.sc\//i;
+    const isSc = scRegex.test(url) || shortRegex.test(url);
+    if (!isSc) {
+      setError('Вставь ссылку на трек SoundCloud вида https://soundcloud.com/... или https://on.soundcloud.com/...');
       return;
     }
     setFetchingPlatform(true);
@@ -249,6 +282,14 @@ export default function TrackForm({
       if (!coverPreview && j.thumbnail_url) {
         setCoverUrlExternal(j.thumbnail_url);
         setCoverPreview(j.thumbnail_url);
+      }
+      // Короткие ссылки (snd.sc, on.soundcloud.com) плеер не играет —
+      // извлекаем канонический permalink из iframe-кода oEmbed и подставляем его.
+      if (j.html) {
+        const m = /url=(https?:\/\/[^&"]+soundcloud\.com[^&"]*)/i.exec(j.html);
+        if (m && decodeURIComponent(m[1]) !== url) {
+          setPlatformUrl(decodeURIComponent(m[1]));
+        }
       }
       const desc = String(j.description || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
       const prodM = /(?:prod\s*\.?\s*by|продюсер)\s*[:\-]?\s*([A-Za-zА-Яа-яЁё0-9\s.,&#+]+)/i.exec(desc);
@@ -454,12 +495,36 @@ export default function TrackForm({
 
           <div className="form-group">
             <label>Feat (гости)</label>
-            <input
-              type="text"
-              value={feat}
-              onChange={(e) => setFeat(e.target.value)}
-              placeholder="Например: Skif (feat)"
-            />
+            <div className="combobox-row">
+              <input
+                type="text"
+                value={featPart}
+                onChange={(e) => setFeatPart(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); addFeat(); }
+                }}
+                placeholder="Например: Skif (feat)"
+              />
+              <button
+                type="button"
+                className="btn-add-inline"
+                title="Подтвердить feat"
+                onClick={(e) => { e.preventDefault(); addFeat(); }}
+                disabled={!featPart.trim()}
+              >
+                +
+              </button>
+            </div>
+            {featList.length > 0 && (
+              <div className="person-tags">
+                {featList.map((v, i) => (
+                  <span className="person-tag" key={`${v}-${i}`}>
+                    {v}
+                    <button type="button" className="person-tag-x" onClick={() => removeFeat(i)}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <PersonSelector
@@ -619,7 +684,7 @@ export default function TrackForm({
                 Подставит название и автора из YouTube (feat/prod YouTube не отдаёт — заполни вручную). Превью — кадр видео, не обложка.
               </div>
             )}
-            {detectPlatform(platformUrl) === 'soundcloud' && platformUrl.trim().startsWith('https://soundcloud.com/') && (
+            {detectPlatform(platformUrl) === 'soundcloud' && /soundcloud\.com\//i.test(platformUrl.trim()) && (
               <PlatformPlayer url={platformUrl.trim()} compact />
             )}
             {detectPlatform(platformUrl) === 'youtube' && !!youtubeVideoId(platformUrl.trim()) && (
@@ -878,7 +943,7 @@ export default function TrackForm({
           {error && <div className="error-msg form-error">{error}</div>}
           <button className="btn-secondary" onClick={onClose}>Отмена</button>
           <button className="btn-primary" onClick={handleSave} disabled={saving || !title.trim()}>
-            {saving ? 'Сохранение...' : 'Сохранить'}
+            {saving ? 'Загрузка...' : 'Сохранить'}
           </button>
         </div>
       </div>

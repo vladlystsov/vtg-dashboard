@@ -180,17 +180,21 @@ export interface PublishBeatCallbacks {
  * Фоновая публикация mp3 в Archive.org. Карточка уже сохранена (archiveStatus:
  * uploading) — здесь в фоне грузим файл, а когда появляется playable-ссылка,
  * вызываем onReady; при неудаче onError.
+ * itemPrefix: 'vtgbeat' (биты) или 'vtgtrack' (треки) — по префиксу айтема
+ * админ-панель раскладывает файлы хранилища по папкам.
  */
 export function publishBeatAudioInBackground(params: {
   file: File;
   title: string;
   description?: string;
   creator?: string;
+  itemPrefix?: string;
   callbacks: PublishBeatCallbacks;
 }): void {
   (async () => {
     try {
-      const { url } = await uploadBeatAudio(params);
+      const prefix = params.itemPrefix === 'vtgtrack' ? 'vtgtrack' : 'vtgbeat';
+      const { url } = await uploadArchiveFile({ ...params, itemPrefix: prefix, mediatype: 'audio' });
       params.callbacks.onReady(url);
     } catch (e) {
       params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации');
@@ -216,4 +220,135 @@ export function publishProjectZipInBackground(params: {
       params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации проекта');
     }
   })();
+}
+
+/* ==========================================================================
+   Хранилище аккаунта Archive.org (админ-панель, «проводник»)
+   ========================================================================== */
+
+export interface ArchiveItemBrief {
+  identifier: string;
+  title?: string;
+  mediatype?: string;
+  size?: number;
+  addeddate?: string;
+}
+
+export interface ArchiveItemFile {
+  name: string;
+  size?: number;
+  format?: string;
+  source?: string;
+}
+
+/** Извлекает идентификатор айтема из ссылки вида https://archive.org/download/<id>/<file> */
+export function extractItemIdFromUrl(url?: string): string | null {
+  const m = /archive\.org\/(?:download|details)\/([^/?#]+)/i.exec((url || '').trim());
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+/**
+ * Список айтемов, созданных дашбордом в аккаунте Archive.org (префикс vtg-).
+ * Используется публичный поиск archive.org (advancedsearch, CORS разрешён).
+ * Внимание: поиск индексируется с задержкой в несколько минут.
+ */
+export async function listAccountItems(): Promise<ArchiveItemBrief[]> {
+  const q = 'identifier:vtg-*';
+  const fl = ['identifier', 'title', 'mediatype', 'item_size', 'addeddate'];
+  const url =
+    `https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}` +
+    fl.map((f) => `&fl%5B%5D=${f}`).join('') +
+    '&rows=2000&output=json';
+  const r = await fetch(url, { headers: { accept: 'application/json' } });
+  if (!r.ok) throw new Error(`Archive.org поиск недоступен (${r.status})`);
+  const j = (await r.json()) as {
+    response?: { docs?: Array<Record<string, any>> };
+  };
+  const docs = j.response?.docs || [];
+  return docs.map((d) => ({
+    identifier: String(d.identifier || ''),
+    title: typeof d.title === 'string' ? d.title : Array.isArray(d.title) ? d.title[0] : undefined,
+    mediatype: d.mediatype,
+    size: typeof d.item_size === 'number' ? d.item_size : Number(d.item_size) || undefined,
+    addeddate: d.addeddate,
+  })).filter((x) => x.identifier);
+}
+
+/** Поиск любого айтема по точному идентификатору (в т.ч. загруженных вручную). */
+export async function findItemByIdentifier(identifier: string): Promise<ArchiveItemBrief | null> {
+  const id = identifier.trim();
+  if (!id) return null;
+  const r = await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`, {
+    headers: { accept: 'application/json' },
+  });
+  if (!r.ok) return null;
+  const j = (await r.json()) as { metadata?: Record<string, any>; files?: any[] };
+  if (!j.metadata) return null;
+  return {
+    identifier: id,
+    title: j.metadata.title,
+    mediatype: j.metadata.mediatype,
+    size: Number(j.metadata.item_size) || undefined,
+  };
+}
+
+/** Файлы айтема через публичный metadata endpoint (без авторизации). */
+export async function fetchItemFiles(identifier: string): Promise<ArchiveItemFile[]> {
+  const r = await fetch(`https://archive.org/metadata/${encodeURIComponent(identifier)}`, {
+    headers: { accept: 'application/json' },
+  });
+  if (!r.ok) throw new Error(`Не удалось получить файлы айтема (${r.status})`);
+  const j = (await r.json()) as { files?: Array<Record<string, any>> };
+  const files = Array.isArray(j.files) ? j.files : [];
+  return files
+    .map((f) => ({
+      name: String(f.name || ''),
+      size: Number(f.size) || undefined,
+      format: f.format,
+      source: f.source,
+    }))
+    .filter((f) => f.name);
+}
+
+function s3AuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  if (!ARCHIVE_ORG_ACCESS_KEY || !ARCHIVE_ORG_SECRET_KEY) {
+    throw new Error('Ключи Archive.org не настроены на сервере');
+  }
+  return {
+    authorization: `LOW ${ARCHIVE_ORG_ACCESS_KEY}:${ARCHIVE_ORG_SECRET_KEY}`,
+    ...extra,
+  };
+}
+
+/** Удалить один файл из айтема Archive.org. */
+export async function deleteArchiveFile(identifier: string, filename: string): Promise<void> {
+  const r = await fetch(
+    `${S3_HOST}/${encodeURIComponent(identifier)}/${filename.split('/').map(encodeURIComponent).join('/')}`,
+    {
+      method: 'DELETE',
+      headers: s3AuthHeaders({ 'x-archive-keep-old-version': '0' }),
+    }
+  );
+  if (!r.ok) {
+    const detail = await r.text().catch(() => '');
+    throw new Error(`Не удалось удалить файл (${r.status}) ${detail.slice(0, 120)}`);
+  }
+}
+
+/** Удалить айтем целиком: сначала каскадное удаление, при неудаче — по файлам. */
+export async function deleteArchiveItem(identifier: string): Promise<void> {
+  try {
+    const r = await fetch(`${S3_HOST}/${encodeURIComponent(identifier)}/`, {
+      method: 'DELETE',
+      headers: s3AuthHeaders({ 'x-archive-cascade-delete': '1', 'x-archive-keep-old-version': '0' }),
+    });
+    if (r.ok) return;
+  } catch {
+    // падаем на ручное удаление файлов
+  }
+  const files = await fetchItemFiles(identifier);
+  for (const f of files) {
+    if (f.source && f.source !== 'original') continue; // производные удалятся сами
+    await deleteArchiveFile(identifier, f.name);
+  }
 }

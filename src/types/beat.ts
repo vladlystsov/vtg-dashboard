@@ -17,6 +17,9 @@ export interface Beat {
   platform?: PlatformKind;
   beatmakerUid: string;
   beatmakerName: string;
+  // Артисты бита (основные) — имена и uid команды, если применимо
+  artists?: string[];
+  artistUids?: string[];
   status: BeatStatus;
   free?: boolean;
   createdAt: string;
@@ -64,6 +67,8 @@ export type BeatFormData = {
   coverUrl?: string;
   platformUrl?: string;
   platform?: PlatformKind;
+  artists?: string[];
+  artistUids?: string[];
   status: BeatStatus;
   free?: boolean;
   beatmakerUid: string;

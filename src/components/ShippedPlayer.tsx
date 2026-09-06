@@ -189,22 +189,20 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   scopeRef.current = scope;
   lookupRef.current = new Map(tracks.map((t) => [t.id, t]));
 
-  // sync order with incoming list (scope section за исключением кнопки (All))
+  // Треклист НЕ пересобирается от смены разделов/фильтров: при переходе между
+  // разделами текущая очередь проигрывания остаётся прежней. Полный список
+  // добавляется только кнопкой (All), а пересборка под «выставленный фильтр»
+  // происходит в момент, когда пользователь выбирает в нём новый трек (playTrack).
   useEffect(() => {
     const base = allOnRef.current ? tracks : scopeRef.current ?? tracks;
-    const ids = base.map((t) => t.id);
-    const idSet = new Set(ids);
-    const keep = orderRef.current.filter((x) => idSet.has(x.id));
-    const added = base.filter((t) => !keep.some((x) => x.id === t.id));
-    setOrder([...keep, ...added]);
-    const cur = currentIdRef.current;
-    if (cur && !idSet.has(cur)) {
-      setCurrentId(null);
-      setPlaying(false);
-      setPos(0);
-      setDur(0);
-    }
-  }, [tracks, allOn, scope]);
+    setOrder((prev) => {
+      const ids = new Set(base.map((t) => t.id));
+      const keep = prev.filter((x) => ids.has(x.id));
+      const added = base.filter((t) => !keep.some((x) => x.id === t.id));
+      return [...keep, ...added];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOn, tracks]);
 
   const stopYtTimer = useCallback(() => {
     if (ytTimerRef.current != null) {
@@ -247,10 +245,36 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     }
   }, []);
 
+  // Пересборка очереди под текущую выборку (раздел/фильтр) — только когда
+  // пользователь явно выбирает трек. Смена раздела сама по себе очередь не трогает.
+  const ensureOrder = useCallback(
+    (id: string) => {
+      const base = allOnRef.current ? tracks : scopeRef.current ?? tracks;
+      if (base.length === 0) return;
+      const baseIds = new Set(base.map((t) => t.id));
+      setOrder((prev) => {
+        const hasTarget = prev.some((x) => x.id === id);
+        const allInBase = prev.every((x) => baseIds.has(x.id));
+        if (hasTarget && allInBase) return prev;
+        const keep = prev.filter((x) => baseIds.has(x.id));
+        const seen = new Set(keep.map((x) => x.id));
+        const added = base.filter((t) => !seen.has(t.id));
+        const result = [...keep, ...added];
+        if (!result.some((x) => x.id === id)) {
+          const item = lookupRef.current.get(id);
+          if (item) result.push(item);
+        }
+        return result;
+      });
+    },
+    [tracks]
+  );
+
   const playTrack = useCallback(
     (id: string) => {
       const item = lookupRef.current.get(id);
       if (!item || !item.url || !item.url.trim()) return;
+      ensureOrder(id);
       currentIdRef.current = id;
       setCurrentId(id);
       setPos(0);
@@ -329,7 +353,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         }
       }
     },
-    [pauseSc, pauseYt, pauseAudio]
+    [pauseSc, pauseYt, pauseAudio, ensureOrder]
   );
 
   const playTrackRef = useRef(playTrack);
