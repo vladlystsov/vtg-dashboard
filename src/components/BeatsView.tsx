@@ -623,9 +623,6 @@ export default function BeatsView({
                             <div className="at-info">
                               <div className="at-title-line">
                                 <span className="at-title">{b.title}</span>
-                                {b.collection && (
-                                  <span className="album-type-badge" title="Сборник">{b.collection}</span>
-                                )}
                               </div>
                               <div className="at-artists">
                                 {(b.artists && b.artists.length ? b.artists.join(', ') : b.beatmakerName) || 'Битмейкер'}

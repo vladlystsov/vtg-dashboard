@@ -113,28 +113,27 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, us
                   <span className="column-title">Архив {archiveOpen ? '▼' : '▶'}</span>
                   <span className="column-count">{archivedTracks.length}</span>
                 </div>
-                {archiveOpen ? (
-                  <div className="column-body">
-                    {archivedTracks.length === 0 && (
-                      <div className="kanban-archive-hint">Пусто</div>
-                    )}
-                    {archivedTracks.map((track, index) => (
-                      <TrackCard
-                        key={track.id}
-                        track={track}
-                        index={index}
-                        onOpen={onOpenTrack}
-                        userMap={userMap}
-                        onRestore={(id) => onArchive(id, false).catch(console.error)}
-                      />
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                ) : (
-                  <div className="kanban-archive-hint">
-                    Перетащите карточку сюда, чтобы поместить в архив
-                  </div>
-                )}
+                <div className="column-body">
+                  {archivedTracks.length === 0 && (
+                    <div className="kanban-archive-empty">Пусто</div>
+                  )}
+                  {archivedTracks.map((track, index) => (
+                    <TrackCard
+                      key={track.id}
+                      track={track}
+                      index={index}
+                      onOpen={onOpenTrack}
+                      userMap={userMap}
+                      onRestore={(id) => onArchive(id, false).catch(console.error)}
+                    />
+                  ))}
+                  {provided.placeholder}
+                </div>
+                <div className="kanban-archive-hint">
+                  {archiveOpen
+                    ? 'Нажмите, чтобы свернуть'
+                    : 'Перетащите карточку сюда, чтобы поместить в архив'}
+                </div>
               </div>
             )}
           </Droppable>

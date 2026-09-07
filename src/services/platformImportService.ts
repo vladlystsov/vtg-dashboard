@@ -39,27 +39,62 @@ export function isSoundCloudHost(url: string): boolean {
   }
 }
 
+/**
+ * Похоже ли на ссылку на конкретный трек, а не профиль/плейлист:
+ * короткие on.soundcloud.com/... и ссылки вида soundcloud.com/user/track.
+ */
+export function isSoundCloudTrackUrl(url: string): boolean {
+  const h = (url || '').toLowerCase();
+  if (h.includes('on.soundcloud.com') || h.includes('snd.sc')) return true;
+  if (!isSoundCloudHost(url)) return false;
+  try {
+    const path = new URL(url).pathname;
+    const segs = path.split('/').filter(Boolean);
+    return segs.length >= 2;
+  } catch {
+    return false;
+  }
+}
+
 export function extractYouTubeChannelId(url: string): string | null {
   const m = /youtube\.com\/(?:c\/|channel\/)([A-Za-z0-9_-]+)/i.exec(url.trim());
   return m ? m[1] : null;
 }
 
+// Несколько хостов (RSS YouTube, «сырые» ответы) не отдают CORS-заголовки браузеру.
+// Для таких чтений используем публичный CORS-прокси (только GET, без авторизации).
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
 async function fetchJson(url: string, timeoutMs = 15000): Promise<any> {
-  const res = await Promise.race([
-    fetch(url),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('таймаут')), timeoutMs)),
-  ]);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const text = await fetchTextWithCorsFallback(url, timeoutMs);
+  return JSON.parse(text);
 }
 
+/**
+ * Читает текст с попыткой двух запросов:
+ * 1) напрямую (работает, если хост отдаёт CORS-заголовки, например oEmbed YouTube);
+ * 2) через публичный CORS-прокси (когда прямой запрос блокируется CORS — например
+ *    RSS YouTube, который из браузера не получить напрямую).
+ */
 async function fetchText(url: string, timeoutMs = 15000): Promise<string> {
-  const res = await Promise.race([
-    fetch(url),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('таймаут')), timeoutMs)),
-  ]);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+  return fetchTextWithCorsFallback(url, timeoutMs);
+}
+
+async function fetchTextWithCorsFallback(url: string, timeoutMs: number): Promise<string> {
+  const attempt = async (u: string) => {
+    const res = await Promise.race<Response>([
+      fetch(u),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('таймаут')), timeoutMs)),
+    ]);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  };
+  try {
+    return await attempt(url);
+  } catch (directErr) {
+    // При CORS-блокировке прямой fetch падает в браузере — пробуем через прокси.
+    return await attempt(`${CORS_PROXY}${encodeURIComponent(url)}`);
+  }
 }
 
 async function importViaYouTubeOEmbed(url: string): Promise<ImportedItem[]> {
@@ -183,7 +218,7 @@ export async function importFromYouTube(url: string, opts: ImportOptions): Promi
           if (items.length === 0) warnings.push('В канале не найдено видео.');
         } catch {
           warnings.push(
-            'Не удалось загрузить список видео канала: RSS YouTube недоступен из браузера. Импортируйте одиночные ссылки на видео или добавьте YouTube API-ключ.'
+            'Не удалось загрузить список видео канала YouTube. Проверьте ссылку и интернет или импортируйте одиночные ссылки на видео.'
           );
         }
       } else {
@@ -203,19 +238,26 @@ export async function importFromYouTube(url: string, opts: ImportOptions): Promi
 export async function importFromSoundCloud(url: string, opts: ImportOptions): Promise<PlatformImportResult> {
   const warnings: string[] = [];
   let items: ImportedItem[] = [];
+  const trimmed = url.trim();
+  const isTrack = isSoundCloudTrackUrl(trimmed);
   try {
     // oEmbed умеет отдельные треки (в т.ч. короткие on.soundcloud.com).
     // Профиль/канал целиком oEmbed не отдаёт — на это даём понятное сообщение.
-    items = await importViaSoundCloudOEmbed(url.trim());
+    items = await importViaSoundCloudOEmbed(trimmed);
     if (items.length === 0) {
       warnings.push(
-        'This is a profile/set. SoundCloud не отдаёт список треков профиля из браузера (нужен API-ключ). ' +
-          'Для импорта одного трека вставьте ссылку на конкретный трек.'
+        isTrack
+          ? 'SoundCloud не вернул данные по треку. Проверьте ссылку или попробуйте позже.'
+          : 'Это профиль/плейлист: список треков SoundCloud не отдаёт из браузера (нужен API-ключ). ' +
+            'Для импорта одного трека вставьте ссылку на конкретный трек.'
       );
     }
   } catch (e: any) {
+    const detail = e?.message || 'сеть недоступна';
     warnings.push(
-      `SoundCloud: ${e?.message || 'сеть недоступна'}. Если это профиль — список треков профиля из браузера не получить без API-ключа; вставьте ссылку на конкретный трек.`
+      isTrack
+        ? `SoundCloud: не удалось получить трек (${detail}). Проверьте ссылку и интернет.`
+        : `SoundCloud: ${detail}. Если это профиль — список треков профиля из браузера не получить без API-ключа; вставьте ссылку на конкретный трек.`
     );
   }
 

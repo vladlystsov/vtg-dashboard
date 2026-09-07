@@ -260,7 +260,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: left;
   flex: none;
   align-self: flex-start;
   width: auto;
@@ -609,6 +610,39 @@ body {
   flex-shrink: 0;
 }
 
+.project-zip-cancel-label {
+  flex: 1 1 auto;
+}
+
+.project-zip-cancel {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--gray-500);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.project-zip-cancel:hover:not(:disabled) {
+  background: var(--crimson-red);
+  border-color: var(--crimson-red);
+  color: #fff;
+}
+
+.project-zip-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -788,7 +822,7 @@ min-height: 220px;
 }
 
 .kanban-column-archive .column-body {
-  max-height: 220px;
+  max-height: 150px;
   overflow-y: auto;
   transition: max-height 0.3s ease;
 }
@@ -817,6 +851,13 @@ min-height: 220px;
   color: var(--gray-400);
   text-align: center;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.kanban-archive-empty {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--gray-400);
+  text-align: center;
 }
 
 .kanban-column-archive-open .kanban-archive-hint {
@@ -4479,7 +4520,7 @@ min-height: 220px;
   flex: 1;
   min-width: 0;
 }
-.btn-add-inline {
+.combobox-row .btn-add-inline {
   flex-shrink: 0;
   width: 32px;
   height: 32px;
@@ -5000,6 +5041,16 @@ min-height: 220px;
   padding: 12px 14px 14px;
 }
 
+.beat-collection-row:empty {
+  display: none;
+  margin-bottom: 0;
+}
+
+/* Компактнее, когда под заголовком нет сборника и тегов */
+.beat-card-title-row:has(+ .beat-card-tags:empty) {
+  margin-bottom: 2px;
+}
+
 .beat-card-tags:empty {
   display: none;
   margin-bottom: 0;
@@ -5025,6 +5076,12 @@ min-height: 220px;
 
 .beat-card-sub:empty {
   margin-bottom: 0;
+}
+
+/* В контексте сборника заголовок трека выравниваем по левому краю */
+.at-title {
+  flex: 1 1 auto;
+  text-align: left;
 }
 
 

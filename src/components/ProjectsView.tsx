@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Project, Track, TrackProjectZip, TrackStatus, UserProfile } from '../types/track';
 import {
   PROJECT_DAW_LABELS,
@@ -24,27 +24,6 @@ interface ProjectsViewProps {
   ) => Promise<string | undefined>;
   onDelete: (id: string) => Promise<void>;
   onUpdateTrack: (id: string, patch: Partial<Track>) => Promise<void>;
-}
-
-// Релиз = альбом (группа треков по track.project) или сингл (трек без сборника).
-interface Release {
-  id: string;
-  kind: 'album' | 'single';
-  title: string;
-  cover?: string;
-  tracks: Track[];
-}
-
-const STATUS_ORDER: TrackStatus[] = ['draft', 'recording', 'mixing', 'mastering', 'ready', 'completed'];
-
-function releaseStageLabel(tracks: Track[]): string | null {
-  let best: TrackStatus | null = null;
-  for (const t of tracks) {
-    const i = STATUS_ORDER.indexOf(t.status);
-    const bi = best ? STATUS_ORDER.indexOf(best) : -1;
-    if (!best || i > bi) best = t.status;
-  }
-  return best || null;
 }
 
 function projectTrackIds(p: Project): string[] {
@@ -109,9 +88,12 @@ export default function ProjectsView({
 }: ProjectsViewProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
   const [modal, setModal] = useState<VersionFormState | null>(null);
   const [savingVersion, setSavingVersion] = useState(false);
+
+  const uploadControllers = useRef(new Map<string, AbortController>());
 
   const trackById = useMemo(() => {
     const m = new Map<string, Track>();
@@ -119,41 +101,36 @@ export default function ProjectsView({
     return m;
   }, [tracks]);
 
-  const releases = useMemo<Release[]>(() => {
-    const map = new Map<string, Track[]>();
+  // Проект привязан строго к одному треку. Версии (записи Project) ищутся
+  // по конкретному id трека, а не по всему сборнику.
+  const projectTrackIdsOf = (p: Project): string[] => projectTrackIds(p);
+
+  const projectsForTrack = (t: Track): Project[] =>
+    projects.filter((p) => projectTrackIdsOf(p).includes(t.id));
+
+  // Показываем только те карточки треков, у которых реально загружен проект (.zip)
+  const trackHasUploadedProject = (p: Project): boolean =>
+    !!p.zipUrl || p.zipStatus === 'uploading' || p.zipStatus === 'error' || !!p.zipError;
+
+  const projectTracks = useMemo<Track[]>(() => {
+    const seen = new Set<string>();
+    const out: Track[] = [];
     for (const t of tracks) {
-      if (t.project) {
-        const arr = map.get(t.project) ?? [];
-        arr.push(t);
-        map.set(t.project, arr);
+      if (seen.has(t.id)) continue;
+      const pros = projectsForTrack(t);
+      if (pros.some(trackHasUploadedProject)) {
+        seen.add(t.id);
+        out.push(t);
       }
     }
-    const out: Release[] = [];
-    for (const [name, arr] of map) {
-      arr.sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0));
-      out.push({
-        id: `album:${name}`,
-        kind: 'album',
-        title: name,
-        cover: arr.find((t) => t.coverUrl)?.coverUrl,
-        tracks: arr,
-      });
-    }
-    for (const t of tracks.filter((t) => !t.project)) {
-      out.push({ id: `single:${t.id}`, kind: 'single', title: t.title, cover: t.coverUrl, tracks: [t] });
-    }
     out.sort((a, b) => {
-      const la = Math.max(...a.tracks.map((t) => new Date(t.updatedAt || t.createdAt || 0).getTime()));
-      const lb = Math.max(...b.tracks.map((t) => new Date(t.updatedAt || t.createdAt || 0).getTime()));
+      const la = Math.max(...(projectsForTrack(a) || []).map((p) => new Date(p.updatedAt || p.createdAt || 0).getTime()).concat(new Date(a.updatedAt || a.createdAt || 0).getTime()));
+      const lb = Math.max(...(projectsForTrack(b) || []).map((p) => new Date(p.updatedAt || p.createdAt || 0).getTime()).concat(new Date(b.updatedAt || b.createdAt || 0).getTime()));
       return lb - la;
     });
     return out;
-  }, [tracks]);
-
-  const releaseTrackIds = (r: Release) => r.tracks.map((t) => t.id);
-
-  const versionsFor = (r: Release): Project[] =>
-    projects.filter((p) => overlap(projectTrackIds(p), releaseTrackIds(r)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks, projects]);
 
   const publishZip = (
     savedProject: Project,
@@ -180,6 +157,22 @@ export default function ProjectsView({
         });
       }
     };
+    const finishUpload = (patch: Partial<Project> & { zipError?: string }) => {
+      uploadControllers.current.delete(savedProject.id);
+      void onSave(savedProject.id, {
+        ...savedProject,
+        ...patch,
+      })
+        .then(() => patchTrackProjectZip({
+          ...(patch.zipUrl ? { zipUrl: patch.zipUrl } : {}),
+          ...(patch.zipStatus ? { zipStatus: patch.zipStatus as TrackProjectZip['zipStatus'] } : {}),
+          ...(patch.zipError !== undefined ? { zipError: patch.zipError } : {}),
+        }))
+        .finally(() => {
+          setUploadingId(null);
+          setCancellingId(null);
+        });
+    };
 
     void onSave(savedProject.id, {
       ...savedProject,
@@ -187,33 +180,37 @@ export default function ProjectsView({
       zipError: undefined,
     });
 
+    const controller = new AbortController();
+    uploadControllers.current.set(savedProject.id, controller);
+
     publishProjectZipInBackground({
       file,
       title: `VTG ${savedProject.name}`,
       description: `Проект ${savedProject.name}`,
       creator: 'VTG',
+      signal: controller.signal,
       callbacks: {
         onReady: (url) => {
-          void onSave(savedProject.id, {
-            ...savedProject,
-            zipUrl: url,
-            zipStatus: 'ready' as const,
-            zipError: undefined,
-          })
-            .then(() => patchTrackProjectZip({ zipUrl: url, zipStatus: 'ready', zipError: undefined }))
-            .finally(() => setUploadingId(null));
+          finishUpload({ zipUrl: url, zipStatus: 'ready' as const, zipError: undefined });
         },
         onError: (message) => {
-          void onSave(savedProject.id, {
-            ...savedProject,
-            zipStatus: 'error' as const,
-            zipError: message,
-          })
-            .then(() => patchTrackProjectZip({ zipStatus: 'error', zipError: message }))
-            .finally(() => setUploadingId(null));
+          finishUpload({ zipStatus: 'error' as const, zipError: message });
         },
       },
+    }).catch((e) => {
+      if (controller.signal.aborted) {
+        finishUpload({ zipStatus: 'error' as const, zipError: 'Загрузка отменена' });
+      } else if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        finishUpload({ zipStatus: 'error' as const, zipError: e instanceof Error ? e.message : 'Ошибка публикации' });
+      }
     });
+  };
+
+  const cancelUpload = (projectId: string) => {
+    const controller = uploadControllers.current.get(projectId);
+    if (!controller) return;
+    setCancellingId(projectId);
+    controller.abort();
   };
 
   const deactivateOverlapping = async (self: Project | null, trackIds: string[]) => {
@@ -231,7 +228,7 @@ export default function ProjectsView({
   const saveVersion = async () => {
     if (!modal) return;
     if (modal.trackIds.length === 0) {
-      setZipError('Выберите хотя бы один релиз, который обслуживает версия.');
+      setZipError('Выберите один трек, к которому привязывается версия проекта.');
       setTimeout(() => setZipError(null), 4000);
       return;
     }
@@ -300,13 +297,25 @@ export default function ProjectsView({
     await onSave(version.id, { ...version, active: true } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
   };
 
-  const releaseTitle = (r: Release) => (r.kind === 'album' ? `сборник «${r.title}»` : `трек «${r.title}»`);
-
   const renderZipSection = (p: Project) => {
     if (uploadingId === p.id || p.zipStatus === 'uploading') {
       return (
         <div className="project-zip project-zip-uploading">
-          <span className="project-zip-spinner" /> Загружаем архив версии в Archive.org…
+          <span className="project-zip-spinner" />
+          <span className="project-zip-cancel-label">
+            {cancellingId === p.id ? 'Отменяем…' : 'Загружаем архив версии в Archive.org…'}
+          </span>
+          {canEdit && (
+            <button
+              type="button"
+              className="project-zip-cancel"
+              title="Отменить загрузку"
+              disabled={cancellingId === p.id}
+              onClick={() => cancelUpload(p.id)}
+            >
+              ✕
+            </button>
+          )}
         </div>
       );
     }
@@ -366,8 +375,8 @@ export default function ProjectsView({
     return null;
   };
 
-  const openNewVersion = (r?: Release) => {
-    setModal(emptyForm(r ? releaseTrackIds(r) : [], r ? r.title : ''));
+  const openNewVersion = (t?: Track) => {
+    setModal(emptyForm(t ? [t.id] : [], t ? t.title : ''));
   };
 
   const openEditVersion = (p: Project) => {
@@ -402,82 +411,52 @@ export default function ProjectsView({
 
       {zipError && <div className="error-msg">{zipError}</div>}
 
-      {releases.length === 0 ? (
+      {projectTracks.length === 0 ? (
         <div className="beats-empty">
-          Релизов пока нет. Создайте треки — релиз (сингл или сборник) появится здесь автоматически,
-          и к нему можно будет добавлять версии проектов.
+          Проекты пока не загружены. Каждый проект (.zip) привязывается к одному конкретному треку
+          (сингл или трек из сборника). Создайте версию проекта и прикрепите архив — карточка трека появится здесь.
         </div>
       ) : (
         <div className="projects-grid">
-          {releases.map((r) => {
-            const versions = versionsFor(r);
-            const activeVersion = versions.find((v) => v.active) || versions[0];
-            const stage = releaseStageLabel(r.tracks);
-            const coverSrc = (activeVersion && activeVersion.coverUrl) || r.cover;
-            const metaVersion = activeVersion && (activeVersion.description || activeVersion.genre || (activeVersion.tags && activeVersion.tags.length > 0))
-              ? activeVersion
-              : undefined;
+          {projectTracks.map((t) => {
+            const versions = projectsForTrack(t);
+            const trackArtist =
+              asArray(t.artists).map((a) => String(a)).filter(Boolean)[0] ||
+              userMap.get(t.artistUids?.[0] || '')?.artistName ||
+              '';
             return (
-              <div className="release-card" key={r.id}>
+              <div className="release-card project-track-card" key={t.id}>
                 <div className="release-card-cover">
-                  {coverSrc ? (
-                    <img src={coverSrc} alt="" />
+                  {(t.personalCoverUrl || t.coverUrl) ? (
+                    <img src={t.personalCoverUrl || t.coverUrl} alt="" />
                   ) : (
                     <span className="release-cover-fallback">
-                      {r.title.slice(0, 1).toUpperCase()}
+                      {t.title.slice(0, 1).toUpperCase()}
                     </span>
                   )}
                 </div>
                 <div className="release-card-body">
                   <div className="release-card-header">
-                    <span className="release-card-title" title={r.title}>{r.title}</span>
-                    <span className="column-count">{r.tracks.length}</span>
+                    <span className="release-card-title" title={t.title}>{t.title}</span>
+                    <span className="column-count">{versions.length}</span>
                   </div>
-                  <div className="release-card-meta">
-                    <span className="beat-chip">{r.kind === 'album' ? 'Сборник' : 'Сингл'}</span>
-                    {stage && <span className="beat-chip">{stage}</span>}
-                    {activeVersion && (
-                      <span className="beat-chip release-active-chip">Активная версия</span>
-                    )}
-                  </div>
-
-                  {metaVersion && (
-                    <div className="project-card-info">
-                      {metaVersion.description && <div className="project-card-desc">{metaVersion.description}</div>}
-                      <div className="project-card-tags">
-                        {metaVersion.genre && <span className="beat-chip">{metaVersion.genre}</span>}
-                        {(metaVersion.tags || []).map((t) => (
-                          <span key={t} className="beat-chip">#{t}</span>
-                        ))}
-                      </div>
+                  {t.project && (
+                    <div className="release-card-meta">
+                      <span className="beat-chip">Сборник: {t.project}</span>
                     </div>
                   )}
+                  <div className="project-track-row project-track-row-own">
+                    <span className="project-track-title">
+                      {t.trackNumber ? `${t.trackNumber}. ` : ''}
+                      {t.title}
+                    </span>
+                    <span className="project-track-meta">{trackArtist || '—'}</span>
+                  </div>
 
-                  {r.tracks.length > 0 && (
-                    <div className="release-tracks">
-                      {r.tracks.slice(0, 5).map((t) => (
-                        <div className="project-track-row" key={t.id}>
-                          <span className="project-track-title">
-                            {t.trackNumber ? `${t.trackNumber}. ` : ''}
-                            {t.title}
-                          </span>
-                          <span className="project-track-meta">
-                            {asArray(t.artists).map((a) => String(a)).filter(Boolean)[0] ||
-                              userMap.get(t.artistUids?.[0] || '')?.artistName ||
-                              ''}
-                          </span>
-                        </div>
-                      ))}
-                      {r.tracks.length > 5 && (
-                        <div className="project-card-empty">и ещё {r.tracks.length - 5}…</div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="project-card-section-title">Версии ({versions.length})</div>
+                  <div className="project-card-section-title">Проекты ({versions.length})</div>
                   {versions.length === 0 ? (
                     <div className="project-card-empty">
-                      Версий пока нет. Создайте первую, чтобы сводить/мастерить этот релиз.
+                      Версий пока нет. Создайте первую, чтобы сводить/мастерить этот трек.
                     </div>
                   ) : (
                     <div className="release-versions">
@@ -544,8 +523,8 @@ export default function ProjectsView({
                   )}
 
                   {canEdit && (
-                    <button type="button" className="btn-add-inline" onClick={() => openNewVersion(r)}>
-                      + Новая версия для {releaseTitle(r)}
+                    <button type="button" className="btn-add-inline" onClick={() => openNewVersion(t)}>
+                      + Новая версия проекта для «{t.title}»
                     </button>
                   )}
                 </div>
@@ -575,42 +554,33 @@ export default function ProjectsView({
               </div>
 
               <div className="form-group">
-                <label>Релизы, которые обслуживает версия *</label>
+                <label>Трек, к которому привязывается версия проекта *</label>
                 <div className="release-multiselect">
-                  {releases.map((r) => {
-                    const rid = releaseTrackIds(r);
-                    const checked = rid.some((id) => modal.trackIds.includes(id));
-                    const toggle = () => {
-                      const next = new Set(modal.trackIds);
-                      if (checked) {
-                        for (const id of rid) next.delete(id);
-                      } else {
-                        for (const id of rid) next.add(id);
-                      }
-                      setModal({ ...modal, trackIds: Array.from(next) });
+                  {tracks.map((t) => {
+                    const checked = modal.trackIds.includes(t.id);
+                    const select = () => {
+                      setModal({ ...modal, trackIds: checked ? [] : [t.id] });
                     };
                     return (
-                      <label className="release-option" key={r.id}>
-                        <input type="checkbox" checked={checked} onChange={toggle} />
+                      <label className="release-option" key={t.id}>
+                        <input type="radio" checked={checked} onChange={select} />
                         <span className={`release-option-title ${checked ? 'checked' : ''}`}>
-                          {r.title}
+                          {t.trackNumber ? `${t.trackNumber}. ` : ''}{t.title}
+                          {t.project ? <span className="beat-chip">сборник: {t.project}</span> : null}
                         </span>
-                        <span className="beat-chip">{r.kind === 'album' ? 'сборник' : 'сингл'}</span>
                       </label>
                     );
                   })}
-                  {releases.length === 0 && (
+                  {tracks.length === 0 && (
                     <div className="project-card-empty">Сначала создайте хотя бы один трек.</div>
                   )}
                 </div>
-                {modal.trackIds.length > 0 && (
-                  <div className="form-hint" style={{ marginTop: 4 }}>
-                    Выбрано релизов: {releases.filter((x) => releaseTrackIds(x).some((id) => modal.trackIds.includes(id))).length}
-                  </div>
-                )}
+                <div className="form-hint" style={{ marginTop: 4 }}>
+                  Один проект (.zip) — один трек. Трек из сборника тоже привязывается только сам к себе.
+                </div>
               </div>
 
-              <h3>Доп. информация релиза</h3>
+              <h3>Доп. информация проекта</h3>
               <div className="form-row">
                 <div className="form-group">
                   <label>Статус</label>
