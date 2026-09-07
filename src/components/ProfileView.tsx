@@ -286,7 +286,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
 
         <div className="profile-form-section">
           <h3>Мои каналы</h3>
-          <p className="form-hint">Укажи ссылки на свои каналы — они появятся в шапке профиля. По кнопке &laquo;Импортировать из каналов&raquo; релизы (треки) с этих страниц будут добавлены в кабинет: с YouTube — по ссылке на видео или через список канала, с SoundCloud — по ссылке на конкретный трек. В одно поле можно вставить сразу несколько ссылок подряд (через запятую или с новой строки) — они все будут импортированы, а в шапке профиля покажется первая. Можно указать только одну из площадок.</p>
+          <p className="form-hint">Укажи ссылки на свои каналы — они появятся в шапке профиля. По кнопке &laquo;Импортировать из каналов&raquo; релизы (треки) с этих страниц будут добавлены в кабинет: с YouTube — по ссылке на видео или через список канала, с SoundCloud — по ссылке на профиль (импортируются все треки) или на конкретный трек. В одно поле можно вставить сразу несколько ссылок подряд (через запятую или с новой строки) — они все будут импортированы, а в шапке профиля покажется первая. Можно указать только одну из площадок.</p>
 
           <div className="form-group">
             <label>YouTube</label>
@@ -308,7 +308,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
               type="url"
               value={soundcloudUrl}
               onChange={(e) => setSoundcloudUrl(e.target.value)}
-              placeholder="https://soundcloud.com/artist/трек или on.soundcloud.com/… (можно несколько)"
+              placeholder="https://soundcloud.com/artist — профиль или ссылка на трек (можно несколько)"
             />
             <div className={`link-status ${linkStatus.soundcloud === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.soundcloud === 'valid' ? 'link-status-valid' : ''}`}>
               {linkStatus.soundcloud === 'invalid' && '⚠️ Это не похоже на ссылку SoundCloud'}

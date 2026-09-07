@@ -95,6 +95,26 @@ export function isSoundCloudTrackUrl(url: string): boolean {
   }
 }
 
+/**
+ * Похоже ли на ссылку на профиль SoundCloud (а не на трек/плейлист):
+ * soundcloud.com/<пермалинк> или страница раздела профиля
+ * (…/tracks, …/likes, …/sets и т.п. — см. SOUNDCLOUD_PROFILE_SECTIONS).
+ * soundcloud.com/<user>/<track> — это трек, не профиль;
+ * on.soundcloud.com/… — короткие ссылки, всегда ведут на трек.
+ */
+export function isSoundCloudProfileUrl(url: string): boolean {
+  if (!isSoundCloudHost(url)) return false;
+  try {
+    const u = new URL(url);
+    if (u.hostname.toLowerCase() === 'on.soundcloud.com') return false;
+    const segs = u.pathname.split('/').filter(Boolean);
+    if (segs.length === 1) return true; // soundcloud.com/<пермалинк>
+    return segs.length === 2 && SOUNDCLOUD_PROFILE_SECTIONS.test(segs[1]);
+  } catch {
+    return false;
+  }
+}
+
 export function extractYouTubeChannelId(url: string): string | null {
   const m = /youtube\.com\/(?:c\/|channel\/)([A-Za-z0-9_-]+)/i.exec(url.trim());
   return m ? m[1] : null;
@@ -103,6 +123,18 @@ export function extractYouTubeChannelId(url: string): string | null {
 // Несколько хостов (RSS YouTube, «сырые» ответы) не отдают CORS-заголовки браузеру.
 // Для таких чтений используем публичный CORS-прокси (только GET, без авторизации).
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+/** Разделы страницы профиля SoundCloud (второй сегмент пути после пермалинка). */
+const SOUNDCLOUD_PROFILE_SECTIONS = /^(tracks|likes|reposts|comments|followers|followings|sets|podcasts)$/i;
+
+/**
+ * Адрес serverless-прокси профиля SoundCloud (см. api/soundcloud-profile.mjs).
+ * По умолчанию — тот же origin (если SPA развёрнуто на Vercel вместе с api/).
+ * Для GitHub Pages задайте VITE_SOUNDCLOUD_PROXY_URL — полный URL развёрнутой
+ * функции (см. SOUNDCLOUD_API.md, «Развёртывание»).
+ */
+const SOUNDCLOUD_PROFILE_PROXY =
+  (import.meta.env.VITE_SOUNDCLOUD_PROXY_URL as string | undefined)?.trim() || '/api/soundcloud-profile';
 
 async function fetchJson(url: string, timeoutMs = 15000): Promise<any> {
   const text = await fetchTextWithCorsFallback(url, timeoutMs);
@@ -340,25 +372,100 @@ export async function fetchYouTubeItems(input: string): Promise<{ items: Importe
   return { items, warnings };
 }
 
+/**
+ * Автоимпорт всех треков профиля SoundCloud через наш serverless-прокси
+ * (api/soundcloud-profile.mjs: резолвит профиль и выкачивает треки через
+ * api-v2.soundcloud.com — см. SOUNDCLOUD_API.md). Напрямую из браузера список
+ * треков профиля не получить: у api-v2 закрыт CORS для чужих origin, а страницы
+ * и oEmbed soundcloud.com для серверных запросов закрыты антиботом.
+ */
+async function fetchSoundCloudProfileItems(
+  profileUrl: string,
+  timeoutMs = 25000
+): Promise<{ items: ImportedItem[]; profileLabel: string }> {
+  const endpoint = new URL(SOUNDCLOUD_PROFILE_PROXY, window.location.origin);
+  endpoint.searchParams.set('url', profileUrl);
+  endpoint.searchParams.set('limit', '100');
+  const res = await Promise.race<Response>([
+    fetch(endpoint.toString()),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('таймаут')), timeoutMs)),
+  ]);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    let detail = '';
+    try {
+      detail = String(JSON.parse(body)?.error || '');
+    } catch {
+      detail = body;
+    }
+    throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
+  }
+  const data = await res.json();
+  const raw: any[] = Array.isArray(data?.items) ? data.items : [];
+  const items: ImportedItem[] = [];
+  const seen = new Set<string>();
+  for (const t of raw) {
+    const title = String(t?.title || '').trim();
+    const url = String(t?.url || '').trim();
+    if (!title || !/^https:\/\/soundcloud\.com\//i.test(url)) continue;
+    const key = url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push({
+      title,
+      url: sanitizePlatformUrl(url),
+      author: String(t?.author || '').trim() || 'SoundCloud',
+      thumbnail: t?.thumbnail ? String(t.thumbnail) : undefined,
+    });
+  }
+  const profileLabel = String(data?.user?.username || data?.user?.permalink || profileUrl);
+  return { items, profileLabel };
+}
+
+function profileImportWarning(label: string, reason: string): string {
+  return (
+    `«${label}» — профиль SoundCloud. Автоимпорт всех треков профиля выполняется через наш ` +
+    `serverless-прокси (VITE_SOUNDCLOUD_PROXY_URL, см. SOUNDCLOUD_API.md), но он сейчас недоступен (${reason}). ` +
+    'Скопируйте из профиля ссылки на нужные треки и вставьте их сюда — можно несколько сразу ' +
+    '(через запятую или с новой строки).'
+  );
+}
+
 export async function fetchSoundCloudItems(input: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
   const warnings: string[] = [];
   const urls = parsePlatformLinks(input, 'soundcloud');
   if (urls.length === 0) {
     warnings.push(
-      'Не найдено ссылок SoundCloud. Вставьте ссылку на конкретный трек — можно несколько сразу (через запятую или с новой строки).'
+      'Не найдено ссылок SoundCloud. Вставьте ссылку на профиль или на конкретный трек — можно несколько сразу (через запятую или с новой строки).'
     );
     return { items: [], warnings };
   }
   const items: ImportedItem[] = [];
-  const profiles: string[] = [];
+  // Профили, о которых стало известно по oEmbed (нестандартные ссылки) —
+  // пробуем выкачать через прокси после основного цикла.
+  const oembedProfiles: { url: string; label: string }[] = [];
   for (const u of urls) {
+    // Ссылка на профиль — автоимпорт всех треков через serverless-прокси.
+    if (isSoundCloudProfileUrl(u)) {
+      try {
+        const r = await fetchSoundCloudProfileItems(u);
+        if (r.items.length === 0) {
+          warnings.push(`В профиле «${r.profileLabel}» не найдено треков.`);
+        } else {
+          items.push(...r.items);
+        }
+      } catch (e: any) {
+        warnings.push(profileImportWarning(u, e?.message || 'сеть недоступна'));
+      }
+      continue;
+    }
     try {
       const r = await importViaSoundCloudOEmbed(u);
       items.push(...r.items);
       if (r.type === 'profile') {
-        profiles.push(r.profileName || u);
+        oembedProfiles.push({ url: u, label: r.profileName || u });
       } else if (r.type === 'unknown') {
-        warnings.push(`SoundCloud не распознал «${u}» — вставьте ссылку на конкретный трек.`);
+        warnings.push(`SoundCloud не распознал «${u}» — вставьте ссылку на трек или профиль.`);
       }
     } catch (e: any) {
       warnings.push(
@@ -366,13 +473,13 @@ export async function fetchSoundCloudItems(input: string): Promise<{ items: Impo
       );
     }
   }
-  if (profiles.length > 0) {
-    const names = [...new Set(profiles)].join(', ');
-    warnings.push(
-      `«${names}» — это профиль, а не трек. SoundCloud не отдаёт список треков профиля из браузера, поэтому ` +
-        'импортировать профиль целиком нельзя. Откройте профиль на SoundCloud, скопируйте ссылку на нужные треки ' +
-        'и вставьте их сюда — можно несколько сразу (через запятую или с новой строки).'
-    );
+  for (const p of oembedProfiles) {
+    try {
+      const r = await fetchSoundCloudProfileItems(p.url);
+      items.push(...r.items);
+    } catch (e: any) {
+      warnings.push(profileImportWarning(p.label, e?.message || 'сеть недоступна'));
+    }
   }
   return { items, warnings };
 }
