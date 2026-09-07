@@ -40,6 +40,20 @@ export function isSoundCloudHost(url: string): boolean {
 }
 
 /**
+ * Чинит криво вставленные ссылки из приложений/мессенджеров:
+ * обрезает пробелы и хвостовую пунктуацию (запятая/точка после ссылки),
+ * добавляет протокол, если пользователь вставил ссылку без него.
+ */
+export function sanitizePlatformUrl(url: string): string {
+  let u = (url || '').trim();
+  u = u.replace(/[,.!?;:'"<>|]+$/, '');
+  if (/^(?:on\.|m\.|www\.)?soundcloud\.com\//i.test(u)) return 'https://' + u;
+  if (/^(?:m\.|music\.|www\.)?youtube\.com\//i.test(u)) return 'https://' + u;
+  if (/^youtu\.be\//i.test(u)) return 'https://' + u;
+  return u;
+}
+
+/**
  * Похоже ли на ссылку на конкретный трек, а не профиль/плейлист:
  * короткие on.soundcloud.com/... и ссылки вида soundcloud.com/user/track.
  */
@@ -117,10 +131,14 @@ async function importViaSoundCloudOEmbed(url: string): Promise<ImportedItem[]> {
   const title = String(j.title || '').trim();
   const author = String(j.author_name || '').trim();
   if (!title) return [];
+  // oEmbed также отвечает на профили/главные страницы, но импортировать можно только
+  // конкретные треки/плейлисты — иначе в плеере SoundCloud появится
+  // «You have not provided a valid SoundCloud URL».
+  if (!isSoundCloudTrackUrl(url)) return [];
   return [
     {
       title,
-      url,
+      url: sanitizePlatformUrl(url),
       author,
       thumbnail: j.thumbnail_url ? String(j.thumbnail_url) : undefined,
     },
@@ -151,7 +169,7 @@ async function importYouTubeChannelRss(channelId: string): Promise<ImportedItem[
   return out;
 }
 
-function dedupe(items: ImportedItem[], existingTracks: Track[]): { fresh: ImportedItem[]; skipped: number } {
+export function dedupe(items: ImportedItem[], existingTracks: Track[]): { fresh: ImportedItem[]; skipped: number } {
   const known = new Set(
     existingTracks.map((t) => (t.platformUrl || '').trim().toLowerCase()).filter(Boolean)
   );
@@ -169,7 +187,19 @@ function dedupe(items: ImportedItem[], existingTracks: Track[]): { fresh: Import
   return { fresh: out, skipped };
 }
 
-async function persistItems(items: ImportedItem[], opts: ImportOptions): Promise<number> {
+/**
+ * Дубликаты по названию: треки площадок, чьи названия совпадают с уже
+ * существующими на сайте (без учёта регистра и лишних пробелов).
+ */
+export function findTitleDuplicates(items: ImportedItem[], existingTracks: Track[]): ImportedItem[] {
+  if (items.length === 0 || existingTracks.length === 0) return [];
+  const known = new Set(
+    existingTracks.map((t) => (t.title || '').trim().toLowerCase()).filter(Boolean)
+  );
+  return items.filter((it) => known.has((it.title || '').trim().toLowerCase()));
+}
+
+export async function persistItems(items: ImportedItem[], opts: ImportOptions): Promise<number> {
   let imported = 0;
   for (const it of items) {
     if (!it.author.trim()) continue;
@@ -183,14 +213,17 @@ async function persistItems(items: ImportedItem[], opts: ImportOptions): Promise
       mixByUids: [],
       feat: '',
       project: '',
-      status: 'draft',
-      column: 'ideas',
+      // Импортированные треки оставляем только в разделе «Отгружено»:
+      // не показываем в «Синглы»/«Сборники» и не таскаем по доске.
+      status: 'completed',
+      column: 'released',
       checklist: [],
       priority: 'medium',
       createdBy: opts.uid,
       releaseType: 'single',
-      platformUrl: it.url.trim(),
+      platformUrl: sanitizePlatformUrl(it.url),
       coverUrl: it.thumbnail?.trim() || undefined,
+      imported: true,
     };
     try {
       await createTrack(payload);
@@ -202,17 +235,20 @@ async function persistItems(items: ImportedItem[], opts: ImportOptions): Promise
   return imported;
 }
 
-export async function importFromYouTube(url: string, opts: ImportOptions): Promise<PlatformImportResult> {
+export async function fetchYouTubeItems(url: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
   const warnings: string[] = [];
+  const trimmed = sanitizePlatformUrl(url);
   let items: ImportedItem[] = [];
   try {
-    const vid = youtubeVideoId(url.trim());
+    const vid = youtubeVideoId(trimmed);
     if (vid) {
-      items = await importViaYouTubeOEmbed(url.trim());
+      items = await importViaYouTubeOEmbed(trimmed);
       if (items.length === 0) warnings.push('YouTube не вернул данные по видео.');
     } else {
-      const channelId = extractYouTubeChannelId(url.trim());
-      if (channelId) {
+      const channelId = extractYouTubeChannelId(trimmed);
+      if (!channelId) {
+        warnings.push('Ссылка должна быть на видео (watch?v=...) или канал вида .../channel/ID.');
+      } else {
         try {
           items = await importYouTubeChannelRss(channelId);
           if (items.length === 0) warnings.push('В канале не найдено видео.');
@@ -221,14 +257,40 @@ export async function importFromYouTube(url: string, opts: ImportOptions): Promi
             'Не удалось загрузить список видео канала YouTube. Проверьте ссылку и интернет или импортируйте одиночные ссылки на видео.'
           );
         }
-      } else {
-        warnings.push('Ссылка должна быть на видео (watch?v=...) или канал вида .../channel/ID.');
       }
     }
   } catch (e: any) {
     warnings.push(`YouTube: ${e?.message || 'сеть недоступна'}. Проверьте ссылку и интернет.`);
   }
+  return { items, warnings };
+}
 
+export async function fetchSoundCloudItems(url: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
+  const warnings: string[] = [];
+  const trimmed = sanitizePlatformUrl(url);
+  const isTrack = isSoundCloudTrackUrl(trimmed);
+  let items: ImportedItem[] = [];
+  try {
+    items = await importViaSoundCloudOEmbed(trimmed);
+    if (items.length === 0) {
+      warnings.push(
+        isTrack
+          ? 'SoundCloud не вернул данные по треку. Проверьте ссылку или попробуйте позже.'
+          : 'Это профиль: для импорта из SoundCloud вставьте ссылку на конкретный трек или плейлист (on.soundcloud.com тоже подходит).'
+      );
+    }
+  } catch (e: any) {
+    warnings.push(
+      isTrack
+        ? `SoundCloud: не удалось получить трек (${e?.message || 'сеть недоступна'}). Проверьте ссылку и интернет.`
+        : 'SoundCloud: для импорта вставьте ссылку на конкретный трек или плейлист (страница профиля не поддерживается).'
+    );
+  }
+  return { items, warnings };
+}
+
+export async function importFromYouTube(url: string, opts: ImportOptions): Promise<PlatformImportResult> {
+  const { items, warnings } = await fetchYouTubeItems(url);
   const { fresh, skipped } = dedupe(items, opts.existingTracks);
   const imported = fresh.length ? await persistItems(fresh, opts) : 0;
   if (imported < fresh.length) warnings.push('Часть треков не создана (нет автора).');
@@ -236,31 +298,7 @@ export async function importFromYouTube(url: string, opts: ImportOptions): Promi
 }
 
 export async function importFromSoundCloud(url: string, opts: ImportOptions): Promise<PlatformImportResult> {
-  const warnings: string[] = [];
-  let items: ImportedItem[] = [];
-  const trimmed = url.trim();
-  const isTrack = isSoundCloudTrackUrl(trimmed);
-  try {
-    // oEmbed умеет отдельные треки (в т.ч. короткие on.soundcloud.com).
-    // Профиль/канал целиком oEmbed не отдаёт — на это даём понятное сообщение.
-    items = await importViaSoundCloudOEmbed(trimmed);
-    if (items.length === 0) {
-      warnings.push(
-        isTrack
-          ? 'SoundCloud не вернул данные по треку. Проверьте ссылку или попробуйте позже.'
-          : 'Это профиль/плейлист: список треков SoundCloud не отдаёт из браузера (нужен API-ключ). ' +
-            'Для импорта одного трека вставьте ссылку на конкретный трек.'
-      );
-    }
-  } catch (e: any) {
-    const detail = e?.message || 'сеть недоступна';
-    warnings.push(
-      isTrack
-        ? `SoundCloud: не удалось получить трек (${detail}). Проверьте ссылку и интернет.`
-        : `SoundCloud: ${detail}. Если это профиль — список треков профиля из браузера не получить без API-ключа; вставьте ссылку на конкретный трек.`
-    );
-  }
-
+  const { items, warnings } = await fetchSoundCloudItems(url);
   const { fresh, skipped } = dedupe(items, opts.existingTracks);
   const imported = fresh.length ? await persistItems(fresh, opts) : 0;
   if (imported < fresh.length) warnings.push('Часть треков не создана (нет автора).');

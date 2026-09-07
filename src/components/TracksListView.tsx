@@ -76,8 +76,13 @@ export default function TracksListView({ tracks, userMap, onOpen, onDelete, onUp
   const grouped = useMemo(() => groupByProject(compilations, userMap), [compilations, userMap]);
 
   const isCompleted = (t: Track) => t.status === 'completed';
-  const activeSingles = useMemo(() => singles.filter((t) => !isCompleted(t)), [singles]);
-  const activeGroups = useMemo(() => grouped.filter((g) => !g.tracks.every(isCompleted)), [grouped]);
+  // Импортированные из площадок треки не показываем в активных «Синглы»/«Сборники» —
+  // они живут только в «Отгружено».
+  const activeSingles = useMemo(() => singles.filter((t) => !isCompleted(t) && !t.imported), [singles]);
+  const activeGroups = useMemo(
+    () => grouped.filter((g) => !g.tracks.every(isCompleted) && !g.tracks.every((t) => t.imported)),
+    [grouped]
+  );
   const shippedSingles = useMemo(() => singles.filter((t) => isCompleted(t) || !!t.platformUrl), [singles]);
   const shippedAlbums = useMemo(
     () => grouped.filter((g) => g.tracks.every(isCompleted) || g.tracks.some((t) => !!t.platformUrl)),
@@ -387,54 +392,100 @@ function useCachedAudioIds(): Set<string> {
   return ids;
 }
 
-export function DownloadAudioButton({ url, title, className }: { url?: string; title: string; className?: string }) {
+// Кнопка скачивания с отменой: во время загрузки показывает колесо (на месте
+// стрелки — крестик), повторное нажатие отменяет активный fetch.
+export function DownloadButton({
+  url,
+  title,
+  fileName,
+  className,
+  children,
+  hrefTitle,
+}: {
+  url?: string;
+  title: string;
+  fileName?: string;
+  className?: string;
+  children?: React.ReactNode;
+  hrefTitle?: string;
+}) {
   const [downloading, setDownloading] = useState(false);
   const [done, setDone] = useState(false);
-  if (!url || detectPlatform(url) !== 'audio') return null;
+  const controllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => controllerRef.current?.abort(), []);
+
+  const cancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    setDownloading(false);
+  };
+
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (downloading) {
+      cancel(e);
+      return;
+    }
+    if (!url) return;
     let blobUrl: string | null = null;
+    const controller = new AbortController();
+    controllerRef.current = controller;
     setDownloading(true);
     setDone(false);
     try {
-      const res = await fetch(url, { mode: 'cors' });
-      if (!res.ok) throw new Error();
+      const res = await fetch(url, { mode: 'cors', signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
+      if (controller.signal.aborted) return;
       blobUrl = URL.createObjectURL(blob);
     } catch {
-      window.open(url, '_blank', 'noopener');
+      controllerRef.current = null;
       setDownloading(false);
+      if (controller.signal.aborted) return;
+      window.open(url, '_blank', 'noopener');
       return;
     }
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `${title.replace(/[^\wа-яА-ЯёЁ\s-]+/g, '').trim() || 'audio'}.mp3`;
+    a.download =
+      fileName ||
+      `${title.replace(/[^\wа-яА-ЯёЁ\s-]+/g, '').trim() || 'audio'}.mp3`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, 4000);
+    controllerRef.current = null;
     setDownloading(false);
     setDone(true);
     setTimeout(() => setDone(false), 2000);
   };
+
   return (
     <span className={`at-download-wrap ${className || ''}`} onClick={(e) => e.stopPropagation()}>
       {(downloading || done) && (
         <span className={`at-downloading-badge ${done ? 'at-downloaded' : ''}`}>
-          {done ? '✓ Скачано' : 'Загрузка…'}
+          {done ? '✓ Скачано' : <span className="at-spinner" />}
         </span>
       )}
       <a
-        className="at-download"
+        className={`at-download ${downloading ? 'at-download-cancel' : ''} ${children ? 'at-download-link' : ''}`}
         href={url}
-        title="Скачать mp3"
+        title={downloading ? 'Отменить загрузку' : (hrefTitle || 'Скачать')}
         onClick={handleDownload}
       >
-        ⬇
+        {downloading ? '✕' : (children || '⬇')}
       </a>
     </span>
   );
+}
+
+export function DownloadAudioButton({ url, title, className }: { url?: string; title: string; className?: string }) {
+  if (!url || detectPlatform(url) !== 'audio') return null;
+  return <DownloadButton url={url} title={title} className={className} hrefTitle="Скачать mp3" />;
 }
 
 function ShippedMasonry({

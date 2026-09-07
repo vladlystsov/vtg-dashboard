@@ -102,6 +102,8 @@ export interface UserProfile {
   downloadTracks?: boolean;
   youtubeUrl?: string;
   soundcloudUrl?: string;
+  // Импорт из площадок: пропускать треки, чьи названия уже есть на сайте
+  skipDuplicateTitles?: boolean;
 }
 
 export interface ChecklistItem {
@@ -158,6 +160,8 @@ export interface Track {
   projectZips?: TrackProjectZip[];
   // Архив доски (пункт «Поместить в архив»)
   archived?: boolean;
+  // Маркер импорта из площадок: такие треки живут только в разделе «Отгружено»
+  imported?: boolean;
 }
 
 export interface TrackProjectZip {

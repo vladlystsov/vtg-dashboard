@@ -40,6 +40,7 @@ export async function updateMyProfile(
     downloadTracks?: boolean;
     youtubeUrl?: string;
     soundcloudUrl?: string;
+    skipDuplicateTitles?: boolean;
   }
 ) {
   const ref = doc(db, 'users', uid);

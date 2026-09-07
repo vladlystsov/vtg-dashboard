@@ -1,10 +1,20 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { ArtistRole, PlaybackMode, Track } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import { createArtistRequest } from '../services/artistRequestService';
 import { updateMyProfile } from '../services/userService';
 import { renameArtistInTracks } from '../services/trackService';
-import { importFromYouTube, importFromSoundCloud, isSoundCloudHost, isYouTubeHost } from '../services/platformImportService';
+import {
+  fetchYouTubeItems,
+  fetchSoundCloudItems,
+  dedupe,
+  findTitleDuplicates,
+  persistItems,
+  sanitizePlatformUrl,
+  isSoundCloudHost,
+  isYouTubeHost,
+  type ImportedItem,
+} from '../services/platformImportService';
 
 const ROLE_OPTIONS: { id: ArtistRole; label: string }[] = [
   { id: 'artist', label: 'Артист' },
@@ -26,6 +36,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
   const [roles, setRoles] = useState<ArtistRole[]>(profile?.roles || ['artist']);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>(profile?.playbackMode || 'platform');
   const [downloadTracks, setDownloadTracks] = useState(!!profile?.downloadTracks);
+  const [skipDuplicates, setSkipDuplicates] = useState(!!profile?.skipDuplicateTitles);
   const [youtubeUrl, setYoutubeUrl] = useState(profile?.youtubeUrl || '');
   const [soundcloudUrl, setSoundcloudUrl] = useState(profile?.soundcloudUrl || '');
   const [linkStatus, setLinkStatus] = useState<Record<string, 'valid' | 'invalid' | 'empty'>>({});
@@ -33,21 +44,56 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [dupDialog, setDupDialog] = useState<{ items: ImportedItem[] } | null>(null);
+  const [selectedDups, setSelectedDups] = useState<Set<number>>(new Set());
+  const dupResolverRef = useRef<((selected: ImportedItem[]) => void) | null>(null);
+
+  // Окно «Были обнаружены дубликаты»: возвращает треки, которые пользователь решил импортировать
+  const openDupDialog = (items: ImportedItem[]): Promise<ImportedItem[]> => {
+    return new Promise((resolve) => {
+      dupResolverRef.current = resolve;
+      setSelectedDups(new Set(items.map((_, i) => i)));
+      setDupDialog({ items });
+    });
+  };
+
+  const closeDupDialog = (selected?: ImportedItem[]) => {
+    const resolve = dupResolverRef.current;
+    dupResolverRef.current = null;
+    setDupDialog(null);
+    resolve?.(selected || []);
+  };
+
+  const toggleDup = (i: number) => {
+    setSelectedDups((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
 
   const validateLink = (url: string, platform: 'youtube' | 'soundcloud'): 'valid' | 'invalid' | 'empty' => {
     const t = url.trim();
     if (!t) {
       return 'empty';
     }
-    try {
-      new URL(t);
-      if (platform === 'youtube') {
-        return isYouTubeHost(t) ? 'valid' : 'invalid';
+    const parsed = (() => {
+      try {
+        return new URL(t);
+      } catch {
+        try {
+          return new URL(`https://${t}`);
+        } catch {
+          return null;
+        }
       }
-      return isSoundCloudHost(t) ? 'valid' : 'invalid';
-    } catch {
-      return 'invalid';
+    })();
+    if (!parsed) return 'invalid';
+    if (platform === 'youtube') {
+      return isYouTubeHost(parsed.href) ? 'valid' : 'invalid';
     }
+    return isSoundCloudHost(parsed.href) ? 'valid' : 'invalid';
   };
 
   const normalizeChannelUrl = (url: string, platform: 'youtube' | 'soundcloud'): string => {
@@ -70,24 +116,28 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
       soundcloud: validateLink(soundcloudUrl, 'soundcloud'),
     };
     setLinkStatus(statuses);
-    if (statuses.youtube === 'invalid' || statuses.soundcloud === 'invalid') {
+    const invalidFields: string[] = [];
+    if (statuses.youtube === 'invalid') invalidFields.push('YouTube — youtube.com / youtu.be');
+    if (statuses.soundcloud === 'invalid') invalidFields.push('SoundCloud — soundcloud.com / on.soundcloud.com');
+    if (invalidFields.length > 0) {
       setError(
-        'Проверьте ссылки: YouTube должен вести на youtube.com/youtu.be (в т.ч. music.youtube.com), ' +
-          'SoundCloud — на soundcloud.com (в т.ч. on.soundcloud.com).'
+        `Проверьте ссылку: ${invalidFields.join('; ')}. ` +
+          'Можно указать только одну площадку — второе поле оставьте пустым.'
       );
       return;
     }
-    const yt = normalizeChannelUrl(youtubeUrl, 'youtube');
-    const sc = normalizeChannelUrl(soundcloudUrl, 'soundcloud');
+    const yt = youtubeUrl.trim() ? normalizeChannelUrl(sanitizePlatformUrl(youtubeUrl), 'youtube') : '';
+    const sc = soundcloudUrl.trim() ? normalizeChannelUrl(sanitizePlatformUrl(soundcloudUrl), 'soundcloud') : '';
     setSaving(true);
     try {
       await updateMyProfile(profile!.uid, {
-        youtubeUrl: yt || undefined,
-        soundcloudUrl: sc || undefined,
+        youtubeUrl: yt || '',
+        soundcloudUrl: sc || '',
+        skipDuplicateTitles: skipDuplicates,
       });
       await refreshProfile();
       if (!yt && !sc) {
-        setMessage('Ссылки сохранены. Укажите хотя бы одну, чтобы импортировать треки.');
+        setMessage('Ссылки удалены. Импорт не выполнялся.');
         return;
       }
       setMessage('Ссылки сохранены. Начинаем импорт…');
@@ -95,24 +145,63 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
       setImporting(true);
       const parts: string[] = [];
       const platformErrors: string[] = [];
+      const freshAll: ImportedItem[] = [];
+      let skippedByUrl = 0;
+      let skippedByTitle = 0;
+
+      // Логику дубликатов (по ссылке) не меняем — просто добавляем надстройку
+      // по совпадению названий и окно подтверждения.
+      const collect = (items: ImportedItem[]) => {
+        const { fresh, skipped } = dedupe(items, tracks);
+        skippedByUrl += skipped;
+        if (skipDuplicates) {
+          const titleDups = findTitleDuplicates(fresh, tracks);
+          skippedByTitle += titleDups.length;
+          freshAll.push(...fresh.filter((it) => !titleDups.includes(it)));
+        } else {
+          freshAll.push(...fresh);
+        }
+      };
+
       if (yt) {
-        const r = await importFromYouTube(yt, { uid: profile!.uid, existingTracks: tracks });
-        parts.push(`YouTube: +${r.imported}, пропущено ${r.skipped}`);
-        platformErrors.push(...r.warnings.map((w) => `• ${w}`));
+        const r = await fetchYouTubeItems(yt);
+        collect(r.items);
+        parts.push(`YouTube: найдено ${r.items.length}`);
+        platformErrors.push(...r.warnings.map((w) => `• YouTube: ${w}`));
       }
       if (sc) {
-        const r = await importFromSoundCloud(sc, { uid: profile!.uid, existingTracks: tracks });
-        parts.push(`SoundCloud: +${r.imported}, пропущено ${r.skipped}`);
-        platformErrors.push(...r.warnings.map((w) => `• ${w}`));
+        const r = await fetchSoundCloudItems(sc);
+        collect(r.items);
+        parts.push(`SoundCloud: найдено ${r.items.length}`);
+        platformErrors.push(...r.warnings.map((w) => `• SoundCloud: ${w}`));
       }
+
+      // Окно с дубликатами по названию показываем только если кнопка
+      // «Не загружать дубликаты названий» выключена.
+      const titleDups = skipDuplicates ? [] : findTitleDuplicates(freshAll, tracks);
+      const base = freshAll.filter((it) => !titleDups.includes(it));
+      let finalItems: ImportedItem[] = base;
+      if (titleDups.length > 0) {
+        const chosen = await openDupDialog(titleDups);
+        skippedByTitle += titleDups.length - chosen.length;
+        finalItems = [...base, ...chosen];
+      }
+
+      const imported = finalItems.length
+        ? await persistItems(finalItems, { uid: profile!.uid, existingTracks: tracks })
+        : 0;
+      const skippedTotal = skippedByUrl + skippedByTitle;
       setImporting(false);
       const importedTotal = parts.join('; ');
       if (platformErrors.length > 0) {
-        setMessage(`Импортировано: ${importedTotal}`);
+        setMessage(`Импортировано: ${importedTotal}; всего +${imported}, пропущено ${skippedTotal}`);
         setError(platformErrors.join('\n'));
         return;
       }
-      setMessage(`Импортировано: ${importedTotal}. Треки появились в разделе «Треки».`);
+      setMessage(
+        `Импортировано: ${importedTotal}; всего +${imported}, пропущено ${skippedTotal}. ` +
+          'Импортированные треки появились в разделе «Отгружено».'
+      );
       void refreshProfile();
     } catch (e: any) {
       setImporting(false);
@@ -138,6 +227,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         roles,
         playbackMode,
         downloadTracks,
+        skipDuplicateTitles: skipDuplicates,
         ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
       });
       await renameArtistInTracks(profile.uid, profile.artistName || profile.displayName || '', artistName.trim() || profile.displayName);
@@ -160,6 +250,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         roles,
         playbackMode,
         downloadTracks,
+        skipDuplicateTitles: skipDuplicates,
         ...(isOwnerOrAdmin ? { artistVerified: true, isArtist: true } : {}),
       });
       await renameArtistInTracks(profile.uid, profile.artistName || profile.displayName || '', artistName.trim() || profile.displayName);
@@ -229,6 +320,22 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
             <div className={`link-status ${linkStatus.soundcloud === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.soundcloud === 'valid' ? 'link-status-valid' : ''}`}>
               {linkStatus.soundcloud === 'invalid' && '⚠️ Это не похоже на ссылку SoundCloud'}
               {linkStatus.soundcloud === 'valid' && '✓ Это ссылка SoundCloud'}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="role-checkbox">
+              <input
+                type="checkbox"
+                checked={skipDuplicates}
+                onChange={(e) => setSkipDuplicates(e.target.checked)}
+              />
+              Не загружать дубликаты названий
+            </label>
+            <div className="form-hint">
+              Если включено — треки, названия которых совпадают с уже существующими на сайте,
+              при импорте будут пропущены автоматически. Если выключено — появится окно, где
+              можно выбрать, какие совпадения импортировать.
             </div>
           </div>
 
@@ -334,6 +441,61 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
           </div>
         </div>
       </div>
+
+      {dupDialog && (
+        <div className="modal-overlay" onClick={() => closeDupDialog([])}>
+          <div className="track-form-modal import-dup-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Были обнаружены дубликаты. Хотите импортировать?</h2>
+              <button
+                className="modal-close"
+                title="Не импортировать дубликаты"
+                onClick={() => closeDupDialog([])}
+              >
+                ×
+              </button>
+            </div>
+            <div className="form-section">
+              <p className="form-hint">
+                Названия этих треков уже есть на сайте. Отметьте те, которые нужно импортировать
+                (или нажмите на строку, чтобы снять выбор):
+              </p>
+              <div className="dup-list">
+                {dupDialog.items.map((it, i) => (
+                  <label
+                    className={`dup-item ${selectedDups.has(i) ? 'dup-item-checked' : ''}`}
+                    key={`${it.url}-${i}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleDup(i);
+                    }}
+                  >
+                    <input type="checkbox" checked={selectedDups.has(i)} readOnly tabIndex={-1} />
+                    <span className="dup-item-info">
+                      <span className="dup-item-title">{it.title}</span>
+                      <span className="dup-item-author">{it.author}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => closeDupDialog([])}>
+                Нет
+              </button>
+              <button
+                className="btn-primary"
+                disabled={selectedDups.size === 0}
+                onClick={() => closeDupDialog(dupDialog.items.filter((_, i) => selectedDups.has(i)))}
+              >
+                {selectedDups.size === dupDialog.items.length
+                  ? `Импортировать все (${dupDialog.items.length})`
+                  : `Импортировать выбранное (${selectedDups.size})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

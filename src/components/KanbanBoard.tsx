@@ -114,10 +114,10 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, us
                   <span className="column-count">{archivedTracks.length}</span>
                 </div>
                 <div className="column-body">
-                  {archivedTracks.length === 0 && (
+                  {archiveOpen && archivedTracks.length === 0 && (
                     <div className="kanban-archive-empty">Пусто</div>
                   )}
-                  {archivedTracks.map((track, index) => (
+                  {archiveOpen && archivedTracks.map((track, index) => (
                     <TrackCard
                       key={track.id}
                       track={track}
@@ -129,11 +129,11 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, us
                   ))}
                   {provided.placeholder}
                 </div>
-                <div className="kanban-archive-hint">
-                  {archiveOpen
-                    ? 'Нажмите, чтобы свернуть'
-                    : 'Перетащите карточку сюда, чтобы поместить в архив'}
-                </div>
+                {archiveOpen && (
+                  <div className="kanban-archive-hint">
+                    Нажмите, чтобы свернуть
+                  </div>
+                )}
               </div>
             )}
           </Droppable>

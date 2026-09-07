@@ -11,6 +11,7 @@ import {
 } from '../types/track';
 import type { ProjectDaw, ProjectStage, ProjectVariant, ProjectVocalType } from '../types/track';
 import { checkProjectZipFile, publishProjectZipInBackground } from '../services/archiveService';
+import { DownloadButton } from './TracksListView';
 import { asArray } from '../types/track';
 
 interface ProjectsViewProps {
@@ -108,17 +109,14 @@ export default function ProjectsView({
   const projectsForTrack = (t: Track): Project[] =>
     projects.filter((p) => projectTrackIdsOf(p).includes(t.id));
 
-  // Показываем только те карточки треков, у которых реально загружен проект (.zip)
-  const trackHasUploadedProject = (p: Project): boolean =>
-    !!p.zipUrl || p.zipStatus === 'uploading' || p.zipStatus === 'error' || !!p.zipError;
-
+  // Показываем карточки всех треков, у которых есть хотя бы одна версия проекта
   const projectTracks = useMemo<Track[]>(() => {
     const seen = new Set<string>();
     const out: Track[] = [];
     for (const t of tracks) {
       if (seen.has(t.id)) continue;
       const pros = projectsForTrack(t);
-      if (pros.some(trackHasUploadedProject)) {
+      if (pros.length > 0) {
         seen.add(t.id);
         out.push(t);
       }
@@ -348,9 +346,14 @@ export default function ProjectsView({
       return (
         <div className="project-zip project-zip-ready">
           <span className="project-zip-ok">✓</span>
-          <a href={p.zipUrl} target="_blank" rel="noreferrer">
+          <DownloadButton
+            url={p.zipUrl}
+            title={`Архив ${p.name}`}
+            fileName={`VTG ${p.name}.zip`}
+            hrefTitle="Скачать архив версии"
+          >
             Скачать архив версии
-          </a>
+          </DownloadButton>
           <button type="button" className="btn-small-ghost" onClick={() => setModal({
             ...emptyForm(projectTrackIds(p), p.name),
             editing: p,
@@ -413,8 +416,8 @@ export default function ProjectsView({
 
       {projectTracks.length === 0 ? (
         <div className="beats-empty">
-          Проекты пока не загружены. Каждый проект (.zip) привязывается к одному конкретному треку
-          (сингл или трек из сборника). Создайте версию проекта и прикрепите архив — карточка трека появится здесь.
+          Проектов пока нет. Каждый проект привязывается к одному конкретному треку
+          (сингл или трек из сборника). Создайте первую версию проекта — и карточка трека появится здесь.
         </div>
       ) : (
         <div className="projects-grid">
