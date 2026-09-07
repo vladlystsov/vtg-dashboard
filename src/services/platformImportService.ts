@@ -1,12 +1,19 @@
 import { createTrack } from './trackService';
 import type { Track } from '../types/track';
 import { youtubeVideoId } from '../types/track';
+import { parseTrackCollaborators } from './collabParser';
 
 export interface ImportedItem {
   title: string;
   url: string;
   author: string;
   thumbnail?: string;
+  /** Со-артисты из шапки названия («A x B — Song»). */
+  extraArtists?: string[];
+  /** Участники «feat. / ft. / при участии». */
+  feat?: string[];
+  /** «prod by …» → битмейкеры. */
+  beatmakers?: string[];
 }
 
 export interface PlatformImportResult {
@@ -173,12 +180,17 @@ async function importViaYouTubeOEmbed(url: string): Promise<ImportedItem[]> {
   const title = String(j.title || '').trim();
   const author = String(j.author_name || '').trim();
   if (!title) return [];
+  // feat./prod by из названия; сплит со-артистов по «x» отключён — в
+  // YouTube-названиях слишком много шума («2 x Official Video» и т.п.).
+  const pc = parseTrackCollaborators(title, { mainAuthor: author, allowArtistSplit: false });
   return [
     {
       title,
       url,
       author,
       thumbnail: j.thumbnail_url ? String(j.thumbnail_url) : undefined,
+      ...(pc.feat.length ? { feat: pc.feat } : {}),
+      ...(pc.beatmakers.length ? { beatmakers: pc.beatmakers } : {}),
     },
   ];
 }
@@ -241,6 +253,13 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
     };
   }
   if (type === 'unknown') return { items: [], type };
+  // Участники из названия; если там пусто — пробуем описание трека
+  // (в описании часто пишут «prod by …» прописью), как в TrackForm.
+  const pc = parseTrackCollaborators(title, { mainAuthor: author });
+  const desc = String(j.description || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+  const dc = desc.trim() ? parseTrackCollaborators(desc, { mainAuthor: author, allowArtistSplit: false }) : null;
+  const beatmakers = pc.beatmakers.length ? pc.beatmakers : dc?.beatmakers || [];
+  const featNames = pc.feat.length ? pc.feat : dc?.feat || [];
   return {
     items: [
       {
@@ -248,6 +267,9 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
         url: sanitizePlatformUrl(url),
         author,
         thumbnail: j.thumbnail_url ? String(j.thumbnail_url) : undefined,
+        ...(pc.extraArtists.length ? { extraArtists: pc.extraArtists } : {}),
+        ...(featNames.length ? { feat: featNames } : {}),
+        ...(beatmakers.length ? { beatmakers } : {}),
       },
     ],
     type,
@@ -308,19 +330,38 @@ export function findTitleDuplicates(items: ImportedItem[], existingTracks: Track
   return items.filter((it) => known.has((it.title || '').trim().toLowerCase()));
 }
 
+/** Дедупликация имён без учёта регистра, с сохранением порядка. */
+function dedupeNames(names: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const n of names) {
+    const v = String(n || '').trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out;
+}
+
 export async function persistItems(items: ImportedItem[], opts: ImportOptions): Promise<number> {
   let imported = 0;
   for (const it of items) {
     if (!it.author.trim()) continue;
+    // Участники из названия: основной автор + со-артисты; uid-массивы
+    // выравниваются по именам ('' = не привязан к пользователю приложения).
+    const authors = dedupeNames([it.author.trim(), ...(it.extraArtists || [])]);
+    const beatmakers = (it.beatmakers || []).slice();
     const payload: Omit<Track, 'id' | 'createdAt' | 'updatedAt'> = {
       title: it.title.trim(),
-      artists: [it.author.trim()],
-      artistUids: [''],
-      beatmakers: [],
-      beatmakerUids: [],
+      artists: authors,
+      artistUids: authors.map(() => ''),
+      beatmakers,
+      beatmakerUids: beatmakers.map(() => ''),
       mixBy: [],
       mixByUids: [],
-      feat: '',
+      feat: (it.feat || []).join(', '),
       project: '',
       // Импортированные треки оставляем только в разделе «Отгружено»:
       // не показываем в «Синглы»/«Сборники» и не таскаем по доске.
@@ -423,11 +464,16 @@ async function fetchSoundCloudProfileItems(
     const key = url.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
+    const author = String(t?.author || '').trim() || 'SoundCloud';
+    const pc = parseTrackCollaborators(title, { mainAuthor: author });
     items.push({
       title,
       url: sanitizePlatformUrl(url),
-      author: String(t?.author || '').trim() || 'SoundCloud',
+      author,
       thumbnail: t?.thumbnail ? String(t.thumbnail) : undefined,
+      ...(pc.extraArtists.length ? { extraArtists: pc.extraArtists } : {}),
+      ...(pc.feat.length ? { feat: pc.feat } : {}),
+      ...(pc.beatmakers.length ? { beatmakers: pc.beatmakers } : {}),
     });
   }
   const profileLabel = String(data?.user?.username || data?.user?.permalink || profileUrl);
