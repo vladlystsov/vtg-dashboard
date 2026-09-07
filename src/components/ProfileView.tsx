@@ -11,8 +11,7 @@ import {
   findTitleDuplicates,
   persistItems,
   sanitizePlatformUrl,
-  isSoundCloudHost,
-  isYouTubeHost,
+  parsePlatformLinks,
   type ImportedItem,
 } from '../services/platformImportService';
 
@@ -75,25 +74,12 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
 
   const validateLink = (url: string, platform: 'youtube' | 'soundcloud'): 'valid' | 'invalid' | 'empty' => {
     const t = url.trim();
-    if (!t) {
-      return 'empty';
-    }
-    const parsed = (() => {
-      try {
-        return new URL(t);
-      } catch {
-        try {
-          return new URL(`https://${t}`);
-        } catch {
-          return null;
-        }
-      }
-    })();
-    if (!parsed) return 'invalid';
-    if (platform === 'youtube') {
-      return isYouTubeHost(parsed.href) ? 'valid' : 'invalid';
-    }
-    return isSoundCloudHost(parsed.href) ? 'valid' : 'invalid';
+    if (!t) return 'empty';
+    // В поле можно вставить сразу несколько ссылок (через запятую или с новой
+    // строки) — ссылка считается валидной, если нашлась хотя бы одна.
+    const links = parsePlatformLinks(t, platform);
+    if (links.length === 0) return 'invalid';
+    return 'valid';
   };
 
   const normalizeChannelUrl = (url: string, platform: 'youtube' | 'soundcloud'): string => {
@@ -126,8 +112,14 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
       );
       return;
     }
-    const yt = youtubeUrl.trim() ? normalizeChannelUrl(sanitizePlatformUrl(youtubeUrl), 'youtube') : '';
-    const sc = soundcloudUrl.trim() ? normalizeChannelUrl(sanitizePlatformUrl(soundcloudUrl), 'soundcloud') : '';
+    // В каждом поле может быть несколько ссылок. Для «канала» в шапке профиля
+    // оставляем только первую ссылку, а импортируем сразу все введённые.
+    const ytLinks = parsePlatformLinks(youtubeUrl, 'youtube');
+    const scLinks = parsePlatformLinks(soundcloudUrl, 'soundcloud');
+    const ytAll = youtubeUrl.trim() ? normalizeChannelUrl(sanitizePlatformUrl(youtubeUrl), 'youtube') : '';
+    const scAll = soundcloudUrl.trim() ? normalizeChannelUrl(sanitizePlatformUrl(soundcloudUrl), 'soundcloud') : '';
+    const yt = ytLinks[0] || '';
+    const sc = scLinks[0] || '';
     setSaving(true);
     try {
       await updateMyProfile(profile!.uid, {
@@ -163,14 +155,15 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         }
       };
 
-      if (yt) {
-        const r = await fetchYouTubeItems(yt);
+      if (ytAll) {
+        // ytAll может содержать несколько ссылок — parsePlatformLinks внутри fetch сам разберёт список.
+        const r = await fetchYouTubeItems(ytAll);
         collect(r.items);
         parts.push(`YouTube: найдено ${r.items.length}`);
         platformErrors.push(...r.warnings.map((w) => `• YouTube: ${w}`));
       }
-      if (sc) {
-        const r = await fetchSoundCloudItems(sc);
+      if (scAll) {
+        const r = await fetchSoundCloudItems(scAll);
         collect(r.items);
         parts.push(`SoundCloud: найдено ${r.items.length}`);
         platformErrors.push(...r.warnings.map((w) => `• SoundCloud: ${w}`));
@@ -293,7 +286,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
 
         <div className="profile-form-section">
           <h3>Мои каналы</h3>
-          <p className="form-hint">Укажи ссылки на свои каналы — они появятся в шапке профиля. По кнопке &laquo;Импортировать из каналов&raquo; релизы (треки) с этих страниц будут добавлены в кабинет: с YouTube — по ссылке на видео или через список канала, с SoundCloud — по ссылке на конкретный трек (on.soundcloud.com тоже подходит). Можно указать только одну из площадок.</p>
+          <p className="form-hint">Укажи ссылки на свои каналы — они появятся в шапке профиля. По кнопке &laquo;Импортировать из каналов&raquo; релизы (треки) с этих страниц будут добавлены в кабинет: с YouTube — по ссылке на видео или через список канала, с SoundCloud — по ссылке на конкретный трек. В одно поле можно вставить сразу несколько ссылок подряд (через запятую или с новой строки) — они все будут импортированы, а в шапке профиля покажется первая. Можно указать только одну из площадок.</p>
 
           <div className="form-group">
             <label>YouTube</label>
@@ -301,7 +294,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
               type="url"
               value={youtubeUrl}
               onChange={(e) => setYoutubeUrl(e.target.value)}
-              placeholder="https://www.youtube.com/@channel или видео"
+              placeholder="https://www.youtube.com/@channel или видео (можно несколько)"
             />
             <div className={`link-status ${linkStatus.youtube === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.youtube === 'valid' ? 'link-status-valid' : ''}`}>
               {linkStatus.youtube === 'invalid' && '⚠️ Это не похоже на ссылку YouTube'}
@@ -315,7 +308,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
               type="url"
               value={soundcloudUrl}
               onChange={(e) => setSoundcloudUrl(e.target.value)}
-              placeholder="https://soundcloud.com/artist или on.soundcloud.com/…"
+              placeholder="https://soundcloud.com/artist/трек или on.soundcloud.com/… (можно несколько)"
             />
             <div className={`link-status ${linkStatus.soundcloud === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.soundcloud === 'valid' ? 'link-status-valid' : ''}`}>
               {linkStatus.soundcloud === 'invalid' && '⚠️ Это не похоже на ссылку SoundCloud'}

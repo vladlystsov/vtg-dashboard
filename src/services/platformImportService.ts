@@ -54,6 +54,31 @@ export function sanitizePlatformUrl(url: string): string {
 }
 
 /**
+ * Разбирает поле ввода на отдельные ссылки одной площадки.
+ * Пользователь может вставить сразу несколько ссылок — через запятую,
+ * пробел или с новой строки (например, список треков из профиля).
+ * Каждая ссылка чинится (sanitizePlatformUrl), дубликаты отбрасываются.
+ */
+export function parsePlatformLinks(input: string, platform: 'youtube' | 'soundcloud'): string[] {
+  const parts = String(input || '')
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const p of parts) {
+    const u = sanitizePlatformUrl(p);
+    const ok = platform === 'soundcloud' ? isSoundCloudHost(u) : isYouTubeHost(u);
+    if (!ok) continue;
+    const key = u.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(u);
+  }
+  return out;
+}
+
+/**
  * Похоже ли на ссылку на конкретный трек, а не профиль/плейлист:
  * короткие on.soundcloud.com/... и ссылки вида soundcloud.com/user/track.
  */
@@ -126,23 +151,63 @@ async function importViaYouTubeOEmbed(url: string): Promise<ImportedItem[]> {
   ];
 }
 
-async function importViaSoundCloudOEmbed(url: string): Promise<ImportedItem[]> {
+/**
+ * Тип объекта SoundCloud, определённый по oEmbed-ответу.
+ * SoundCloud в iframe плеера зашивает внутренний URL
+ * api.soundcloud.com/{tracks|playlists|users}/{id} — по нему надёжно
+ * отличаем трек от плейлиста и профиля (страницы пользователя).
+ */
+export type SoundCloudEmbedType = 'track' | 'playlist' | 'profile' | 'unknown';
+
+export function extractSoundCloudEmbedType(iframeHtml: string): SoundCloudEmbedType {
+  let decoded = iframeHtml || '';
+  try {
+    // В html могут встречаться «голые» % (например width="100%") — decodeURIComponent
+    // на них бросает URIError, поэтому оборачиваем.
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    // оставляем строку как есть — регекс ниже матчит и закодированный, и сырой вид
+  }
+  const m = /api\.soundcloud\.com(?:\/|%2F)(tracks|playlists|users)(?:\/|%2F)/i.exec(decoded);
+  if (!m) {
+    // Страховка: без явного /tracks|playlists|users/ объект не похож на трек —
+    // импорт такого «трека» даст ошибку плеера «You have not provided a
+    // valid SoundCloud URL».
+    return 'unknown';
+  }
+  if (m[1] === 'users') return 'profile';
+  if (m[1] === 'tracks') return 'track';
+  return 'playlist';
+}
+
+interface SoundCloudEmbedResult {
+  items: ImportedItem[];
+  type: SoundCloudEmbedType;
+  /** Имя профиля, если ссылка вела на страницу пользователя (а не на трек). */
+  profileName?: string;
+}
+
+async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedResult> {
   const j = await fetchJson(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`);
   const title = String(j.title || '').trim();
   const author = String(j.author_name || '').trim();
-  if (!title) return [];
-  // oEmbed также отвечает на профили/главные страницы, но импортировать можно только
-  // конкретные треки/плейлисты — иначе в плеере SoundCloud появится
-  // «You have not provided a valid SoundCloud URL».
-  if (!isSoundCloudTrackUrl(url)) return [];
-  return [
-    {
-      title,
-      url: sanitizePlatformUrl(url),
-      author,
-      thumbnail: j.thumbnail_url ? String(j.thumbnail_url) : undefined,
-    },
-  ];
+  const type = j.html ? extractSoundCloudEmbedType(String(j.html)) : 'unknown';
+  if (!title) return { items: [], type };
+  // Профиль (страница пользователя) импортировать как трек нельзя — получится
+  // мусорная карточка, а плеер не сможет её проиграть. Трек/плейлист — можно.
+  if (type === 'profile') return { items: [], type, profileName: author };
+  if (type === 'unknown') return { items: [], type };
+  return {
+    items: [
+      {
+        title,
+        url: sanitizePlatformUrl(url),
+        author,
+        thumbnail: j.thumbnail_url ? String(j.thumbnail_url) : undefined,
+      },
+    ],
+    type,
+  };
 }
 
 async function importYouTubeChannelRss(channelId: string): Promise<ImportedItem[]> {
@@ -235,55 +300,78 @@ export async function persistItems(items: ImportedItem[], opts: ImportOptions): 
   return imported;
 }
 
-export async function fetchYouTubeItems(url: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
+export async function fetchYouTubeItems(input: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
   const warnings: string[] = [];
-  const trimmed = sanitizePlatformUrl(url);
-  let items: ImportedItem[] = [];
-  try {
-    const vid = youtubeVideoId(trimmed);
-    if (vid) {
-      items = await importViaYouTubeOEmbed(trimmed);
-      if (items.length === 0) warnings.push('YouTube не вернул данные по видео.');
-    } else {
-      const channelId = extractYouTubeChannelId(trimmed);
-      if (!channelId) {
-        warnings.push('Ссылка должна быть на видео (watch?v=...) или канал вида .../channel/ID.');
+  const urls = parsePlatformLinks(input, 'youtube');
+  if (urls.length === 0) {
+    warnings.push(
+      'Не найдено ссылок YouTube. Вставьте ссылку на видео или канал — можно несколько сразу (через запятую или с новой строки).'
+    );
+    return { items: [], warnings };
+  }
+  const items: ImportedItem[] = [];
+  for (const trimmed of urls) {
+    try {
+      const vid = youtubeVideoId(trimmed);
+      if (vid) {
+        const o = await importViaYouTubeOEmbed(trimmed);
+        if (o.length === 0) warnings.push(`YouTube не вернул данные по видео «${trimmed}».`);
+        items.push(...o);
       } else {
-        try {
-          items = await importYouTubeChannelRss(channelId);
-          if (items.length === 0) warnings.push('В канале не найдено видео.');
-        } catch {
-          warnings.push(
-            'Не удалось загрузить список видео канала YouTube. Проверьте ссылку и интернет или импортируйте одиночные ссылки на видео.'
-          );
+        const channelId = extractYouTubeChannelId(trimmed);
+        if (!channelId) {
+          warnings.push(`Ссылка «${trimmed}» должна быть на видео (watch?v=...) или канал вида .../channel/ID.`);
+        } else {
+          try {
+            const rss = await importYouTubeChannelRss(channelId);
+            if (rss.length === 0) warnings.push(`В канале «${trimmed}» не найдено видео.`);
+            items.push(...rss);
+          } catch {
+            warnings.push(
+              `Не удалось загрузить список видео канала «${trimmed}». Проверьте ссылку и интернет или импортируйте одиночные ссылки на видео.`
+            );
+          }
         }
       }
+    } catch (e: any) {
+      warnings.push(`YouTube: ${e?.message || 'сеть недоступна'}. Проверьте ссылку «${trimmed}» и интернет.`);
     }
-  } catch (e: any) {
-    warnings.push(`YouTube: ${e?.message || 'сеть недоступна'}. Проверьте ссылку и интернет.`);
   }
   return { items, warnings };
 }
 
-export async function fetchSoundCloudItems(url: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
+export async function fetchSoundCloudItems(input: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
   const warnings: string[] = [];
-  const trimmed = sanitizePlatformUrl(url);
-  const isTrack = isSoundCloudTrackUrl(trimmed);
-  let items: ImportedItem[] = [];
-  try {
-    items = await importViaSoundCloudOEmbed(trimmed);
-    if (items.length === 0) {
+  const urls = parsePlatformLinks(input, 'soundcloud');
+  if (urls.length === 0) {
+    warnings.push(
+      'Не найдено ссылок SoundCloud. Вставьте ссылку на конкретный трек — можно несколько сразу (через запятую или с новой строки).'
+    );
+    return { items: [], warnings };
+  }
+  const items: ImportedItem[] = [];
+  const profiles: string[] = [];
+  for (const u of urls) {
+    try {
+      const r = await importViaSoundCloudOEmbed(u);
+      items.push(...r.items);
+      if (r.type === 'profile') {
+        profiles.push(r.profileName || u);
+      } else if (r.type === 'unknown') {
+        warnings.push(`SoundCloud не распознал «${u}» — вставьте ссылку на конкретный трек.`);
+      }
+    } catch (e: any) {
       warnings.push(
-        isTrack
-          ? 'SoundCloud не вернул данные по треку. Проверьте ссылку или попробуйте позже.'
-          : 'Это профиль: для импорта из SoundCloud вставьте ссылку на конкретный трек или плейлист (on.soundcloud.com тоже подходит).'
+        `SoundCloud: не удалось получить трек по «${u}» (${e?.message || 'сеть недоступна'}). Проверьте ссылку и интернет.`
       );
     }
-  } catch (e: any) {
+  }
+  if (profiles.length > 0) {
+    const names = [...new Set(profiles)].join(', ');
     warnings.push(
-      isTrack
-        ? `SoundCloud: не удалось получить трек (${e?.message || 'сеть недоступна'}). Проверьте ссылку и интернет.`
-        : 'SoundCloud: для импорта вставьте ссылку на конкретный трек или плейлист (страница профиля не поддерживается).'
+      `«${names}» — это профиль, а не трек. SoundCloud не отдаёт список треков профиля из браузера, поэтому ` +
+        'импортировать профиль целиком нельзя. Откройте профиль на SoundCloud, скопируйте ссылку на нужные треки ' +
+        'и вставьте их сюда — можно несколько сразу (через запятую или с новой строки).'
     );
   }
   return { items, warnings };
