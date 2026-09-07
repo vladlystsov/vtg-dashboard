@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import type { ArtistRole, PlaybackMode } from '../types/track';
+import type { ArtistRole, PlaybackMode, Track } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
 import { createArtistRequest } from '../services/artistRequestService';
 import { updateMyProfile } from '../services/userService';
 import { renameArtistInTracks } from '../services/trackService';
+import { importFromYouTube, importFromSoundCloud, isSoundCloudHost, isYouTubeHost } from '../services/platformImportService';
 
 const ROLE_OPTIONS: { id: ArtistRole; label: string }[] = [
   { id: 'artist', label: 'Артист' },
@@ -19,7 +20,7 @@ const ROLE_LABELS: Record<ArtistRole, string> = {
   feat: 'Гость',
 };
 
-export default function ProfileView() {
+export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
   const { profile, refreshProfile } = useAuth();
   const [artistName, setArtistName] = useState(profile?.artistName || '');
   const [roles, setRoles] = useState<ArtistRole[]>(profile?.roles || ['artist']);
@@ -29,6 +30,7 @@ export default function ProfileView() {
   const [soundcloudUrl, setSoundcloudUrl] = useState(profile?.soundcloudUrl || '');
   const [linkStatus, setLinkStatus] = useState<Record<string, 'valid' | 'invalid' | 'empty'>>({});
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -38,11 +40,11 @@ export default function ProfileView() {
       return 'empty';
     }
     try {
-      const parsed = new URL(t);
+      new URL(t);
       if (platform === 'youtube') {
-        return parsed.hostname === 'www.youtube.com' || parsed.hostname === 'youtube.com' || parsed.hostname === 'youtu.be' ? 'valid' : 'invalid';
+        return isYouTubeHost(t) ? 'valid' : 'invalid';
       }
-      return parsed.hostname === 'soundcloud.com' || parsed.hostname === 'www.soundcloud.com' ? 'valid' : 'invalid';
+      return isSoundCloudHost(t) ? 'valid' : 'invalid';
     } catch {
       return 'invalid';
     }
@@ -51,12 +53,12 @@ export default function ProfileView() {
   const normalizeChannelUrl = (url: string, platform: 'youtube' | 'soundcloud'): string => {
     const t = url.trim();
     if (!t) return t;
-    if (platform === 'soundcloud' && t.startsWith('soundcloud.com/')) {
-      return 'https://' + t;
-    }
-    if (platform === 'soundcloud' && t.startsWith('www.soundcloud.com/')) {
-      return 'https://' + t;
-    }
+    // приём без протокола: on.soundcloud.com/.., www.soundcloud.com/.., soundcloud.com/..
+    const scNoProto = /^(?:on\.|m\.|www\.)?soundcloud\.com\//i;
+    const ytNoProto = /^(?:m\.|music\.|www\.)?youtube\.com\//i;
+    const ytShortNoProto = /^youtu\.be\//i;
+    if (platform === 'soundcloud' && scNoProto.test(t)) return 'https://' + t;
+    if (platform === 'youtube' && (ytNoProto.test(t) || ytShortNoProto.test(t))) return 'https://' + t;
     return t;
   };
 
@@ -69,18 +71,51 @@ export default function ProfileView() {
     };
     setLinkStatus(statuses);
     if (statuses.youtube === 'invalid' || statuses.soundcloud === 'invalid') {
-      setError('Проверьте ссылки: YouTube должен вести на youtube.com/youtu.be, SoundCloud — на soundcloud.com.');
+      setError(
+        'Проверьте ссылки: YouTube должен вести на youtube.com/youtu.be (в т.ч. music.youtube.com), ' +
+          'SoundCloud — на soundcloud.com (в т.ч. on.soundcloud.com).'
+      );
       return;
     }
+    const yt = normalizeChannelUrl(youtubeUrl, 'youtube');
+    const sc = normalizeChannelUrl(soundcloudUrl, 'soundcloud');
     setSaving(true);
     try {
       await updateMyProfile(profile!.uid, {
-        youtubeUrl: normalizeChannelUrl(youtubeUrl, 'youtube') || undefined,
-        soundcloudUrl: normalizeChannelUrl(soundcloudUrl, 'soundcloud') || undefined,
+        youtubeUrl: yt || undefined,
+        soundcloudUrl: sc || undefined,
       });
       await refreshProfile();
-      setMessage('Ссылки сохранены.');
+      if (!yt && !sc) {
+        setMessage('Ссылки сохранены. Укажите хотя бы одну, чтобы импортировать треки.');
+        return;
+      }
+      setMessage('Ссылки сохранены. Начинаем импорт…');
+
+      setImporting(true);
+      const parts: string[] = [];
+      const platformErrors: string[] = [];
+      if (yt) {
+        const r = await importFromYouTube(yt, { uid: profile!.uid, existingTracks: tracks });
+        parts.push(`YouTube: +${r.imported}, пропущено ${r.skipped}`);
+        platformErrors.push(...r.warnings.map((w) => `• ${w}`));
+      }
+      if (sc) {
+        const r = await importFromSoundCloud(sc, { uid: profile!.uid, existingTracks: tracks });
+        parts.push(`SoundCloud: +${r.imported}, пропущено ${r.skipped}`);
+        platformErrors.push(...r.warnings.map((w) => `• ${w}`));
+      }
+      setImporting(false);
+      const importedTotal = parts.join('; ');
+      if (platformErrors.length > 0) {
+        setMessage(`Импортировано: ${importedTotal}`);
+        setError(platformErrors.join('\n'));
+        return;
+      }
+      setMessage(`Импортировано: ${importedTotal}. Треки появились в разделе «Треки».`);
+      void refreshProfile();
     } catch (e: any) {
+      setImporting(false);
       setError(e?.message || 'Не удалось сохранить ссылки.');
     } finally {
       setSaving(false);
@@ -167,7 +202,7 @@ export default function ProfileView() {
 
         <div className="profile-form-section">
           <h3>Мои каналы</h3>
-          <p className="form-hint">Укажи ссылки на свои каналы — они появятся в шапке профиля. По кнопке &laquo;Импортировать&raquo; релизы с этих страниц будут добавлены в кабинет из импортированных треков.</p>
+          <p className="form-hint">Укажи ссылки на свои каналы — они появятся в шапке профиля. По кнопке &laquo;Импортировать из каналов&raquo; релизы (треки) с этих страниц будут добавлены в кабинет: с YouTube — по ссылке на видео или через список канала, с SoundCloud — по ссылке на конкретный трек (on.soundcloud.com тоже подходит). Можно указать только одну из площадок.</p>
 
           <div className="form-group">
             <label>YouTube</label>
@@ -175,7 +210,7 @@ export default function ProfileView() {
               type="url"
               value={youtubeUrl}
               onChange={(e) => setYoutubeUrl(e.target.value)}
-              placeholder="https://www.youtube.com/@channel"
+              placeholder="https://www.youtube.com/@channel или видео"
             />
             <div className={`link-status ${linkStatus.youtube === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.youtube === 'valid' ? 'link-status-valid' : ''}`}>
               {linkStatus.youtube === 'invalid' && '⚠️ Это не похоже на ссылку YouTube'}
@@ -189,7 +224,7 @@ export default function ProfileView() {
               type="url"
               value={soundcloudUrl}
               onChange={(e) => setSoundcloudUrl(e.target.value)}
-              placeholder="https://soundcloud.com/artist"
+              placeholder="https://soundcloud.com/artist или on.soundcloud.com/…"
             />
             <div className={`link-status ${linkStatus.soundcloud === 'invalid' ? 'link-status-invalid' : ''} ${linkStatus.soundcloud === 'valid' ? 'link-status-valid' : ''}`}>
               {linkStatus.soundcloud === 'invalid' && '⚠️ Это не похоже на ссылку SoundCloud'}
@@ -197,8 +232,8 @@ export default function ProfileView() {
             </div>
           </div>
 
-          <button className="btn-primary" onClick={handleUpdateLinks} disabled={saving}>
-            Импортировать из каналов
+          <button className="btn-primary" onClick={handleUpdateLinks} disabled={saving || importing}>
+            {importing ? 'Импортируем треки…' : 'Импортировать из каналов'}
           </button>
           {message && <div className="success-msg">{message}</div>}
           {error && <div className="error-msg">{error}</div>}

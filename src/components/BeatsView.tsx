@@ -9,7 +9,7 @@ import {
 } from '../types/beat';
 import { detectPlatform, type PlatformKind } from '../types/track';
 import { useShippedPlayerManager, shippedFromUrl, ShippedMini } from './ShippedPlayer';
-import { PlatformPlayer } from './TracksListView';
+import { PlatformPlayer, DownloadAudioButton } from './TracksListView';
 import { checkBeatAudioFile } from '../services/archiveService';
 import { listCachedAudio, deleteCachedAudio, clearAudioCache, onAudioCacheChange } from '../services/audioCacheService';
 
@@ -646,15 +646,7 @@ export default function BeatsView({
                               </button>
                             )}
                             {beatPlatform(b) === 'audio' && b.platformUrl && (
-                              <a
-                                className="at-download"
-                                href={b.platformUrl}
-                                download
-                                title="Скачать аудио"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                ⬇
-                              </a>
+                              <DownloadAudioButton url={b.platformUrl} title={b.title} />
                             )}
                           </div>
                           {playable && b.platformUrl && (
@@ -736,21 +728,9 @@ export default function BeatsView({
                 >
                   <div className="beat-card-title-row">
                     <span className="beat-card-title">{b.title}</span>
-                    {b.collection && (
-                      <span className="beat-chip beat-collection-chip" title="Сборник">
-                        {b.collection}
-                      </span>
-                    )}
                     <div className="beat-card-title-actions">
                       {beatPlatform(b) === 'audio' && !!b.platformUrl && (
-                        <a
-                          className="at-download"
-                          href={b.platformUrl}
-                          title="Скачать аудио"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          ⬇
-                        </a>
+                        <DownloadAudioButton url={b.platformUrl} title={b.title} />
                       )}
                       {le && (
                         <button
@@ -769,6 +749,11 @@ export default function BeatsView({
                       )}
                     </div>
                   </div>
+                  {b.collection && (
+                    <div className="beat-collection-row" title={`Сборник: ${b.collection}`}>
+                      <span className="beat-chip beat-collection-chip">{b.collection}</span>
+                    </div>
+                  )}
                   <div className="beat-card-tags">
                     {!!b.bpm && <span className="beat-chip">{b.bpm} BPM</span>}
                     {!!b.key && <span className="beat-chip">{b.key}</span>}

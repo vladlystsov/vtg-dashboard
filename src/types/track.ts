@@ -40,6 +40,29 @@ export const PROJECT_VOCAL_TYPES: ProjectVocalType[] = [
   'mastered',
 ];
 
+// Этап конвейера для версии проекта (звукорежиссёр)
+export type ProjectStage = 'mixing' | 'review' | 'mastering' | 'ready';
+
+export const PROJECT_STAGE_LABELS: Record<ProjectStage, string> = {
+  mixing: 'Сведение',
+  review: 'На проверке',
+  mastering: 'Мастеринг',
+  ready: 'Готово',
+};
+
+export const PROJECT_STAGES: ProjectStage[] = ['mixing', 'review', 'mastering', 'ready'];
+
+// DAW, в котором собрана версия проекта
+export type ProjectDaw = 'fl' | 'trackout' | 'other';
+
+export const PROJECT_DAW_LABELS: Record<ProjectDaw, string> = {
+  fl: 'FL Studio',
+  trackout: 'Трекаут',
+  other: 'Другое',
+};
+
+export const PROJECT_DAWS: ProjectDaw[] = ['fl', 'trackout', 'other'];
+
 export type ChecklistStatus = 'pending' | 'in_progress' | 'done' | 'review' | 'verified';
 
 export type UserRole = 'member' | 'admin' | 'owner';
@@ -126,6 +149,9 @@ export interface Track {
   projectZipError?: string;
   projectVariant?: ProjectVariant;
   projectVocalType?: ProjectVocalType;
+  // DAW, в котором сделан проект трека
+  projectDaw?: ProjectDaw;
+  projectDawVersion?: string;
   // Персональная обложка трека в альбоме (если отличается от обложки альбома)
   personalCoverUrl?: string;
   // Список загруженных на Archive.org проектов (.zip), привязанных к этому треку
@@ -154,7 +180,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
-  // Сопутствующая информация проекта (задаётся в окне создания/редактирования)
+// Сопутствующая информация проекта (задаётся в окне создания/редактирования)
   description?: string;
   coverUrl?: string;
   tags?: string[];
@@ -162,6 +188,14 @@ export interface Project {
   artistUids?: string[];
   genre?: string;
   status?: TrackStatus;
+  // --- Новая модель: одна запись = одна версия проекта ---
+  trackIds?: string[];
+  variant?: ProjectVariant;
+  vocalType?: ProjectVocalType;
+  daw?: ProjectDaw;
+  dawVersion?: string;
+  stage?: ProjectStage;
+  active?: boolean;
 }
 
 export type PlatformKind = 'soundcloud' | 'youtube' | 'yandex' | 'vkontakte' | 'audio' | 'other';

@@ -153,6 +153,7 @@ body {
   border-radius: var(--radius-sm);
   font-size: 13px;
   border: 1px solid rgba(220,38,38,0.2);
+  white-space: pre-line;
 }
 
 .btn-toggle {
@@ -236,6 +237,14 @@ body {
   font-size: 13px;
   cursor: pointer;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  flex: none;
+  align-self: flex-start;
+  width: auto;
+  padding: 4px 0;
 }
 
 .btn-add-inline:hover {
@@ -720,8 +729,13 @@ body {
   background: var(--gray-100);
   border-style: dashed;
   border-color: var(--gray-300);
-  min-height: 120px;
-  align-self: start;
+  min-height: 220px;
+  align-self: stretch;
+}
+
+.kanban-column-archive .column-body {
+  max-height: 220px;
+  overflow-y: auto;
 }
 
 .kanban-column-archive-window {
@@ -2711,6 +2725,46 @@ body {
   color: var(--blue-600);
 }
 
+.at-download-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.at-downloading-badge {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--blue-600);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: var(--shadow-sm);
+  animation: at-download-pop 0.15s ease-out;
+}
+
+.at-downloading-badge.at-downloaded {
+  background: var(--green-600);
+}
+
+@keyframes at-download-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
 .at-cover {
   width: 34px;
   height: 34px;
@@ -4176,6 +4230,20 @@ body {
   color: var(--blue-800);
 }
 
+.beat-collection-row {
+  display: flex;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+
+.beat-collection-row .beat-collection-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
 .beat-card-title-row .at-download,
 .beat-card-title-row .at-delete {
   width: 26px;
@@ -4517,6 +4585,226 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+/* ===== Релизы и версии (Проекты) ===== */
+.projects-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.release-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.release-card-cover {
+  height: 132px;
+  background: var(--gray-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.release-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.release-cover-fallback {
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--gray-300);
+}
+
+.release-card-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.release-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.release-card-title {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--gray-800);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.release-active-chip {
+  background: var(--green-100);
+  color: var(--green-800);
+}
+
+.release-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.release-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.release-version {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  background: var(--gray-50);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.release-version-active {
+  border-color: var(--green-400);
+  background: var(--green-50);
+}
+
+.release-version-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.release-version-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--gray-800);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+
+.release-version-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.release-version-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.release-version-zip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.release-multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 6px;
+}
+
+.release-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+}
+
+.release-option:hover {
+  background: var(--gray-100);
+}
+
+.release-option-title {
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: var(--gray-700);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-option-title.checked {
+  color: var(--blue-700);
+  font-weight: 700;
+}
+
+/* ===== Хранилище (админ) ===== */
+.storage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.storage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--gray-50);
+  flex-wrap: wrap;
+}
+
+.storage-path {
+  flex: 1 1 auto;
+  min-width: 160px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.storage-size {
+  font-size: 12px;
+  color: var(--gray-500);
+  flex-shrink: 0;
+}
+
+.storage-time {
+  font-size: 12px;
+  color: var(--gray-400);
+  flex-shrink: 0;
 }
 
 .archive-item-size,

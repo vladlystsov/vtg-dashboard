@@ -387,12 +387,16 @@ function useCachedAudioIds(): Set<string> {
   return ids;
 }
 
-function DownloadAudioButton({ url, title }: { url?: string; title: string }) {
+export function DownloadAudioButton({ url, title, className }: { url?: string; title: string; className?: string }) {
+  const [downloading, setDownloading] = useState(false);
+  const [done, setDone] = useState(false);
   if (!url || detectPlatform(url) !== 'audio') return null;
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     let blobUrl: string | null = null;
+    setDownloading(true);
+    setDone(false);
     try {
       const res = await fetch(url, { mode: 'cors' });
       if (!res.ok) throw new Error();
@@ -400,6 +404,7 @@ function DownloadAudioButton({ url, title }: { url?: string; title: string }) {
       blobUrl = URL.createObjectURL(blob);
     } catch {
       window.open(url, '_blank', 'noopener');
+      setDownloading(false);
       return;
     }
     const a = document.createElement('a');
@@ -409,16 +414,26 @@ function DownloadAudioButton({ url, title }: { url?: string; title: string }) {
     a.click();
     a.remove();
     setTimeout(() => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, 4000);
+    setDownloading(false);
+    setDone(true);
+    setTimeout(() => setDone(false), 2000);
   };
   return (
-    <a
-      className="at-download"
-      href={url}
-      title="Скачать mp3"
-      onClick={handleDownload}
-    >
-      ⬇
-    </a>
+    <span className={`at-download-wrap ${className || ''}`} onClick={(e) => e.stopPropagation()}>
+      {(downloading || done) && (
+        <span className={`at-downloading-badge ${done ? 'at-downloaded' : ''}`}>
+          {done ? '✓ Скачано' : 'Загрузка…'}
+        </span>
+      )}
+      <a
+        className="at-download"
+        href={url}
+        title="Скачать mp3"
+        onClick={handleDownload}
+      >
+        ⬇
+      </a>
+    </span>
   );
 }
 

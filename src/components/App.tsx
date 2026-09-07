@@ -414,13 +414,13 @@ export default function App() {
   const handleSaveProject = async (
     id: string | null,
     data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>
-  ) => {
+  ): Promise<string | undefined> => {
     if (id) {
       const { createdBy, ...patch } = data as any;
       await updateProject(id, patch as any);
-    } else {
-      await createProject({ ...data, createdBy: data.createdBy || profile?.uid || '' } as any);
+      return id;
     }
+    return createProject({ ...data, createdBy: data.createdBy || profile?.uid || '' } as any);
   };
 
   const handleDeleteProject = async (id: string) => {
@@ -555,7 +555,7 @@ export default function App() {
           />
         )}
 
-        {view === 'profile' && <ProfileView />}
+        {view === 'profile' && <ProfileView tracks={tracks} />}
 
         {view === 'admin' && isRoleAllowed && (
           <AdminPanel

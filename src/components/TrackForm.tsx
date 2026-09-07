@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile, ProjectVariant, ProjectVocalType } from '../types/track';
-import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform, youtubeVideoId, PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS, PROJECT_VOCAL_TYPES } from '../types/track';
+import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile, ProjectVariant, ProjectVocalType, ProjectDaw } from '../types/track';
+import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform, youtubeVideoId, PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS, PROJECT_VOCAL_TYPES, PROJECT_DAW_LABELS, PROJECT_DAWS } from '../types/track';
 import { PlatformPlayer } from './TracksListView';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
@@ -180,6 +180,8 @@ export default function TrackForm({
   const [projectZipFile, setProjectZipFile] = useState<File | null>(null);
   const [projectVariant, setProjectVariant] = useState<ProjectVariant>(initialTrack?.projectVariant || 'main');
   const [projectVocalType, setProjectVocalType] = useState<ProjectVocalType | undefined>(initialTrack?.projectVocalType);
+  const [projectDaw, setProjectDaw] = useState<ProjectDaw | undefined>(initialTrack?.projectDaw);
+  const [projectDawVersion, setProjectDawVersion] = useState(initialTrack?.projectDawVersion || '');
   const [personalCoverFile, setPersonalCoverFile] = useState<File | null>(null);
   const [personalCoverUrl, setPersonalCoverUrl] = useState(initialTrack?.personalCoverUrl || '');
   const [personalCoverPreview, setPersonalCoverPreview] = useState<string | null>(initialTrack?.personalCoverUrl || null);
@@ -433,6 +435,8 @@ export default function TrackForm({
         platformUrl: platformUrl.trim() || undefined,
         projectVariant,
         projectVocalType,
+        projectDaw,
+        projectDawVersion: projectDawVersion.trim() || undefined,
         personalCoverUrl: finalPersonalCoverUrl.trim() || undefined,
         ...(projectZipFile ? {
           projectZipStatus: 'uploading' as const,
@@ -787,6 +791,26 @@ export default function TrackForm({
                 в Archive.org после сохранения.
               </div>
             )}
+            <div className="form-row" style={{ marginTop: 8 }}>
+              <div className="form-group">
+                <label>DAW</label>
+                <select value={projectDaw || ''} onChange={(e) => setProjectDaw((e.target.value || undefined) as ProjectDaw | undefined)}>
+                  <option value="">—</option>
+                  {PROJECT_DAWS.map((d) => (
+                    <option key={d} value={d}>{PROJECT_DAW_LABELS[d]}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Версия DAW</label>
+                <input
+                  type="text"
+                  value={projectDawVersion}
+                  onChange={(e) => setProjectDawVersion(e.target.value)}
+                  placeholder={projectDaw === 'fl' ? '25' : ''}
+                />
+              </div>
+            </div>
             {(initialTrack?.projectZips || []).length > 0 && (
               <div className="track-projects-list" style={{ marginTop: 8 }}>
                 <div className="form-hint" style={{ marginBottom: 4 }}>Загруженные проекты трека:</div>

@@ -162,6 +162,12 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const ytTimerRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeEngineRef = useRef<'sc' | 'yt' | 'audio'>('sc');
+  // Флаги "этот движок сейчас нужен, чтобы звучал". Нужны, чтобы отменять
+  // отложенное автовоспроизведение другого движка при быстром переключении
+  // (например: нажали сайтовый трек и, не дожидаясь прогрузки, ушли на локальный —
+  // сайтовый плеер не должен начать играть после того, как заиграл локальный).
+  const scWantedRef = useRef(false);
+  const ytWantedRef = useRef(false);
   const lookupRef = useRef<Map<string, ShippedTrackItem>>(new Map());
   const objectUrlRef = useRef<Map<string, string>>(new Map());
 
@@ -283,6 +289,10 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       const isYt = itemKind(item) === 'youtube';
       const isAudio = itemKind(item) === 'audio';
       activeEngineRef.current = isYt ? 'yt' : isAudio ? 'audio' : 'sc';
+      // Помечаем нужный движок, остальным запрещаем автовоспроизведение,
+      // которое могло быть отложено (файл/виджет ещё грузится).
+      scWantedRef.current = !isAudio && !isYt;
+      ytWantedRef.current = isYt;
       if (isYt) {
         pauseSc();
         pauseAudio();
@@ -464,6 +474,16 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               if (activeEngineRef.current === 'sc') handleFinishRef.current();
             });
             w.bind((window as any).SC.Widget.Events.PLAY, () => {
+              if (!scWantedRef.current) {
+                // Движок проигрывал, но им больше не пользуются (например, в момент
+                // загрузки переключились на локальный трек) — немедленно ставим паузу.
+                try {
+                  w.pause();
+                } catch {
+                  /* ignore */
+                }
+                return;
+              }
               if (activeEngineRef.current === 'sc') setPlaying(true);
             });
             w.bind((window as any).SC.Widget.Events.PAUSE, () => {
@@ -500,7 +520,14 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               ytReadyRef.current = true;
               const pid = pendingYtIdRef.current;
               pendingYtIdRef.current = null;
-              if (pid) ytPlayerRef.current.loadVideoById(pid);
+              if (pid) {
+                if (ytWantedRef.current && activeEngineRef.current === 'yt') {
+                  ytPlayerRef.current.loadVideoById(pid);
+                } else {
+                  // Пока не нужен — просто подгружаем превью, не запускаем звук
+                  ytPlayerRef.current.cueVideoById(pid);
+                }
+              }
               const cur = currentIdRef.current;
               const item = cur ? lookupRef.current.get(cur) : null;
               if (item && itemKind(item) === 'youtube') {
@@ -516,6 +543,15 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               if (activeEngineRef.current !== 'yt') return;
               const code = s.data;
               if (code === 1) {
+                if (!ytWantedRef.current) {
+                  // Видео начало играть, хотя им больше не пользуются — ставим паузу.
+                  try {
+                    ytPlayerRef.current.pauseVideo();
+                  } catch {
+                    /* ignore */
+                  }
+                  return;
+                }
                 setPlaying(true);
                 startYtTimer();
               } else if (code === 2) {
@@ -582,6 +618,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       ytPlayerRef.current = null;
       ytReadyRef.current = false;
       pendingYtIdRef.current = null;
+      scWantedRef.current = false;
+      ytWantedRef.current = false;
       audioRef.current?.remove();
       audioRef.current = null;
       objectUrlRef.current.forEach((u) => URL.revokeObjectURL(u));
