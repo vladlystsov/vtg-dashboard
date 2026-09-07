@@ -49,7 +49,15 @@ assert(r.statusCode === 200 && j.items.length === 3, `ссылка …/tracks р
 r = await call('/api/soundcloud-profile');
 assert(r.statusCode === 400, `без url → 400 (${r.statusCode})`);
 r = await call('/api/soundcloud-profile?url=https://on.soundcloud.com/abc123');
-assert(r.statusCode === 400, `короткая ссылка → 400 (${r.statusCode})`);
+assert(r.statusCode === 400, `несуществующая короткая ссылка → 400 (${r.statusCode})`);
+// 3а. Реальная короткая ссылка «Поделиться профилем» → раскрывается в профиль
+r = await call('/api/soundcloud-profile?url=https://on.soundcloud.com/uBLHxrBcXfnTEBK0sf&limit=3');
+j = r.body ? JSON.parse(r.body.replace(/^﻿/, '')) : null;
+assert(
+  r.statusCode === 200 && j && j.user && j.user.username === 'FLEXXXY',
+  `короткая ссылка на профиль → 200 FLEXXXY (${r.statusCode})`
+);
+assert(j && Array.isArray(j.items) && j.items.length === 3, `короткая ссылка: items.length = 3 (${j && j.items && j.items.length})`);
 r = await call('/api/soundcloud-profile?url=https://example.com/foo');
 assert(r.statusCode === 400, `чужой хост → 400 (${r.statusCode})`);
 r = await call('/api/soundcloud-profile?url=https://soundcloud.com/_no_such_user_xyz_1234567890');

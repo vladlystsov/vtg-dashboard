@@ -84,6 +84,76 @@ function extractProfilePermalink(rawUrl) {
   if (segs.length === 0) return null;
   return segs[0];
 }
+/** Короткие домены SoundCloud для «Поделиться» (ведут и на треки, и на профили). */
+const SHORT_SC_HOSTS = new Set(['on.soundcloud.com', 'snd.sc']);
+
+/** Разделы страницы профиля (второй сегмент пути после пермалинка пользователя). */
+const SC_PROFILE_SECTIONS =
+  /^(tracks|likes|reposts|comments|followers|followings|sets|podcasts|albums|spotlights)$/i;
+
+function isShortScUrl(rawUrl) {
+  let u = String(rawUrl || '').trim();
+  if (!u) return false;
+  if (!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+  try {
+    return SHORT_SC_HOSTS.has(new URL(u).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Раскрывает короткую ссылку (on.soundcloud.com/…, snd.sc/…) в полный URL,
+ * следуя за редиректами и не скачивая тело ответа. null — раскрыть не удалось.
+ * Из браузера цель редиректа не видна (opaque-ответ), поэтому делаем это здесь.
+ */
+async function followShortLink(shortUrl, maxHops = 3) {
+  let current = shortUrl;
+  for (let hop = 0; hop < maxHops; hop++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    let res;
+    try {
+      res = await fetch(current, {
+        redirect: 'manual',
+        signal: ctrl.signal,
+        headers: {
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          accept: 'text/html',
+        },
+      });
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+    const loc = res.headers.get('location');
+    if (!/^3\d\d$/.test(String(res.status)) || !loc) return null;
+    let next;
+    try {
+      next = new URL(loc, current).toString();
+    } catch {
+      return null;
+    }
+    const h = new URL(next).hostname.toLowerCase();
+    if (h.endsWith('soundcloud.com') && !SHORT_SC_HOSTS.has(h)) return next;
+    current = next;
+  }
+  return null;
+}
+
+/** По полному URL: ведёт ли он на трек/плейлист, а не на страницу профиля. */
+function looksLikeTrackOrPlaylistUrl(url) {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    if (h !== 'soundcloud.com' && !h.endsWith('.soundcloud.com')) return false;
+    const segs = u.pathname.split('/').filter(Boolean);
+    return segs.length >= 2 && !SC_PROFILE_SECTIONS.test(segs[1]);
+  } catch {
+    return false;
+  }
+}
 
 function artworkFor(track, user) {
   const a =
@@ -131,10 +201,31 @@ export default async function handler(req, res) {
     return;
   }
 
-  const permalink = extractProfilePermalink(q.get('url') || '');
+  let permalink = extractProfilePermalink(q.get('url') || '');
+  if (!permalink) {
+    // Короткой ссылкой (on.soundcloud.com/…) делятся и профилями тоже —
+    // раскрываем редирект серверно: из браузера цель редиректа не видна.
+    const raw = String(q.get('url') || '').trim();
+    if (isShortScUrl(raw)) {
+      const target = await followShortLink(
+        /^https?:\/\//i.test(raw) ? raw : 'https://' + raw.replace(/^\/+/, '')
+      );
+      if (target) {
+        if (looksLikeTrackOrPlaylistUrl(target)) {
+          send(res, 400, {
+            error:
+              'Короткая ссылка ведёт на трек/плейлист, а не на профиль. Вставьте полную ссылку на трек (https://soundcloud.com/…) — он импортируется как отдельный трек, или ссылку на профиль вида https://soundcloud.com/<пермалинк>.',
+          });
+          return;
+        }
+        permalink = extractProfilePermalink(target);
+      }
+    }
+  }
   if (!permalink) {
     send(res, 400, {
-      error: 'Ожидается ссылка на профиль вида https://soundcloud.com/<пермалинк>.',
+      error:
+        'Ожидается ссылка на профиль вида https://soundcloud.com/<пермалинк> (короткие ссылки on.soundcloud.com/… тоже поддерживаются).',
     });
     return;
   }

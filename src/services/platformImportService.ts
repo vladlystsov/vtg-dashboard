@@ -217,6 +217,11 @@ interface SoundCloudEmbedResult {
   type: SoundCloudEmbedType;
   /** Имя профиля, если ссылка вела на страницу пользователя (а не на трек). */
   profileName?: string;
+  /**
+   * Канонический URL профиля из oEmbed (author_url). Короткие ссылки
+   * on.soundcloud.com/… в прокси отправлять не нужно — отправляем полный URL.
+   */
+  profileUrl?: string;
 }
 
 async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedResult> {
@@ -227,7 +232,14 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
   if (!title) return { items: [], type };
   // Профиль (страница пользователя) импортировать как трек нельзя — получится
   // мусорная карточка, а плеер не сможет её проиграть. Трек/плейлист — можно.
-  if (type === 'profile') return { items: [], type, profileName: author };
+  if (type === 'profile') {
+    return {
+      items: [],
+      type,
+      profileName: author,
+      profileUrl: String(j.author_url || '').trim() || undefined,
+    };
+  }
   if (type === 'unknown') return { items: [], type };
   return {
     items: [
@@ -463,7 +475,9 @@ export async function fetchSoundCloudItems(input: string): Promise<{ items: Impo
       const r = await importViaSoundCloudOEmbed(u);
       items.push(...r.items);
       if (r.type === 'profile') {
-        oembedProfiles.push({ url: u, label: r.profileName || u });
+        // Отправляем в прокси канонический author_url (полный адрес профиля):
+        // исходная ссылка может быть короткой on.soundcloud.com/….
+        oembedProfiles.push({ url: r.profileUrl || u, label: r.profileName || u });
       } else if (r.type === 'unknown') {
         warnings.push(`SoundCloud не распознал «${u}» — вставьте ссылку на трек или профиль.`);
       }
