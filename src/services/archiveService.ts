@@ -73,9 +73,14 @@ async function uploadArchiveFile(params: {
   creator?: string;
   mediatype: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<{ url: string; identifier: string; ready: boolean }> {
   if (!ARCHIVE_ORG_ACCESS_KEY || !ARCHIVE_ORG_SECRET_KEY) {
     throw new Error('Ключи Archive.org не настроены на сервере');
+  }
+
+  if (params.signal?.aborted) {
+    throw new Error('Загрузка отменена');
   }
 
   const itemId = `${params.itemPrefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -105,21 +110,25 @@ async function uploadArchiveFile(params: {
   if (description) headers['x-archive-meta-description'] = `uri(${encodeURIComponent(description)})`;
   if (creator) headers['x-archive-meta-creator'] = `uri(${encodeURIComponent(creator)})`;
 
-  const put = await fetch(`${S3_HOST}/${itemId}/${filename}`, {
+    const put = await fetch(`${S3_HOST}/${itemId}/${filename}`, {
     method: 'PUT',
     headers,
     body: params.file,
+    signal: params.signal,
   });
   let last = put;
   if (!put.ok) {
     const transient = [403, 429, 500, 502, 503, 504].includes(put.status);
     if (transient) {
       await sleep(2500);
+      if (params.signal?.aborted) throw new Error('Загрузка отменена');
       for (let attempt = 0; attempt < 2; attempt++) {
+        if (params.signal?.aborted) throw new Error('Загрузка отменена');
         last = await fetch(`${S3_HOST}/${itemId}/${filename}`, {
           method: 'PUT',
           headers,
           body: params.file,
+          signal: params.signal,
         });
         if (last.ok) break;
         await sleep(attempt === 0 ? 5000 : 10000);
@@ -164,6 +173,7 @@ export async function uploadProjectZip(params: {
   title: string;
   description?: string;
   creator?: string;
+  signal?: AbortSignal;
 }): Promise<{ url: string; identifier: string; ready: boolean }> {
   const ext = (params.file.name.split('.').pop() || '').toLowerCase();
   if (ext !== 'zip') throw new Error('Проекты должны загружаться как .zip архивы');
@@ -190,36 +200,53 @@ export function publishBeatAudioInBackground(params: {
   creator?: string;
   itemPrefix?: string;
   callbacks: PublishBeatCallbacks;
+  signal?: AbortSignal;
 }): void {
   (async () => {
     try {
+      if (params.signal?.aborted) {
+        throw new Error('Загрузка отменена');
+      }
       const prefix = params.itemPrefix === 'vtgtrack' ? 'vtgtrack' : 'vtgbeat';
       const { url } = await uploadArchiveFile({ ...params, itemPrefix: prefix, mediatype: 'audio' });
       params.callbacks.onReady(url);
-    } catch (e) {
-      params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации');
+    } catch (e: any) {
+      if (e?.name === 'AbortError' || e?.message === 'Загрузка отменена') {
+        params.callbacks.onError('Загрузка отменена');
+      } else {
+        params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации');
+      }
     }
   })();
 }
 
 /**
  * Фоновая публикация .zip проекта в Archive.org.
+ * signal: AbortController.signal — для отмены загрузки.
  */
-export function publishProjectZipInBackground(params: {
+export async function publishProjectZipInBackground(params: {
   file: File;
   title: string;
   description?: string;
   creator?: string;
   callbacks: PublishBeatCallbacks;
-}): void {
-  (async () => {
-    try {
-      const { url } = await uploadProjectZip(params);
-      params.callbacks.onReady(url);
-    } catch (e) {
-      params.callbacks.onError(e instanceof Error ? e.message : 'Ошибка публикации проекта');
-    }
-  })();
+  signal?: AbortSignal;
+}): Promise<{ url: string }> {
+  const { signal } = params;
+  if (signal?.aborted) {
+    throw new Error('Загрузка отменена');
+  }
+
+  const { url } = await uploadProjectZip({
+    file: params.file,
+    title: params.title,
+    description: params.description,
+    creator: params.creator,
+    signal,
+  });
+
+  params.callbacks.onReady(url);
+  return { url };
 }
 
 /* ==========================================================================
@@ -253,7 +280,7 @@ export function extractItemIdFromUrl(url?: string): string | null {
  * Внимание: поиск индексируется с задержкой в несколько минут.
  */
 export async function listAccountItems(): Promise<ArchiveItemBrief[]> {
-  const q = 'identifier:vtg-*';
+  const q = 'identifier:(vtgbeat-* OR vtgtrack-* OR vtgproj-*)';
   const fl = ['identifier', 'title', 'mediatype', 'item_size', 'addeddate'];
   const url =
     `https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}` +

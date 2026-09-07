@@ -9,7 +9,15 @@ import { useAuth } from './contexts/AuthContext'
 
 function Root() {
   const { user, loading } = useAuth();
-  if (loading) return <div className="loading-screen">Загрузка...</div>;
+  if (loading)
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner-container">
+          <span className="loading-spinner" />
+          <span>Загрузка…</span>
+        </div>
+      </div>
+    );
   return user ? <App /> : <LoginPage />;
 }
 

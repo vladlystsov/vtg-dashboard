@@ -277,7 +277,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   );
 
   const playTrack = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const item = lookupRef.current.get(id);
       if (!item || !item.url || !item.url.trim()) return;
       ensureOrder(id);
@@ -303,6 +303,10 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         pauseYt();
         pauseAudio();
       }
+      // Микро-задержка: даём SC/YouTube iframe остановиться, иначе при быстром
+      // переключении на локальный трек сайтовый плеер продолжает играть в фоне.
+      await new Promise((r) => setTimeout(r, 60));
+      if (currentIdRef.current !== id) return;
       if (isYt) {
         const vid = youtubeVideoId(item.url);
         if (!vid) {
@@ -326,6 +330,11 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
           const a = audioRef.current;
           if (!a) return;
           try {
+            // Синхронная остановка перед переключением — иначе при быстром клике
+            // на соседний локальный трек предыдущий продолжает играть в фоне.
+            a.pause();
+            a.removeAttribute('src');
+            a.load();
             const cached = await getCachedAudio(item.id);
             if (currentIdRef.current !== item.id) return;
             const prev = objectUrlRef.current.get(item.id);

@@ -212,7 +212,14 @@ export default function App() {
   }, [notifications, profile]);
 
   if (loading) {
-    return <div className="loading-screen">Загрузка...</div>;
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner-container">
+          <span className="loading-spinner" />
+          <span>Загрузка…</span>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
