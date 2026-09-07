@@ -1,4 +1,4 @@
-import { createTrack } from './trackService';
+import { createTrack, updateTrack } from './trackService';
 import type { Track } from '../types/track';
 import { youtubeVideoId } from '../types/track';
 import { parseTrackCollaborators } from './collabParser';
@@ -300,22 +300,33 @@ async function importYouTubeChannelRss(channelId: string): Promise<ImportedItem[
   return out;
 }
 
-export function dedupe(items: ImportedItem[], existingTracks: Track[]): { fresh: ImportedItem[]; skipped: number } {
+export function dedupe(
+  items: ImportedItem[],
+  existingTracks: Track[]
+): { fresh: ImportedItem[]; duplicates: ImportedItem[]; skipped: number } {
   const known = new Set(
     existingTracks.map((t) => (t.platformUrl || '').trim().toLowerCase()).filter(Boolean)
   );
   const out: ImportedItem[] = [];
+  // Совпадения с уже существующими треками не теряем — их решит окно
+  // дубликатов (заменить существующие или добавить как новые).
+  const duplicates: ImportedItem[] = [];
   let skipped = 0;
   for (const it of items) {
     const key = it.url.trim().toLowerCase();
-    if (known.has(key) || out.some((x) => x.url.trim().toLowerCase() === key)) {
+    // Повтор ссылки внутри одной пачки — молча пропускаем.
+    if (out.some((x) => x.url.trim().toLowerCase() === key)) {
       skipped++;
+      continue;
+    }
+    if (known.has(key)) {
+      if (!duplicates.some((x) => x.url.trim().toLowerCase() === key)) duplicates.push(it);
       continue;
     }
     out.push(it);
     known.add(key);
   }
-  return { fresh: out, skipped };
+  return { fresh: out, duplicates, skipped: skipped + duplicates.length };
 }
 
 /**
@@ -328,6 +339,71 @@ export function findTitleDuplicates(items: ImportedItem[], existingTracks: Track
     existingTracks.map((t) => (t.title || '').trim().toLowerCase()).filter(Boolean)
   );
   return items.filter((it) => known.has((it.title || '').trim().toLowerCase()));
+}
+
+/** Пара «трек с площадки → существующий трек на сайте» для окна дубликатов. */
+export interface ExistingTrackMatch {
+  item: ImportedItem;
+  track: Track;
+}
+
+/**
+ * Сопоставляет треки с площадки с существующими на сайте:
+ * сначала по ссылке (platformUrl), затем по названию.
+ */
+export function matchExistingTracks(items: ImportedItem[], existingTracks: Track[]): ExistingTrackMatch[] {
+  const byUrl = new Map<string, Track>();
+  const byTitle = new Map<string, Track>();
+  for (const t of existingTracks) {
+    const u = (t.platformUrl || '').trim().toLowerCase();
+    if (u && !byUrl.has(u)) byUrl.set(u, t);
+    const ti = (t.title || '').trim().toLowerCase();
+    if (ti && !byTitle.has(ti)) byTitle.set(ti, t);
+  }
+  const out: ExistingTrackMatch[] = [];
+  const seen = new Set<string>();
+  for (const it of items) {
+    const url = it.url.trim().toLowerCase();
+    const title = (it.title || '').trim().toLowerCase();
+    const track = (url && byUrl.get(url)) || (title && byTitle.get(title));
+    if (!track) continue;
+    const key = url || title;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ item: it, track });
+  }
+  return out;
+}
+
+/**
+ * «Заменить»: перезаписывает существующие треки данными с площадки —
+ * название, участники (со-артисты, битмейкеры, feat), обложка.
+ * Статус/колонку/чек-лист/проекты не трогаем. Обложку и platformUrl
+ * дозаполняем, только если их не было или пришли с площадки.
+ */
+export async function updateTracksFromItems(pairs: ExistingTrackMatch[]): Promise<number> {
+  let updated = 0;
+  for (const { item, track } of pairs) {
+    const authors = dedupeNames([item.author.trim(), ...(item.extraArtists || [])]);
+    const beatmakers = (item.beatmakers || []).slice();
+    const patch: Partial<Track> = {
+      title: item.title.trim(),
+      artists: authors,
+      artistUids: authors.map(() => ''),
+      beatmakers,
+      beatmakerUids: beatmakers.map(() => ''),
+      feat: (item.feat || []).join(', '),
+    };
+    if (item.thumbnail?.trim()) patch.coverUrl = item.thumbnail.trim();
+    if (!track.platformUrl?.trim()) patch.platformUrl = sanitizePlatformUrl(item.url);
+    try {
+      await updateTrack(track.id, patch);
+      updated++;
+    } catch {
+      // отдельный трек не критичен — продолжаем остальные
+    }
+  }
+  return updated;
 }
 
 /** Дедупликация имён без учёта регистра, с сохранением порядка. */

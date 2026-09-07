@@ -9,10 +9,13 @@ import {
   fetchSoundCloudItems,
   dedupe,
   findTitleDuplicates,
+  matchExistingTracks,
   persistItems,
+  updateTracksFromItems,
   sanitizePlatformUrl,
   parsePlatformLinks,
   type ImportedItem,
+  type ExistingTrackMatch,
 } from '../services/platformImportService';
 
 const ROLE_OPTIONS: { id: ArtistRole; label: string }[] = [
@@ -43,24 +46,31 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [dupDialog, setDupDialog] = useState<{ items: ImportedItem[] } | null>(null);
+  const [dupDialog, setDupDialog] = useState<{ pairs: ExistingTrackMatch[] } | null>(null);
   const [selectedDups, setSelectedDups] = useState<Set<number>>(new Set());
-  const dupResolverRef = useRef<((selected: ImportedItem[]) => void) | null>(null);
+  const dupResolverRef = useRef<((r: { add: ImportedItem[]; replace: ExistingTrackMatch[] }) => void) | null>(null);
 
-  // Окно «Были обнаружены дубликаты»: возвращает треки, которые пользователь решил импортировать
-  const openDupDialog = (items: ImportedItem[]): Promise<ImportedItem[]> => {
+  // Окно «Были обнаружены дубликаты»: пользователь отмечает треки и выбирает —
+  // заменить существующие данными с площадки или добавить как новые.
+  const openDupDialog = (pairs: ExistingTrackMatch[]): Promise<{ add: ImportedItem[]; replace: ExistingTrackMatch[] }> => {
     return new Promise((resolve) => {
       dupResolverRef.current = resolve;
-      setSelectedDups(new Set(items.map((_, i) => i)));
-      setDupDialog({ items });
+      setSelectedDups(new Set(pairs.map((_, i) => i)));
+      setDupDialog({ pairs });
     });
   };
 
-  const closeDupDialog = (selected?: ImportedItem[]) => {
+  const closeDupDialog = (mode: 'none' | 'add' | 'replace') => {
     const resolve = dupResolverRef.current;
     dupResolverRef.current = null;
+    const pairs = dupDialog?.pairs || [];
+    const chosen = pairs.filter((_, i) => selectedDups.has(i));
     setDupDialog(null);
-    resolve?.(selected || []);
+    setSelectedDups(new Set());
+    resolve?.({
+      add: mode === 'add' ? chosen.map((p) => p.item) : [],
+      replace: mode === 'replace' ? chosen : [],
+    });
   };
 
   const toggleDup = (i: number) => {
@@ -138,14 +148,15 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
       const parts: string[] = [];
       const platformErrors: string[] = [];
       const freshAll: ImportedItem[] = [];
+      // Совпавшие по ссылке треки не пропускаем молча — их покажет окно
+      // дубликатов («заменить» или «добавить как новые»).
+      const urlDuplicates: ImportedItem[] = [];
       let skippedByUrl = 0;
       let skippedByTitle = 0;
 
-      // Логику дубликатов (по ссылке) не меняем — просто добавляем надстройку
-      // по совпадению названий и окно подтверждения.
       const collect = (items: ImportedItem[]) => {
-        const { fresh, skipped } = dedupe(items, tracks);
-        skippedByUrl += skipped;
+        const { fresh, duplicates } = dedupe(items, tracks);
+        urlDuplicates.push(...duplicates);
         if (skipDuplicates) {
           const titleDups = findTitleDuplicates(fresh, tracks);
           skippedByTitle += titleDups.length;
@@ -169,15 +180,27 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         platformErrors.push(...r.warnings.map((w) => `• SoundCloud: ${w}`));
       }
 
-      // Окно с дубликатами по названию показываем только если кнопка
-      // «Не загружать дубликаты названий» выключена.
+      // Окно дубликатов: показываем, если «Не загружать дубликаты названий»
+      // выключено и есть совпадения по ссылке или по названию.
       const titleDups = skipDuplicates ? [] : findTitleDuplicates(freshAll, tracks);
       const base = freshAll.filter((it) => !titleDups.includes(it));
       let finalItems: ImportedItem[] = base;
-      if (titleDups.length > 0) {
-        const chosen = await openDupDialog(titleDups);
-        skippedByTitle += titleDups.length - chosen.length;
-        finalItems = [...base, ...chosen];
+      let updated = 0;
+      if (skipDuplicates) {
+        skippedByUrl += urlDuplicates.length;
+      } else if (urlDuplicates.length + titleDups.length > 0) {
+        const pairs = matchExistingTracks([...urlDuplicates, ...titleDups], tracks);
+        const resolved = await openDupDialog(pairs);
+        if (resolved.replace.length) {
+          updated = await updateTracksFromItems(resolved.replace);
+        }
+        finalItems = [...base, ...resolved.add];
+        const handledUrls = new Set(
+          [...resolved.add, ...resolved.replace.map((p) => p.item)].map((x) => x.url.trim().toLowerCase())
+        );
+        skippedByUrl += [...urlDuplicates, ...titleDups].filter(
+          (d) => !handledUrls.has(d.url.trim().toLowerCase())
+        ).length;
       }
 
       const imported = finalItems.length
@@ -186,13 +209,14 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
       const skippedTotal = skippedByUrl + skippedByTitle;
       setImporting(false);
       const importedTotal = parts.join('; ');
+      const updatedPart = updated > 0 ? `, обновлено ${updated}` : '';
       if (platformErrors.length > 0) {
-        setMessage(`Импортировано: ${importedTotal}; всего +${imported}, пропущено ${skippedTotal}`);
+        setMessage(`Импортировано: ${importedTotal}; всего +${imported}${updatedPart}, пропущено ${skippedTotal}`);
         setError(platformErrors.join('\n'));
         return;
       }
       setMessage(
-        `Импортировано: ${importedTotal}; всего +${imported}, пропущено ${skippedTotal}. ` +
+        `Импортировано: ${importedTotal}; всего +${imported}${updatedPart}, пропущено ${skippedTotal}. ` +
           'Импортированные треки появились в разделе «Отгружено».'
       );
       void refreshProfile();
@@ -436,28 +460,29 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
       </div>
 
       {dupDialog && (
-        <div className="modal-overlay" onClick={() => closeDupDialog([])}>
+        <div className="modal-overlay" onClick={() => closeDupDialog('none')}>
           <div className="track-form-modal import-dup-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Были обнаружены дубликаты. Хотите импортировать?</h2>
+              <h2>Были обнаружены дубликаты. Заменить или добавить?</h2>
               <button
                 className="modal-close"
                 title="Не импортировать дубликаты"
-                onClick={() => closeDupDialog([])}
+                onClick={() => closeDupDialog('none')}
               >
                 ×
               </button>
             </div>
             <div className="form-section">
               <p className="form-hint">
-                Названия этих треков уже есть на сайте. Отметьте те, которые нужно импортировать
-                (или нажмите на строку, чтобы снять выбор):
+                Эти треки уже есть на сайте — совпала ссылка или название. Отметьте нужные и выберите
+                действие: заменить существующие свежими данными с площадки (обновятся артисты, битмейкеры,
+                feat и обложка) или добавить как новые треки:
               </p>
               <div className="dup-list">
-                {dupDialog.items.map((it, i) => (
+                {dupDialog.pairs.map((p, i) => (
                   <label
                     className={`dup-item ${selectedDups.has(i) ? 'dup-item-checked' : ''}`}
-                    key={`${it.url}-${i}`}
+                    key={`${p.item.url}-${i}`}
                     onClick={(e) => {
                       e.preventDefault();
                       toggleDup(i);
@@ -465,25 +490,33 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
                   >
                     <input type="checkbox" checked={selectedDups.has(i)} readOnly tabIndex={-1} />
                     <span className="dup-item-info">
-                      <span className="dup-item-title">{it.title}</span>
-                      <span className="dup-item-author">{it.author}</span>
+                      <span className="dup-item-title">{p.item.title}</span>
+                      <span className="dup-item-author">
+                        {p.item.author}
+                        {p.track.artists?.length ? ` — на сайте: ${p.track.artists.join(', ')}` : ''}
+                      </span>
                     </span>
                   </label>
                 ))}
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => closeDupDialog([])}>
+              <button className="btn-secondary" onClick={() => closeDupDialog('none')}>
                 Нет
+              </button>
+              <button
+                className="btn-secondary"
+                disabled={selectedDups.size === 0}
+                onClick={() => closeDupDialog('replace')}
+              >
+                Заменить выбранные ({selectedDups.size})
               </button>
               <button
                 className="btn-primary"
                 disabled={selectedDups.size === 0}
-                onClick={() => closeDupDialog(dupDialog.items.filter((_, i) => selectedDups.has(i)))}
+                onClick={() => closeDupDialog('add')}
               >
-                {selectedDups.size === dupDialog.items.length
-                  ? `Импортировать все (${dupDialog.items.length})`
-                  : `Импортировать выбранное (${selectedDups.size})`}
+                Добавить как новые ({selectedDups.size})
               </button>
             </div>
           </div>
