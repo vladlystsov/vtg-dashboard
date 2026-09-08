@@ -8,7 +8,7 @@ import ProfileView from './ProfileView';
 import AdminPanel from './AdminPanel';
 import BeatsView from './BeatsView';
 import ProjectsView from './ProjectsView';
-import type { Track, UserProfile, ArtistRequest, KanbanColumn } from '../types/track';
+import type { Track, UserProfile, ArtistRequest, KanbanColumn, Project } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import { asArray, resolveNames } from '../types/track';
 import type { Beat, BeatFormData } from '../types/beat';
@@ -46,16 +46,16 @@ import {
   deleteBeat,
 } from '../services/beatsService';
 import { publishBeatAudioInBackground } from '../services/archiveService';
-import { useAuth } from '../contexts/AuthContext';
-import { useNetwork } from '../hooks/useNetwork';
-import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 import {
   subscribeToProjects,
   createProject,
   updateProject,
   deleteProject,
 } from '../services/projectsService';
-import type { Project } from '../types/track';
+import { useAuth } from '../contexts/AuthContext';
+import { useNetwork } from '../hooks/useNetwork';
+import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
+
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
 

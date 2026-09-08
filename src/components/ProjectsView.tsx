@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Project, Track, TrackProjectZip, TrackStatus, UserProfile } from '../types/track';
 import {
   PROJECT_DAW_LABELS,
@@ -94,12 +94,6 @@ export default function ProjectsView({
   const [modal, setModal] = useState<VersionFormState | null>(null);
   const [savingVersion, setSavingVersion] = useState(false);
 
-  // Отладочный лог
-  useEffect(() => {
-    console.log('[ProjectsView] projects:', projects);
-    console.log('[ProjectsView] tracks:', tracks);
-  }, [projects, tracks]);
-
   const uploadControllers = useRef(new Map<string, AbortController>());
 
   const trackById = useMemo(() => {
@@ -112,24 +106,54 @@ export default function ProjectsView({
   // по конкретному id трека, а не по всему сборнику.
   const projectTrackIdsOf = (p: Project): string[] => projectTrackIds(p);
 
-  const projectsForTrack = (t: Track): Project[] =>
-    projects.filter((p) => projectTrackIdsOf(p).includes(t.id));
-
-  // Показываем все проекты: сначала привязанные к трекам, потом без треков
-  const allProjectsSorted = useMemo(() => {
-    const withTrack = new Set<string>();
-    for (const t of tracks) {
-      for (const p of projectsForTrack(t)) {
-        withTrack.add(p.id);
-      }
+  // Виртуальные версии: проекты, прикреплённые к треку через форму трека
+  // (projectZipUrl / projectZips на Archive.org), для которых ещё нет
+  // отдельной записи в коллекции projects. Отображаются только для чтения.
+  const virtualProjectsForTrack = (t: Track): Project[] => {
+    const docIds = new Set(projects.map((p) => p.id));
+    const out: Project[] = [];
+    const zips = t.projectZips || [];
+    for (const z of zips) {
+      if (docIds.has(z.projectId)) continue;
+      if (!z.zipUrl && z.zipStatus !== 'uploading' && z.zipStatus !== 'error') continue;
+      out.push({
+        id: `zip:${t.id}:${z.projectId}`,
+        name: z.projectName || 'Проект',
+        trackIds: [t.id],
+        zipUrl: z.zipUrl,
+        zipStatus: z.zipStatus,
+        zipError: z.zipError,
+        createdAt: z.uploadedAt,
+        updatedAt: z.uploadedAt,
+        createdBy: '',
+      });
     }
-    const attached = projects.filter((p) => withTrack.has(p.id));
-    const unattached = projects.filter((p) => !withTrack.has(p.id));
-    const sortByDate = (a: Project, b: Project) =>
-      new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
-    return [...attached.sort(sortByDate), ...unattached.sort(sortByDate)];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, tracks]);
+    if (
+      zips.length === 0 &&
+      (t.projectZipUrl || t.projectZipStatus === 'uploading' || t.projectZipStatus === 'error')
+    ) {
+      const stamp = t.updatedAt || t.createdAt || '';
+      out.push({
+        id: `zip:${t.id}:legacy`,
+        name: 'Проект трека',
+        trackIds: [t.id],
+        zipUrl: t.projectZipUrl,
+        zipStatus: t.projectZipStatus,
+        zipError: t.projectZipError,
+        createdAt: stamp,
+        updatedAt: stamp,
+        createdBy: '',
+      });
+    }
+    return out;
+  };
+
+  const isVirtualProject = (p: Project): boolean => p.id.startsWith('zip:');
+
+  const projectsForTrack = (t: Track): Project[] => {
+    const docVersions = projects.filter((p) => projectTrackIdsOf(p).includes(t.id));
+    return [...docVersions, ...virtualProjectsForTrack(t)];
+  };
 
   // Показываем карточки всех треков, у которых есть хотя бы одна версия проекта
   const projectTracks = useMemo<Track[]>(() => {
@@ -151,17 +175,6 @@ export default function ProjectsView({
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, projects]);
-
-  // Проекты без привязки к трекам
-  const unattachedProjects = useMemo(() => {
-    const attachedIds = new Set<string>();
-    for (const t of projectTracks) {
-      for (const p of projectsForTrack(t)) {
-        attachedIds.add(p.id);
-      }
-    }
-    return projects.filter((p) => !attachedIds.has(p.id));
-  }, [projects, projectTracks]);
 
   const publishZip = (
     savedProject: Project,
@@ -258,6 +271,11 @@ export default function ProjectsView({
 
   const saveVersion = async () => {
     if (!modal) return;
+    if (modal.trackIds.length === 0) {
+      setZipError('Выберите один трек, к которому привязывается версия проекта.');
+      setTimeout(() => setZipError(null), 4000);
+      return;
+    }
     if (modal.zipFile) {
       const err = checkProjectZipFile(modal.zipFile);
       if (err) {
@@ -349,24 +367,26 @@ export default function ProjectsView({
       return (
         <div className="project-zip project-zip-error">
           <span>{p.zipError || 'Ошибка публикации'}</span>
-          <button type="button" className="btn-small-ghost" onClick={() => setModal({
-            ...emptyForm(projectTrackIds(p), p.name),
-            editing: p,
-            variant: p.variant || 'main',
-            vocalType: p.vocalType || '',
-            daw: p.daw || 'fl',
-            dawVersion: p.dawVersion || '',
-            stage: p.stage || 'mixing',
-            active: !!p.active,
-            description: p.description || '',
-            genre: p.genre || '',
-            tags: (p.tags || []).join(', '),
-            artists: (p.artists || []).join(', '),
-            coverUrl: p.coverUrl || '',
-            status: p.status || 'draft',
-          })}>
-            Заменить
-          </button>
+          {!isVirtualProject(p) && (
+            <button type="button" className="btn-small-ghost" onClick={() => setModal({
+              ...emptyForm(projectTrackIds(p), p.name),
+              editing: p,
+              variant: p.variant || 'main',
+              vocalType: p.vocalType || '',
+              daw: p.daw || 'fl',
+              dawVersion: p.dawVersion || '',
+              stage: p.stage || 'mixing',
+              active: !!p.active,
+              description: p.description || '',
+              genre: p.genre || '',
+              tags: (p.tags || []).join(', '),
+              artists: (p.artists || []).join(', '),
+              coverUrl: p.coverUrl || '',
+              status: p.status || 'draft',
+            })}>
+              Заменить
+            </button>
+          )}
         </div>
       );
     }
@@ -382,24 +402,26 @@ export default function ProjectsView({
           >
             Скачать архив версии
           </DownloadButton>
-          <button type="button" className="btn-small-ghost" onClick={() => setModal({
-            ...emptyForm(projectTrackIds(p), p.name),
-            editing: p,
-            variant: p.variant || 'main',
-            vocalType: p.vocalType || '',
-            daw: p.daw || 'fl',
-            dawVersion: p.dawVersion || '',
-            stage: p.stage || 'mixing',
-            active: !!p.active,
-            description: p.description || '',
-            genre: p.genre || '',
-            tags: (p.tags || []).join(', '),
-            artists: (p.artists || []).join(', '),
-            coverUrl: p.coverUrl || '',
-            status: p.status || 'draft',
-          })}>
-            Заменить
-          </button>
+          {!isVirtualProject(p) && (
+            <button type="button" className="btn-small-ghost" onClick={() => setModal({
+              ...emptyForm(projectTrackIds(p), p.name),
+              editing: p,
+              variant: p.variant || 'main',
+              vocalType: p.vocalType || '',
+              daw: p.daw || 'fl',
+              dawVersion: p.dawVersion || '',
+              stage: p.stage || 'mixing',
+              active: !!p.active,
+              description: p.description || '',
+              genre: p.genre || '',
+              tags: (p.tags || []).join(', '),
+              artists: (p.artists || []).join(', '),
+              coverUrl: p.coverUrl || '',
+              status: p.status || 'draft',
+            })}>
+              Заменить
+            </button>
+          )}
         </div>
       );
     }
@@ -442,14 +464,13 @@ export default function ProjectsView({
 
       {zipError && <div className="error-msg">{zipError}</div>}
 
-      {projectTracks.length === 0 && allProjectsSorted.length === 0 ? (
+      {projectTracks.length === 0 ? (
         <div className="beats-empty">
           Проектов пока нет. Каждый проект привязывается к одному конкретному треку
           (сингл или трек из сборника). Создайте первую версию проекта — и карточка трека появится здесь.
         </div>
       ) : (
-        <>
-          <div className="projects-grid">
+        <div className="projects-grid">
           {projectTracks.map((t) => {
             const versions = projectsForTrack(t);
             const trackArtist =
@@ -505,7 +526,7 @@ export default function ProjectsView({
                             <div className="release-version-head">
                               <span className="release-version-name" title={p.name}>{p.name}</span>
                               {p.active && <span className="beat-chip release-active-chip">активная</span>}
-                              {canEdit && (
+                              {canEdit && !isVirtualProject(p) && (
                                 <div className="release-version-actions">
                                   {!p.active && (
                                     <button type="button" className="btn-small-ghost" onClick={() => void setActive(p)}>
@@ -538,7 +559,7 @@ export default function ProjectsView({
                             )}
                             <div className="release-version-zip">
                               {renderZipSection(p)}
-                              {!p.zipUrl && p.zipStatus !== 'uploading' && p.zipStatus !== 'error' && canEdit && (
+                              {!p.zipUrl && p.zipStatus !== 'uploading' && p.zipStatus !== 'error' && canEdit && !isVirtualProject(p) && (
                                 <button
                                   type="button"
                                   className="btn-small-ghost"
@@ -564,82 +585,6 @@ export default function ProjectsView({
             );
           })}
         </div>
-
-        {/* Прокты без привязки к трекам */}
-        {unattachedProjects.length > 0 && (
-          <div className="projects-unattached">
-            <div className="projects-unattached-title">Проекты без привязки к треку ({unattachedProjects.length})</div>
-            <div className="projects-grid">
-              {unattachedProjects.map((p) => {
-                const chips = [
-                  p.variant ? PROJECT_VARIANT_LABELS[p.variant] : '',
-                  p.vocalType ? PROJECT_VOCAL_TYPE_LABELS[p.vocalType] : '',
-                  p.daw ? PROJECT_DAW_LABELS[p.daw] : '',
-                  p.dawVersion ? `v${p.dawVersion}` : '',
-                  p.stage ? PROJECT_STAGE_LABELS[p.stage] : '',
-                ].filter(Boolean);
-                return (
-                  <div className="release-card project-track-card project-unattached-card" key={p.id}>
-                    <div className="release-card-cover">
-                      {p.coverUrl ? (
-                        <img src={p.coverUrl} alt="" />
-                      ) : (
-                        <span className="release-cover-fallback">
-                          {p.name.slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="release-card-body">
-                      <div className="release-card-header">
-                        <span className="release-card-title" title={p.name}>{p.name}</span>
-                        {p.active && <span className="beat-chip release-active-chip">активная</span>}
-                      </div>
-                      {chips.length > 0 && (
-                        <div className="project-card-chips">
-                          {chips.map((c, i) => (
-                            <span className="beat-chip" key={i}>{c}</span>
-                          ))}
-                        </div>
-                      )}
-                      {p.description && (
-                        <div className="project-card-desc">{p.description}</div>
-                      )}
-                      <div className="project-card-actions">
-                        {canEdit && (
-                          <>
-                            {!p.active && (
-                              <button type="button" className="btn-small-ghost" onClick={() => void setActive(p)}>
-                                Сделать активной
-                              </button>
-                            )}
-                            <button type="button" className="btn-small-ghost" onClick={() => openEditVersion(p)}>
-                              Изменить
-                            </button>
-                            <button
-                              type="button"
-                              className="at-delete"
-                              title="Удалить версию"
-                              disabled={deletingId === p.id}
-                              onClick={() => {
-                                if (!window.confirm(`Удалить версию «${p.name}»?`)) return;
-                                setDeletingId(p.id);
-                                void onDelete(p.id).finally(() => setDeletingId(null));
-                              }}
-                            >
-                              ×
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      {renderZipSection(p)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        </>
       )}
 
       {modal && (
@@ -662,7 +607,7 @@ export default function ProjectsView({
               </div>
 
               <div className="form-group">
-                <label>Трек, к которому привязывается версия проекта (необязательно)</label>
+                <label>Трек, к которому привязывается версия проекта *</label>
                 <div className="release-multiselect">
                   {tracks.map((t) => {
                     const checked = modal.trackIds.includes(t.id);
@@ -685,7 +630,6 @@ export default function ProjectsView({
                 </div>
                 <div className="form-hint" style={{ marginTop: 4 }}>
                   Один проект (.zip) — один трек. Трек из сборника тоже привязывается только сам к себе.
-                  Можно создать проект без привязки к треку — он появится в списке ниже.
                 </div>
               </div>
 
