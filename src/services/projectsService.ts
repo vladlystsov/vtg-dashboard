@@ -46,8 +46,12 @@ export function subscribeToProjects(
   const q = query(projectsRef, orderBy('updatedAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
     const projects = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
+    console.log('[Projects] Загружено проектов:', projects.length, projects);
     callback(projects);
-  }, onError);
+  }, (err) => {
+    console.error('[Projects] Ошибка подписки:', err);
+    onError?.(err);
+  });
 }
 
 export async function createProject(data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import type { Project, Track, TrackProjectZip, TrackStatus, UserProfile } from '../types/track';
 import {
   PROJECT_DAW_LABELS,
@@ -93,6 +93,12 @@ export default function ProjectsView({
   const [zipError, setZipError] = useState<string | null>(null);
   const [modal, setModal] = useState<VersionFormState | null>(null);
   const [savingVersion, setSavingVersion] = useState(false);
+
+  // Отладочный лог
+  useEffect(() => {
+    console.log('[ProjectsView] projects:', projects);
+    console.log('[ProjectsView] tracks:', tracks);
+  }, [projects, tracks]);
 
   const uploadControllers = useRef(new Map<string, AbortController>());
 
