@@ -46,17 +46,20 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [dupDialog, setDupDialog] = useState<{ pairs: ExistingTrackMatch[] } | null>(null);
+  const [dupDialog, setDupDialog] = useState<{ pairs: ExistingTrackMatch[]; isBeat: boolean } | null>(null);
   const [selectedDups, setSelectedDups] = useState<Set<number>>(new Set());
-  const dupResolverRef = useRef<((r: { add: ImportedItem[]; replace: ExistingTrackMatch[] }) => void) | null>(null);
+  const [dupDestination, setDupDestination] = useState<'track' | 'beat'>('track');
+  const dupResolverRef = useRef<((r: { add: ImportedItem[]; replace: ExistingTrackMatch[]; destination: 'track' | 'beat' }) => void) | null>(null);
 
   // Окно «Были обнаружены дубликаты»: пользователь отмечает треки и выбирает —
   // заменить существующие данными с площадки или добавить как новые.
-  const openDupDialog = (pairs: ExistingTrackMatch[]): Promise<{ add: ImportedItem[]; replace: ExistingTrackMatch[] }> => {
+  // Окно теперь открывается всегда, даже если дубликатов нет.
+  const openDupDialog = (pairs: ExistingTrackMatch[], isBeat = false): Promise<{ add: ImportedItem[]; replace: ExistingTrackMatch[]; destination: 'track' | 'beat' }> => {
     return new Promise((resolve) => {
       dupResolverRef.current = resolve;
       setSelectedDups(new Set(pairs.map((_, i) => i)));
-      setDupDialog({ pairs });
+      setDupDestination(isBeat ? 'beat' : 'track');
+      setDupDialog({ pairs, isBeat });
     });
   };
 
@@ -70,6 +73,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
     resolve?.({
       add: mode === 'add' ? chosen.map((p) => p.item) : [],
       replace: mode === 'replace' ? chosen : [],
+      destination: dupDestination,
     });
   };
 
@@ -180,25 +184,30 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         platformErrors.push(...r.warnings.map((w) => `• SoundCloud: ${w}`));
       }
 
-      // Окно дубликатов: показываем, если «Не загружать дубликаты названий»
-      // выключено и есть совпадения по ссылке или по названию.
+      // Окно дубликатов: показываем всегда (даже если дубликатов нет —
+      // с надписью «Нет дубликатов»). Пользователь выбирает раздел (Треки/Биты)
+      // и может сразу отправить импортированное в нужный раздел.
       const titleDups = skipDuplicates ? [] : findTitleDuplicates(freshAll, tracks);
       const base = freshAll.filter((it) => !titleDups.includes(it));
       let finalItems: ImportedItem[] = base;
       let updated = 0;
       if (skipDuplicates) {
         skippedByUrl += urlDuplicates.length;
-      } else if (urlDuplicates.length + titleDups.length > 0) {
-        const pairs = matchExistingTracks([...urlDuplicates, ...titleDups], tracks);
-        const resolved = await openDupDialog(pairs);
-        if (resolved.replace.length) {
-          updated = await updateTracksFromItems(resolved.replace);
-        }
-        finalItems = [...base, ...resolved.add];
-        const handledUrls = new Set(
-          [...resolved.add, ...resolved.replace.map((p) => p.item)].map((x) => x.url.trim().toLowerCase())
-        );
-        skippedByUrl += [...urlDuplicates, ...titleDups].filter(
+      }
+      // Всегда открываем окно дубликатов, передаём все найденные треки
+      const allDupCandidates = [...urlDuplicates, ...titleDups];
+      const pairs = matchExistingTracks(allDupCandidates, tracks);
+      // Открываем окно с дубликатами (или сообщением «Нет дубликатов»)
+      const resolved = await openDupDialog(pairs);
+      if (resolved.replace.length) {
+        updated = await updateTracksFromItems(resolved.replace);
+      }
+      finalItems = [...base, ...resolved.add];
+      const handledUrls = new Set(
+        [...resolved.add, ...resolved.replace.map((p) => p.item)].map((x) => x.url.trim().toLowerCase())
+      );
+      if (!skipDuplicates) {
+        skippedByUrl += allDupCandidates.filter(
           (d) => !handledUrls.has(d.url.trim().toLowerCase())
         ).length;
       }
@@ -463,60 +472,93 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         <div className="modal-overlay" onClick={() => closeDupDialog('none')}>
           <div className="track-form-modal import-dup-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Были обнаружены дубликаты. Заменить или добавить?</h2>
+              <h2>{dupDialog.pairs.length > 0 ? 'Были обнаружены дубликаты. Заменить или добавить?' : 'Нет дубликатов'}</h2>
               <button
                 className="modal-close"
-                title="Не импортировать дубликаты"
+                title="Закрыть"
                 onClick={() => closeDupDialog('none')}
               >
                 ×
               </button>
             </div>
             <div className="form-section">
-              <p className="form-hint">
-                Эти треки уже есть на сайте — совпала ссылка или название. Отметьте нужные и выберите
-                действие: заменить существующие свежими данными с площадки (обновятся артисты, битмейкеры,
-                feat и обложка) или добавить как новые треки:
-              </p>
-              <div className="dup-list">
-                {dupDialog.pairs.map((p, i) => (
-                  <label
-                    className={`dup-item ${selectedDups.has(i) ? 'dup-item-checked' : ''}`}
-                    key={`${p.item.url}-${i}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      toggleDup(i);
-                    }}
+              {/* Тумблер Треки/Биты */}
+              <div className="dup-destination-toggle">
+                <span className="dup-destination-label">Импортировать как:</span>
+                <div className="dup-destination-btns">
+                  <button
+                    type="button"
+                    className={`dup-destination-btn ${dupDestination === 'track' ? 'active' : ''}`}
+                    onClick={() => setDupDestination('track')}
                   >
-                    <input type="checkbox" checked={selectedDups.has(i)} readOnly tabIndex={-1} />
-                    <span className="dup-item-info">
-                      <span className="dup-item-title">{p.item.title}</span>
-                      <span className="dup-item-author">
-                        {p.item.author}
-                        {p.track.artists?.length ? ` — на сайте: ${p.track.artists.join(', ')}` : ''}
-                      </span>
-                    </span>
-                  </label>
-                ))}
+                    Треки
+                  </button>
+                  <button
+                    type="button"
+                    className={`dup-destination-btn ${dupDestination === 'beat' ? 'active' : ''}`}
+                    onClick={() => setDupDestination('beat')}
+                  >
+                    Биты
+                  </button>
+                </div>
               </div>
+
+              {dupDialog.pairs.length === 0 ? (
+                <div className="dup-no-duplicates">
+                  <span className="dup-no-dup-icon">✓</span>
+                  <span>Дубликатов не найдено. Все треки будут добавлены как новые в раздел «{dupDestination === 'track' ? 'Треки' : 'Биты'}».</span>
+                </div>
+              ) : (
+                <>
+                  <p className="form-hint">
+                    Эти треки уже есть на сайте — совпала ссылка или название. Отметьте нужные и выберите
+                    действие: заменить существующие свежими данными с площадки (обновятся артисты, битмейкеры,
+                    feat и обложка) или добавить как новые треки:
+                  </p>
+                  <div className="dup-list">
+                    {dupDialog.pairs.map((p, i) => (
+                      <label
+                        className={`dup-item ${selectedDups.has(i) ? 'dup-item-checked' : ''}`}
+                        key={`${p.item.url}-${i}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleDup(i);
+                        }}
+                      >
+                        <input type="checkbox" checked={selectedDups.has(i)} readOnly tabIndex={-1} />
+                        <span className="dup-item-info">
+                          <span className="dup-item-title">{p.item.title}</span>
+                          <span className="dup-item-author">
+                            {p.item.author}
+                            {p.track.artists?.length ? ` — на сайте: ${p.track.artists.join(', ')}` : ''}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => closeDupDialog('none')}>
-                Нет
+                Отмена
               </button>
-              <button
-                className="btn-secondary"
-                disabled={selectedDups.size === 0}
-                onClick={() => closeDupDialog('replace')}
-              >
-                Заменить выбранные ({selectedDups.size})
-              </button>
+              {dupDialog.pairs.length > 0 && (
+                <button
+                  className="btn-secondary"
+                  disabled={selectedDups.size === 0}
+                  onClick={() => closeDupDialog('replace')}
+                >
+                  Заменить выбранные ({selectedDups.size})
+                </button>
+              )}
               <button
                 className="btn-primary"
-                disabled={selectedDups.size === 0}
-                onClick={() => closeDupDialog('add')}
+                onClick={() => closeDupDialog(dupDialog.pairs.length > 0 ? 'add' : 'none')}
               >
-                Добавить как новые ({selectedDups.size})
+                {dupDialog.pairs.length > 0
+                  ? `Добавить как новые (${selectedDups.size})`
+                  : 'Добавить все'}
               </button>
             </div>
           </div>

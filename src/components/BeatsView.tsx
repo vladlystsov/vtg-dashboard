@@ -197,15 +197,31 @@ function BeatFormModal({
 
           <div className="form-group">
             <label>Аудио *</label>
-            <input
-              type="file"
-              accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus"
-              onChange={onFileChange}
-            />
+            <div className="file-upload-row">
+              <input
+                type="file"
+                accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus"
+                onChange={onFileChange}
+              />
+              {audioFile && (
+                <span className="file-upload-info">
+                  <span className="file-upload-name">{audioFile.name}</span>
+                  <span className="file-upload-size">({((audioFile.size || 0) / 1024 / 1024).toFixed(1)} МБ)</span>
+                  <button
+                    type="button"
+                    className="file-upload-clear"
+                    title="Удалить файл"
+                    onClick={() => {
+                      setAudioFile(null);
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+            </div>
             <span className="beat-link-hint">
-              {audioFile
-                ? `Выбран: ${audioFile.name} — опубликуется в Archive.org автоматически`
-                : 'Прикрепите mp3 (до 30 МБ): сам опубликуется в Archive.org'}
+              {!audioFile && 'Прикрепите mp3 (до 30 МБ): сам опубликуется в Archive.org'}
             </span>
           </div>
 

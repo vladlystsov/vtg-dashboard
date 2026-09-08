@@ -51,10 +51,6 @@ service cloud.firestore {
       );
     }
 
-    match /projects/{projectId} {
-      allow read, write: if isAuthenticated();
-    }
-
     match /artistRequests/{requestId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.uid;
@@ -70,16 +66,7 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.beatmakerUid;
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.beatmakerUid ||
-        isAdmin()
-      );
-      allow delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.beatmakerUid ||
-        isAdmin()
-      );
+      allow read, write: if isAuthenticated();
     }
   }
 }

@@ -5147,6 +5147,86 @@ min-height: 220px;
   display: none;
 }
 
+/* Скрываем карточки треков в свёрнутой колонке Архив */
+.kanban-column-archive:not(.kanban-column-archive-open) .track-card {
+  display: none;
+}
+
+/* ===== Проекты без привязки к трекам ===== */
+.projects-unattached {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px dashed var(--gray-300);
+}
+.projects-unattached-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-600);
+  margin-bottom: 12px;
+}
+.project-unattached-card {
+  border-style: dashed;
+}
+.project-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0;
+}
+.project-card-desc {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin: 4px 0;
+}
+.project-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===== Файловая загрузка ===== */
+.file-upload-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.file-upload-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.file-upload-name {
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.file-upload-size {
+  color: var(--gray-500);
+}
+.file-upload-clear {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-300);
+  border: none;
+  border-radius: 50%;
+  color: var(--gray-600);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.file-upload-clear:hover {
+  background: var(--crimson-500);
+  color: #fff;
+}
+
 /* ===== Окно «Были обнаружены дубликаты» при импорте ===== */
 .import-dup-modal {
   max-width: 560px;
@@ -5198,6 +5278,74 @@ min-height: 220px;
 .dup-item-author {
   font-size: 12px;
   color: var(--gray-500);
+}
+
+/* Тумблер Треки/Биты в окне дубликатов */
+.dup-destination-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+}
+.dup-destination-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+.dup-destination-btns {
+  display: flex;
+  gap: 4px;
+  background: var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.dup-destination-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.dup-destination-btn:hover {
+  color: var(--gray-800);
+}
+.dup-destination-btn.active {
+  background: #fff;
+  color: var(--blue-600);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Сообщение "Нет дубликатов" */
+.dup-no-duplicates {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--gray-700);
+}
+.dup-no-dup-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #22c55e;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 

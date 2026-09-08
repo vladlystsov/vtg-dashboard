@@ -698,28 +698,48 @@ export default function TrackForm({
 
           <div className="form-group">
             <label>Или загрузите прямой mp3</label>
-            <input
-              type="file"
-              accept="audio/mpeg,audio/wav,audio/ogg,audio/x-m4a,audio/aac,audio/flac,audio/ogg"
-              onChange={(e) => {
-                const f = e.target.files?.[0] || null;
-                if (f) {
-                  const err = checkBeatAudioFile(f);
-                  if (err) {
-                    setError(err);
-                    setAudioFile(null);
+            <div className="file-upload-row">
+              <input
+                type="file"
+                accept="audio/mpeg,audio/wav,audio/ogg,audio/x-m4a,audio/aac,audio/flac,audio/ogg"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  if (f) {
+                    const err = checkBeatAudioFile(f);
+                    if (err) {
+                      setError(err);
+                      setAudioFile(null);
+                    } else {
+                      setError('');
+                      setAudioFile(f);
+                    }
                   } else {
-                    setError('');
-                    setAudioFile(f);
+                    setAudioFile(null);
                   }
-                } else {
-                  setAudioFile(null);
-                }
-              }}
-            />
+                }}
+              />
+              {audioFile && (
+                <span className="file-upload-info">
+                  <span className="file-upload-name">{audioFile.name}</span>
+                  <span className="file-upload-size">({((audioFile.size || 0) / 1024 / 1024).toFixed(1)} МБ)</span>
+                  <button
+                    type="button"
+                    className="file-upload-clear"
+                    title="Удалить файл"
+                    onClick={() => {
+                      setAudioFile(null);
+                      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+                      if (input) input.value = '';
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+            </div>
             {audioFile && (
               <div className="form-hint" style={{ marginTop: 4 }}>
-                Файл «{audioFile.name}» ({((audioFile.size || 0) / 1024 / 1024).toFixed(1)} МБ) будет опубликован
+                Файл «{audioFile.name}» будет опубликован
                 в Archive.org в фоне после сохранения. Трек сразу появится, а звук — через пару минут.
                 Такие треки кэшируются на устройство и играют офлайн.
               </div>

@@ -358,6 +358,15 @@ export async function deleteArchiveFile(identifier: string, filename: string): P
   );
   if (!r.ok) {
     const detail = await r.text().catch(() => '');
+    // 403 Access Denied — обычно означает, что аккаунт не имеет прав на удаление
+    // (файл загружен другим пользователем или аккаунт не является владельцем айтема)
+    if (r.status === 403) {
+      throw new Error(
+        `Не удалось удалить файл: доступ запрещён (403). ` +
+        `Убедитесь, что аккаунт Archive.org, указанный в настройках, имеет право на удаление этого файла. ` +
+        `Если файл был загружен другим пользователем, обратитесь к администратору Archive.org.`
+      );
+    }
     throw new Error(`Не удалось удалить файл (${r.status}) ${detail.slice(0, 120)}`);
   }
 }
@@ -370,12 +379,28 @@ export async function deleteArchiveItem(identifier: string): Promise<void> {
       headers: s3AuthHeaders({ 'x-archive-cascade-delete': '1', 'x-archive-keep-old-version': '0' }),
     });
     if (r.ok) return;
+    if (r.status === 403) {
+      // Каскадное удаление не удалось из-за прав доступа — пробуем удалить файлы по одному
+      // но если и это не сработает, выдадим понятную ошибку
+    }
   } catch {
     // падаем на ручное удаление файлов
   }
   const files = await fetchItemFiles(identifier);
+  const errors: string[] = [];
   for (const f of files) {
     if (f.source && f.source !== 'original') continue; // производные удалятся сами
-    await deleteArchiveFile(identifier, f.name);
+    try {
+      await deleteArchiveFile(identifier, f.name);
+    } catch (e: any) {
+      errors.push(`${f.name}: ${e?.message || 'ошибка'}`);
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(
+      `Не удалось удалить часть файлов (${errors.length} из ${files.length}). ` +
+      `Убедитесь, что аккаунт Archive.org имеет права на удаление. ` +
+      `Ошибки: ${errors.slice(0, 3).join('; ')}`
+    );
   }
 }

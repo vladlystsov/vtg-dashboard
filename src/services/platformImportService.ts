@@ -31,7 +31,7 @@ interface ImportOptions {
 export function isYouTubeHost(url: string): boolean {
   try {
     const h = new URL(url).hostname.toLowerCase();
-    return h.endsWith('youtube.com') || h === 'youtu.be';
+    return h.endsWith('youtube.com') || h === 'youtu.be' || h === 'music.youtube.com';
   } catch {
     return false;
   }
@@ -123,8 +123,30 @@ export function isSoundCloudProfileUrl(url: string): boolean {
 }
 
 export function extractYouTubeChannelId(url: string): string | null {
-  const m = /youtube\.com\/(?:c\/|channel\/)([A-Za-z0-9_-]+)/i.exec(url.trim());
-  return m ? m[1] : null;
+  const u = url.trim();
+  // Формат /channel/ID
+  const m1 = /youtube\.com\/channel\/([A-Za-z0-9_-]+)/i.exec(u);
+  if (m1) return m1[1];
+  // Формат /c/имя
+  const m2 = /youtube\.com\/c\/([A-Za-z0-9_-]+)/i.exec(u);
+  if (m2) return m2[1];
+  // Формат /@handle
+  const m3 = /youtube\.com\/@([A-Za-z0-9_.-]+)/i.exec(u);
+  if (m3) return m3[1];
+  // Формат youtube.com/имя (без префикса)
+  const m4 = /youtube\.com\/([A-Za-z0-9_-]+)$/i.exec(u);
+  if (m4) return m4[1];
+  return null;
+}
+
+/** Проверяет, является ли ссылка ссылкой на YouTube Music */
+export function isYouTubeMusicUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h === 'music.youtube.com';
+  } catch {
+    return false;
+  }
 }
 
 // Несколько хостов (RSS YouTube, «сырые» ответы) не отдают CORS-заголовки браузеру.
@@ -260,6 +282,15 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
   const dc = desc.trim() ? parseTrackCollaborators(desc, { mainAuthor: author, allowArtistSplit: false }) : null;
   const beatmakers = pc.beatmakers.length ? pc.beatmakers : dc?.beatmakers || [];
   const featNames = pc.feat.length ? pc.feat : dc?.feat || [];
+  // Со-артисты: из названия + из описания (для релизов с несколькими авторами)
+  const extraArtists = [...pc.extraArtists];
+  if (dc?.extraArtists.length) {
+    for (const a of dc.extraArtists) {
+      if (!extraArtists.some((x) => x.toLowerCase() === a.toLowerCase())) {
+        extraArtists.push(a);
+      }
+    }
+  }
   return {
     items: [
       {
@@ -267,7 +298,7 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
         url: sanitizePlatformUrl(url),
         author,
         thumbnail: j.thumbnail_url ? String(j.thumbnail_url) : undefined,
-        ...(pc.extraArtists.length ? { extraArtists: pc.extraArtists } : {}),
+        ...(extraArtists.length ? { extraArtists } : {}),
         ...(featNames.length ? { feat: featNames } : {}),
         ...(beatmakers.length ? { beatmakers } : {}),
       },
@@ -276,8 +307,68 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
   };
 }
 
-async function importYouTubeChannelRss(channelId: string): Promise<ImportedItem[]> {
+/**
+ * Резолвит YouTube handle (@handle) в channel ID через страницу канала.
+ * Возвращает channel ID или null, если не удалось определить.
+ */
+async function resolveYouTubeHandleToChannelId(handle: string): Promise<string | null> {
+  try {
+    const url = `https://www.youtube.com/@${handle}`;
+    const html = await fetchText(url, 15000);
+    // Ищем channel ID в meta-тегах или JSON-LD
+    const m1 = /"channelId"\s*:\s*"([A-Za-z0-9_-]+)"/.exec(html);
+    if (m1) return m1[1];
+    const m2 = /<meta\s+itemprop="channelId"\s+content="([A-Za-z0-9_-]+)"/i.exec(html);
+    if (m2) return m2[1];
+    // Ищем RSS link
+    const m3 = /<link\s+rel="alternate"\s+type="application\/rss\+xml"\s+href="[^"]+channel_id=([A-Za-z0-9_-]+)"/i.exec(html);
+    if (m3) return m3[1];
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function importYouTubeChannelRss(channelIdOrHandle: string): Promise<ImportedItem[]> {
+  // Проверяем, является ли ID handle'ом (начинается с @ или не похож на обычный channel ID)
+  let channelId = channelIdOrHandle;
+  if (channelId.startsWith('@') || !/^UC[A-Za-z0-9_-]{20,}$/.test(channelId)) {
+    // Это может быть handle - пробуем резолвить
+    const handle = channelId.startsWith('@') ? channelId.slice(1) : channelId;
+    const resolved = await resolveYouTubeHandleToChannelId(handle);
+    if (resolved) {
+      channelId = resolved;
+    } else {
+      // Пробуем как user (старый формат)
+      return await importYouTubeUserRss(handle);
+    }
+  }
   const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`);
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('не удалось разобрать RSS');
+  const entries = Array.from(doc.querySelectorAll('entry'));
+  const out: ImportedItem[] = [];
+  for (const entry of entries) {
+    const videoId = entry.querySelector('yt\\:videoId') || entry.querySelector('[yt\\:videoId]');
+    const id = videoId?.textContent?.trim() || entry.querySelector('videoId')?.textContent?.trim();
+    const title = entry.querySelector('title')?.textContent?.trim() || '';
+    const author = entry.querySelector('author > name')?.textContent?.trim() || '';
+    const thumb = entry.querySelector('media\\:thumbnail') || entry.querySelector('thumbnail');
+    if (id && title) {
+      out.push({
+        title,
+        url: `https://www.youtube.com/watch?v=${id}`,
+        author: author || 'YouTube',
+        thumbnail: thumb?.getAttribute('url') || undefined,
+      });
+    }
+  }
+  return out;
+}
+
+/** Импорт по старому формату username (пробуем через user= в RSS) */
+async function importYouTubeUserRss(username: string): Promise<ImportedItem[]> {
+  const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?user=${encodeURIComponent(username)}`);
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
   if (doc.querySelector('parsererror')) throw new Error('не удалось разобрать RSS');
   const entries = Array.from(doc.querySelectorAll('entry'));
@@ -466,13 +557,22 @@ export async function fetchYouTubeItems(input: string): Promise<{ items: Importe
   const urls = parsePlatformLinks(input, 'youtube');
   if (urls.length === 0) {
     warnings.push(
-      'Не найдено ссылок YouTube. Вставьте ссылку на видео или канал — можно несколько сразу (через запятую или с новой строки).'
+      'Не найдено ссылок YouTube. Вставьте ссылку на видео, канал или YouTube Music — можно несколько сразу (через запятую или с новой строки).'
     );
     return { items: [], warnings };
   }
   const items: ImportedItem[] = [];
   for (const trimmed of urls) {
     try {
+      // YouTube Music: плейлист или видео
+      if (isYouTubeMusicUrl(trimmed)) {
+        const musicItems = await fetchYouTubeMusicItems(trimmed);
+        if (musicItems.length === 0) {
+          warnings.push(`YouTube Music не вернул данные по «${trimmed}».`);
+        }
+        items.push(...musicItems);
+        continue;
+      }
       const vid = youtubeVideoId(trimmed);
       if (vid) {
         const o = await importViaYouTubeOEmbed(trimmed);
@@ -481,7 +581,7 @@ export async function fetchYouTubeItems(input: string): Promise<{ items: Importe
       } else {
         const channelId = extractYouTubeChannelId(trimmed);
         if (!channelId) {
-          warnings.push(`Ссылка «${trimmed}» должна быть на видео (watch?v=...) или канал вида .../channel/ID.`);
+          warnings.push(`Ссылка «${trimmed}» должна быть на видео (watch?v=...), канал вида .../channel/ID, .../@handle или YouTube Music.`);
         } else {
           try {
             const rss = await importYouTubeChannelRss(channelId);
@@ -499,6 +599,62 @@ export async function fetchYouTubeItems(input: string): Promise<{ items: Importe
     }
   }
   return { items, warnings };
+}
+
+/**
+ * Импорт треков из YouTube Music (плейлист или отдельный трек).
+ * Парсит страницу YouTube Music для извлечения информации о треках.
+ */
+async function fetchYouTubeMusicItems(url: string): Promise<ImportedItem[]> {
+  const out: ImportedItem[] = [];
+  try {
+    // Извлекаем ID плейлиста или видео из URL
+    const playlistMatch = /list=([A-Za-z0-9_-]+)/i.exec(url);
+    const videoMatch = /watch\?v=([A-Za-z0-9_-]{11})/i.exec(url);
+    const shortVideoMatch = /youtu\.be\/([A-Za-z0-9_-]{11})/i.exec(url);
+
+    if (videoMatch || shortVideoMatch) {
+      // Одиночное видео
+      const vid = videoMatch ? videoMatch[1] : shortVideoMatch![1];
+      const o = await importViaYouTubeOEmbed(`https://www.youtube.com/watch?v=${vid}`);
+      out.push(...o);
+    } else if (playlistMatch) {
+      // Плейлист YouTube Music
+      const playlistId = playlistMatch[1];
+      // Пробуем получить через oEmbed (только первое видео)
+      // Для полного плейлиста нужен другой подход
+      const o = await importViaYouTubeOEmbed(`https://www.youtube.com/playlist?list=${playlistId}`);
+      out.push(...o);
+      // Также пробуем получить через RSS (если плейлист публичный)
+      try {
+        const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?playlist_id=${encodeURIComponent(playlistId)}`);
+        const doc = new DOMParser().parseFromString(xml, 'text/xml');
+        if (!doc.querySelector('parsererror')) {
+          const entries = Array.from(doc.querySelectorAll('entry'));
+          for (const entry of entries) {
+            const videoId = entry.querySelector('yt\\:videoId') || entry.querySelector('[yt\\:videoId]');
+            const id = videoId?.textContent?.trim() || entry.querySelector('videoId')?.textContent?.trim();
+            const title = entry.querySelector('title')?.textContent?.trim() || '';
+            const author = entry.querySelector('author > name')?.textContent?.trim() || '';
+            const thumb = entry.querySelector('media\\:thumbnail') || entry.querySelector('thumbnail');
+            if (id && title) {
+              out.push({
+                title,
+                url: `https://www.youtube.com/watch?v=${id}&list=${playlistId}`,
+                author: author || 'YouTube Music',
+                thumbnail: thumb?.getAttribute('url') || undefined,
+              });
+            }
+          }
+        }
+      } catch {
+        // RSS не сработал - просто возвращаем то, что есть
+      }
+    }
+  } catch {
+    // Игнорируем ошибки
+  }
+  return out;
 }
 
 /**
