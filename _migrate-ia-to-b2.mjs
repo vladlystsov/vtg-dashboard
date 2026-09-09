@@ -35,7 +35,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore, FieldPath } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has('--dry-run');
@@ -211,14 +211,24 @@ function jobsForTracks(d) {
   if (pu) jobs.push({ ia: pu, label: 'platformUrl', update: (ref, url) => ref.update('platformUrl', url) });
   const pzu = parseIaUrl(d.projectZipUrl);
   if (pzu) jobs.push({ ia: pzu, label: 'projectZipUrl', update: (ref, url) => ref.update('projectZipUrl', url) });
-  const zips = Array.isArray(d.projectZips) ? d.projectZips : [];
-  zips.forEach((z, i) => {
+  // Нормализуем: projectZips исторически мог храниться как объект-карта {0:{...}}.
+  const rawZips = Array.isArray(d.projectZips)
+    ? d.projectZips
+    : d.projectZips && typeof d.projectZips === 'object'
+      ? Object.keys(d.projectZips).sort((a, b) => Number(a) - Number(b)).map((k) => d.projectZips[k])
+      : [];
+  rawZips.forEach((z, i) => {
     const ia = parseIaUrl(z && z.zipUrl);
     if (ia) {
       jobs.push({
         ia,
         label: `projectZips[${i}].zipUrl`,
-        update: (ref, url) => ref.update(new FieldPath('projectZips', String(i), 'zipUrl'), url),
+        // Записываем ВЕСЬ массив целиком с заменённым элементом — это
+        // гарантирует, что в Firestore поле останется массивом, а не картой.
+        update: (ref, url) => {
+          const next = rawZips.map((el, idx) => (idx === i ? { ...el, zipUrl: url } : el));
+          return ref.update('projectZips', next);
+        },
       });
     }
   });

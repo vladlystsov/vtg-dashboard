@@ -43,13 +43,33 @@ function cleanForFirestore(data: any): Record<string, any> {
   return (s && typeof s === 'object' ? s : {}) as Record<string, any>;
 }
 
+/**
+ * Нормализация треков из Firestore.
+ * Поле projectZips исторически могло сохраниться как объект-карта
+ * { "0": {...}, "1": {...} } (при обновлении через FieldPath по индексам),
+ * а компоненты ожидают массив. Приводим к массиву, сортируя по числовым ключам.
+ */
+function normalizeTrack(raw: any): Track {
+  const t = { ...raw } as any;
+  if (t.projectZips && !Array.isArray(t.projectZips)) {
+    if (typeof t.projectZips === 'object') {
+      t.projectZips = Object.keys(t.projectZips)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((k) => t.projectZips[k]);
+    } else {
+      t.projectZips = undefined;
+    }
+  }
+  return t as Track;
+}
+
 export function subscribeToTracks(
   callback: (tracks: Track[]) => void,
   onError?: (e: Error) => void
 ) {
   const q = query(tracksRef, orderBy('updatedAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
-    const tracks = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Track));
+    const tracks = snapshot.docs.map((d) => normalizeTrack({ id: d.id, ...d.data() }));
     callback(tracks);
   }, onError);
 }
