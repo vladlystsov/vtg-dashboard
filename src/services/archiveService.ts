@@ -347,6 +347,21 @@ function s3AuthHeaders(extra: Record<string, string> = {}): Record<string, strin
   };
 }
 
+/**
+ * Служебные файлы, которые Archive.org создаёт сам при создании айтема:
+ * ingest-система пишет их от своего имени, а не от аккаунта-загрузчика,
+ * поэтому S3 API отвечает на их удаление 403 даже владельцу айтема
+ * (см. офиц. библиотеку internetarchive: «Some files -- such as
+ * <itemname>_meta.xml -- cannot be deleted»).
+ */
+const ARCHIVE_SYSTEM_FILE_SUFFIXES = ['_meta.xml', '_files.xml', '_meta.sqlite'];
+
+/** Служебный файл Archive.org (_meta.xml/_files.xml/_meta.sqlite) — через API не удаляется. */
+export function isArchiveSystemFile(filename: string): boolean {
+  const base = (filename.split('/').pop() || '').toLowerCase();
+  return ARCHIVE_SYSTEM_FILE_SUFFIXES.some((s) => base.endsWith(s));
+}
+
 /** Удалить один файл из айтема Archive.org. */
 export async function deleteArchiveFile(identifier: string, filename: string): Promise<void> {
   const r = await fetch(
@@ -356,51 +371,128 @@ export async function deleteArchiveFile(identifier: string, filename: string): P
       headers: s3AuthHeaders({ 'x-archive-keep-old-version': '0' }),
     }
   );
-  if (!r.ok) {
-    const detail = await r.text().catch(() => '');
-    // 403 Access Denied — обычно означает, что аккаунт не имеет прав на удаление
-    // (файл загружен другим пользователем или аккаунт не является владельцем айтема)
-    if (r.status === 403) {
+  // 404 — файла уже нет (например, ушёл вместе с оригиналом) — считаем успехом
+  if (r.ok || r.status === 404) return;
+  const detail = await r.text().catch(() => '');
+  if (r.status === 403) {
+    if (isArchiveSystemFile(filename)) {
       throw new Error(
-        `Не удалось удалить файл: доступ запрещён (403). ` +
-        `Убедитесь, что аккаунт Archive.org, указанный в настройках, имеет право на удаление этого файла. ` +
-        `Если файл был загружен другим пользователем, обратитесь к администратору Archive.org.`
+        `«${filename}» — служебный файл, который создаёт сам Archive.org. ` +
+        `Такие файлы (${ARCHIVE_SYSTEM_FILE_SUFFIXES.join(', ')}) нельзя удалить через API — ` +
+        `Archive.org запрещает их удаление (403) даже владельцу айтема.`
       );
     }
-    throw new Error(`Не удалось удалить файл (${r.status}) ${detail.slice(0, 120)}`);
+    // 403 Access Denied — обычно означает, что аккаунт не имеет прав на удаление
+    // (файл загружен другим пользователем или аккаунт не является владельцем айтема)
+    throw new Error(
+      `Не удалось удалить файл: доступ запрещён (403). ` +
+      `Убедитесь, что аккаунт Archive.org, указанный в настройках, имеет право на удаление этого файла. ` +
+      `Если файл был загружен другим пользователем, обратитесь к администратору Archive.org.`
+    );
   }
+  throw new Error(`Не удалось удалить файл (${r.status}) ${detail.slice(0, 120)}`);
 }
 
-/** Удалить айтем целиком: сначала каскадное удаление, при неудаче — по файлам. */
-export async function deleteArchiveItem(identifier: string): Promise<void> {
-  try {
-    const r = await fetch(`${S3_HOST}/${encodeURIComponent(identifier)}/`, {
-      method: 'DELETE',
-      headers: s3AuthHeaders({ 'x-archive-cascade-delete': '1', 'x-archive-keep-old-version': '0' }),
-    });
-    if (r.ok) return;
-    if (r.status === 403) {
-      // Каскадное удаление не удалось из-за прав доступа — пробуем удалить файлы по одному
-      // но если и это не сработает, выдадим понятную ошибку
-    }
-  } catch {
-    // падаем на ручное удаление файлов
-  }
+export interface DeleteArchiveItemResult {
+  /** Удалённые файлы. */
+  deleted: string[];
+  /** Служебные файлы, которые нельзя удалить через API (останутся в айтеме). */
+  systemFiles: string[];
+}
+
+/**
+ * Удалить айтем целиком: по одному файлу, кроме служебных.
+ * Bucket-level DELETE у Archive.org запрещён («DELETE bucket is not allowed»),
+ * каскадного удаления «айтема разом» не существует. Пропускаем:
+ * - служебные _meta.xml/_files.xml/_meta.sqlite — их пишет сам Archive.org,
+ *   S3 API отвечает 403 даже владельцу айтема (в metadata API у них при этом
+ *   бывает source=original, поэтому фильтруем по имени);
+ * - файлы с source=metadata (например, _archive.torrent) — тоже созданы Archive.org.
+ */
+export async function deleteArchiveItem(identifier: string): Promise<DeleteArchiveItemResult> {
   const files = await fetchItemFiles(identifier);
+  const deleted: string[] = [];
+  const systemFiles: string[] = [];
   const errors: string[] = [];
   for (const f of files) {
-    if (f.source && f.source !== 'original') continue; // производные удалятся сами
+    if (isArchiveSystemFile(f.name) || f.source === 'metadata') {
+      systemFiles.push(f.name);
+      continue;
+    }
     try {
       await deleteArchiveFile(identifier, f.name);
+      deleted.push(f.name);
     } catch (e: any) {
       errors.push(`${f.name}: ${e?.message || 'ошибка'}`);
     }
   }
   if (errors.length > 0) {
     throw new Error(
-      `Не удалось удалить часть файлов (${errors.length} из ${files.length}). ` +
+      `Не удалось удалить файлы (${errors.length} из ${files.length}). ` +
       `Убедитесь, что аккаунт Archive.org имеет права на удаление. ` +
       `Ошибки: ${errors.slice(0, 3).join('; ')}`
     );
+  }
+  return { deleted, systemFiles };
+}
+
+export interface ArchiveAccountUsage {
+  /** Суммарный размер всех айтемов аккаунта, байты. */
+  usedBytes: number;
+  /** Сколько айтемов аккаунта нашлось в поиске. */
+  itemCount: number;
+  /** Email аккаунта-загрузчика (если удалось определить по метаданным айтема). */
+  uploader?: string;
+}
+
+/**
+ * Сколько места занято на Archive.org.
+ *
+ * Квоту аккаунта получить нельзя: Archive.org не публикует её через API
+ * (services/user.php отдаёт CORS только для origin archive.org, документированных
+ * эндпоинтов квоты нет). Поэтому считаем занятое место по поиску: сумма item_size
+ * всех айтемов, загруженных этим аккаунтом — поле uploader индексируется поиском
+ * (но не возвращается через fl[], поэтому email берём из метаданных одного из
+ * айтемов дашборда). Если аккаунт определить не удалось — суммируем айтемы
+ * с префиксами дашборда.
+ *
+ * Возвращает null, если посчитать не удалось (ошибка сети).
+ */
+export async function fetchAccountUsage(firstIdentifier?: string | null): Promise<ArchiveAccountUsage | null> {
+  try {
+    // 1. Определяем аккаунт по метаданным любого айтема дашборда.
+    let uploader: string | undefined;
+    if (firstIdentifier) {
+      const r = await fetch(`https://archive.org/metadata/${encodeURIComponent(firstIdentifier)}`, {
+        headers: { accept: 'application/json' },
+      });
+      if (r.ok) {
+        const j = (await r.json()) as { metadata?: { uploader?: string } };
+        const u = j.metadata?.uploader;
+        if (typeof u === 'string' && u.trim()) uploader = u.trim();
+      }
+    }
+
+    // 2. Суммируем item_size всех айтемов аккаунта (или дашбордовых префиксов).
+    const q = uploader ? `uploader:"${uploader.replace(/"/g, '')}"` : 'identifier:(vtgbeat-* OR vtgtrack-* OR vtgproj-*)';
+    const fl = ['identifier', 'item_size'];
+    const url =
+      `https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}` +
+      fl.map((f) => `&fl%5B%5D=${f}`).join('') +
+      '&rows=2000&output=json';
+    const r = await fetch(url, { headers: { accept: 'application/json' } });
+    if (!r.ok) return null;
+    const j = (await r.json()) as {
+      response?: { docs?: Array<{ item_size?: number }>; numFound?: number };
+    };
+    const docs = j.response?.docs || [];
+    const usedBytes = docs.reduce((s, d) => s + (typeof d.item_size === 'number' ? d.item_size : 0), 0);
+    return {
+      usedBytes,
+      itemCount: j.response?.numFound ?? docs.length,
+      uploader,
+    };
+  } catch {
+    return null;
   }
 }

@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Секреты Firebase Admin (скрипт миграции _migrate-ia-to-firebase.mjs)
+serviceAccountKey.json
+*.pem
+
 # Environment files with secrets
 .env
 .env.local

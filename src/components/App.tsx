@@ -45,7 +45,7 @@ import {
   updateBeat,
   deleteBeat,
 } from '../services/beatsService';
-import { publishBeatAudioInBackground } from '../services/archiveService';
+import { publishBeatAudioInBackground } from '../services/b2StorageService';
 import {
   subscribeToProjects,
   createProject,
@@ -380,8 +380,8 @@ export default function App() {
     }
     const newId = await createBeat(data as any);
     if (file) {
-      // Публикация mp3 в Archive.org идёт в фоне: карточка уже сохранена,
-      // создаём айтем и обновляем бит ссылкой, когда звук готов
+      // Публикация mp3 в Firebase Storage идёт в фоне: карточка уже сохранена,
+      // загружаем файл и обновляем бит ссылкой, когда звук готов
       publishBeatAudioInBackground({
         file,
         title: data.title,

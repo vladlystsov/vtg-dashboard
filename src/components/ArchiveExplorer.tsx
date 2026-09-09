@@ -5,11 +5,14 @@ import {
   listAccountItems,
   findItemByIdentifier,
   fetchItemFiles,
+  fetchAccountUsage,
+  isArchiveSystemFile,
   deleteArchiveFile,
   deleteArchiveItem,
   extractItemIdFromUrl,
   type ArchiveItemBrief,
   type ArchiveItemFile,
+  type ArchiveAccountUsage,
 } from '../services/archiveService';
 
 type StorageFolder = 'beats' | 'tracks' | 'projects' | 'other';
@@ -49,6 +52,27 @@ function formatDate(d?: string): string {
   return isNaN(dt.getTime()) ? '' : dt.toLocaleString();
 }
 
+const HIDDEN_SHELLS_KEY = 'vtg-archive-hidden-shells';
+
+/** Идентификаторы удалённых айтемов-оболочек, скрытые из списка (localStorage). */
+function loadHiddenShells(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_SHELLS_KEY);
+    const arr: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHiddenShells(ids: Set<string>): void {
+  try {
+    localStorage.setItem(HIDDEN_SHELLS_KEY, JSON.stringify([...ids]));
+  } catch {
+    // localStorage недоступен — скрывание просто не сохранится между сессиями
+  }
+}
+
 interface ArchiveExplorerProps {
   tracks: Track[];
   beats: Beat[];
@@ -74,6 +98,10 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
   const [manualId, setManualId] = useState('');
   const [manualBusy, setManualBusy] = useState(false);
   const [manualError, setManualError] = useState('');
+  // Пустые айтемы-оболочки (остались после удаления), скрытые из списка
+  const [hiddenShells, setHiddenShells] = useState<Set<string>>(() => loadHiddenShells());
+  // Занятое место на Archive.org (сумма размеров айтемов аккаунта)
+  const [usage, setUsage] = useState<ArchiveAccountUsage | null>(null);
 
   // Айтемы, на которые ссылаются карточки (треки/биты/проекты) — предупреждаем перед удалением
   const linked = useMemo(() => {
@@ -95,6 +123,26 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
     return m;
   }, [tracks, beats, projects]);
 
+  /** Скрыть пустую оболочку из списка (запоминается в localStorage). */
+  const hideShell = useCallback((identifier: string) => {
+    setHiddenShells((prev) => {
+      if (prev.has(identifier)) return prev;
+      const next = new Set(prev);
+      next.add(identifier);
+      saveHiddenShells(next);
+      return next;
+    });
+  }, []);
+
+  /** Вернуть все скрытые оболочки в список. */
+  const unhideAll = useCallback(() => {
+    setHiddenShells((prev) => {
+      if (prev.size === 0) return prev;
+      saveHiddenShells(new Set<string>());
+      return new Set<string>();
+    });
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoadError('');
     setItems(null);
@@ -104,6 +152,8 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
       const list = await listAccountItems();
       list.sort((a, b) => (b.addeddate || '').localeCompare(a.addeddate || ''));
       setItems(list);
+      // Занятое место аккаунта — параллельно со списком, не блокируем показ
+      void fetchAccountUsage(list[0]?.identifier || null).then((u) => setUsage(u));
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Не удалось загрузить список файлов');
       setItems([]);
@@ -157,12 +207,22 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
     if (!window.confirm(`Удалить айтем «${identifier}» целиком из хранилища Archive.org? Действие необратимо.${warn}`)) return;
     setBusyItem(identifier);
     try {
-      await deleteArchiveItem(identifier);
+      const result = await deleteArchiveItem(identifier);
+      // Содержимое удалено — айтем стал пустой оболочкой, скрываем его из списка
+      hideShell(identifier);
       if (openedId === identifier) {
         setOpenedId(null);
         setFiles([]);
       }
       await refresh();
+      if (result.systemFiles.length > 0) {
+        window.alert(
+          'Содержимое айтема удалено. Служебные файлы Archive.org (' +
+            result.systemFiles.join(', ') +
+            ') удалить через API нельзя — айтем остаётся пустой оболочкой и скрыт из списка этого раздела. ' +
+            'Полностью удалить айтем с Archive.org можно только обращением на info@archive.org.'
+        );
+      }
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'Не удалось удалить айтем');
     } finally {
@@ -186,6 +246,14 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
         if (base.some((x) => x.identifier === brief.identifier)) return base;
         return [brief, ...base];
       });
+      // Нашли вручную — показываем, даже если оболочка была скрыта из списка
+      setHiddenShells((prev) => {
+        if (!prev.has(brief.identifier)) return prev;
+        const next = new Set(prev);
+        next.delete(brief.identifier);
+        saveHiddenShells(next);
+        return next;
+      });
       setFolder(folderOf(brief.identifier));
       setQuery('');
       void openItem(brief.identifier);
@@ -198,20 +266,21 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
   };
 
   const visible = useMemo(() => {
-    const list = items || [];
+    const list = (items || []).filter((it) => !hiddenShells.has(it.identifier));
     const q = query.trim().toLowerCase();
     return list.filter((it) => {
       if (folder !== 'all' && folderOf(it.identifier) !== folder) return false;
       if (!q) return true;
       return it.identifier.toLowerCase().includes(q) || (it.title || '').toLowerCase().includes(q);
     });
-  }, [items, folder, query]);
+  }, [items, hiddenShells, folder, query]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: items?.length || 0 };
-    for (const f of FOLDER_ORDER) c[f] = (items || []).filter((it) => folderOf(it.identifier) === f).length;
+    const list = (items || []).filter((it) => !hiddenShells.has(it.identifier));
+    const c: Record<string, number> = { all: list.length };
+    for (const f of FOLDER_ORDER) c[f] = list.filter((it) => folderOf(it.identifier) === f).length;
     return c;
-  }, [items]);
+  }, [items, hiddenShells]);
 
   return (
     <div className="archive-explorer">
@@ -247,6 +316,16 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
         </button>
       </div>
 
+      {usage && (
+        <div
+          className="archive-explorer-usage"
+          title={`Аккаунт: ${usage.uploader || 'не определён'}. Квота аккаунта Archive.org не отдаётся через публичный API — показана сумма размеров всех айтемов аккаунта по данным поиска Archive.org.`}
+        >
+          💾 Занято на Archive.org: {formatBytes(usage.usedBytes)} · айтемов: {usage.itemCount}
+          {!usage.uploader && ' (айтемы дашборда)'}
+        </div>
+      )}
+
       <div className="archive-explorer-manual">
         <input
           type="text"
@@ -265,6 +344,15 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
         </button>
         {manualError && <span className="archive-explorer-error">{manualError}</span>}
       </div>
+
+      {hiddenShells.size > 0 && (
+        <div className="archive-explorer-hidden">
+          Скрыто удалённых айтемов-оболочек: {hiddenShells.size}
+          <button type="button" className="archive-file-hide-btn" onClick={unhideAll}>
+            показать снова
+          </button>
+        </div>
+      )}
 
       {loadError && <div className="archive-explorer-error">{loadError}</div>}
       {items === null && <div className="archive-explorer-loading">Загрузка файлов хранилища…</div>}
@@ -342,20 +430,46 @@ export default function ArchiveExplorer({ tracks, beats, projects }: ArchiveExpl
                         >
                           ⬇
                         </a>
-                        <button
-                          type="button"
-                          className="btn-reject"
-                          disabled={busy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void removeFile(it.identifier, f);
-                          }}
-                        >
-                          {busy ? 'Удаление…' : 'Удалить'}
-                        </button>
+                        {isArchiveSystemFile(f.name) ? (
+                          <span
+                            className="archive-file-system"
+                            title="Служебный файл Archive.org — создаётся автоматически и не может быть удалён через API"
+                          >
+                            🔒 служебный
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-reject"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void removeFile(it.identifier, f);
+                            }}
+                          >
+                            {busy ? 'Удаление…' : 'Удалить'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
+                  {!filesLoading && !filesError && files.length > 0 && files.every((f) => isArchiveSystemFile(f.name)) && (
+                    <div className="archive-file-system-note">
+                      Содержимое удалено — остались только служебные файлы, которые Archive.org создаёт автоматически
+                      (через API их удалить нельзя). Сам айтем-оболочка продолжает существовать на Archive.org —
+                      полностью стереть его можно только запросом на info@archive.org.
+                      <button
+                        type="button"
+                        className="archive-file-hide-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          hideShell(it.identifier);
+                        }}
+                      >
+                        Скрыть из списка
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

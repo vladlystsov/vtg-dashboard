@@ -74,11 +74,50 @@ npm run deploy         # публикация через gh-pages
 - Во время сохранения браузер ждёт подтверждения публикации в Archive.org (обычно до 2–3 минут).
 - Загружать mp3 могут только админы/владельцы и пользователи с ролью `beatmaker` (поле `roles` в профиле).
 
+### 3. Удаление из хранилища
+
+Удалять файлы и айтемы можно в админ-панели → «Хранилище». Используются S3-ключи того же «издательского» аккаунта: у Archive.org право на удаление есть только у аккаунта, который загрузил файл (Item uploader writable).
+
+Важно: вместе с каждым айтемом Archive.org сам создаёт служебные файлы `<identifier>_meta.xml`, `<identifier>_files.xml` и `<identifier>_meta.sqlite`. Через S3 API их удалить нельзя — Archive.org отвечает 403 даже владельцу айтема. Поэтому в «Хранилище» они помечены как «служебные», а при удалении айтема целиком остаются: айтем превращается в пустую оболочку без содержимого. Полностью удалить айтем с Archive.org можно только обращением на info@archive.org.
+
+Пустые оболочки скрываются из списка автоматически (метка хранится в localStorage браузера). Вернуть их можно кнопкой «показать снова» над списком или поиском по точному идентификатору.
+
+Под списком показывается занятое место: Archive.org не отдаёт квоту аккаунта через публичный API (endpoint `services/user.php` разрешает CORS только для origin archive.org), поэтому приложение суммирует размеры всех айтемов аккаунта по данным поиска Archive.org.
+
 ### Полезные ссылки
 
 - Публичная страница айтема: `https://archive.org/details/<identifier>`
 - Прямая ссылка на файл: `https://archive.org/download/<identifier>/<file>`
-- Удалить лишний айтем можно в аккаунте Archive.org (страница айтема → Delete).
+- Удалять лишние файлы и айтемы удобнее в админ-панели → «Хранилище».
+
+## Хранилище файлов (Backblaze B2)
+
+С сентября 2026 файлы (биты mp3, проекты zip) хранятся в **Backblaze B2**, а не на Archive.org:
+
+- приватность: ключи B2 живут только в serverless-функции `api/b2-storage.mjs` (в бандл не попадают); функция проверяет Firebase ID-токен и роль пользователя;
+- загрузка: браузер получает presigned PUT URL и льёт файл напрямую в B2 — zip до 1 ГБ без ограничений serverless;
+- ссылки: постоянные — указывают на нашу функцию `/api/b2-storage?path=…`, которая 302-редиректом отдаёт presigned GET (15 минут). Бакет может быть полностью **приватным**;
+- удаление и список файлов — через функцию (админ-панель → «Хранилище»); вкладка «Archive.org (легаси)» осталась для перелинковки/очистки;
+- S3-ключи Archive.org больше не используются и могут быть удалены из окружения.
+
+### Настройка B2 (один раз)
+
+1. backblaze.com → Sign Up (бесплатно, карта не нужна; free tier: 10 ГБ хранения, 3× эгресса в месяц).
+2. Buckets → Create Bucket: имя, например `vtg-storage`; **Files in Bucket are: Private (Частная)** — частный бакет не требует карту (гейт «история платежей / $1» стоит только на Public-бакетах, это анти-абьюз). Default Encryption — по умолчанию; **Object Lock — отключить** (иначе объекты нельзя будет удалять).
+3. Region: скопируйте из «S3 Endpoint» на странице бакета (напр. `us-west-004` или `eu-central-003`) — это значение `B2_REGION`.
+4. App Keys → Add Application Key: ограничить ключ этим бакетом → записать keyID и applicationKey (показывается один раз).
+5. Vercel → Settings → Environment Variables (и в `.env.local` для `vercel dev`):
+   `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET_NAME`, `B2_REGION` (для клиента — `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`);
+   `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID` — runtime-переменные **для serverless-функции** (без префикса `VITE_`, иначе Vercel не отдаёт их в функцию);
+   `B2_LINK_BASE` — постоянная база ссылок на файлы, полный URL функции (напр. `https://<project>.vercel.app/api/b2-storage`);
+   опционально `VITE_B2_PROXY_URL` (если SPA на GitHub Pages — полный URL функции).
+
+### Миграция старых файлов с Archive.org
+
+1. `npm i -D firebase-admin` и `serviceAccountKey.json` (Firebase Console → Project settings → Service accounts → Generate new private key; в git не коммитится).
+2. Заполнить env `B2_*` и `B2_LINK_BASE` (см. выше).
+3. `node _migrate-ia-to-b2.mjs --dry-run` — превью; затем без флага: скрипт скачает файлы с Archive.org, зальёт в B2 и перелинкует `platformUrl` / `projectZipUrl` / `projectZips` / `zipUrl` в Firestore.
+4. После успешной миграции удалите содержимое на Archive.org (админ-панель → «Archive.org (легаси)») и запросите полную стирку аккаунта на info@archive.org.
 
 ## Структура проекта
 

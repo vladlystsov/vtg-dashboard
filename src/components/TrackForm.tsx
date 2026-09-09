@@ -5,7 +5,7 @@ import { PlatformPlayer } from './TracksListView';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadCover } from '../services/fileService';
-import { checkBeatAudioFile, checkProjectZipFile, publishProjectZipInBackground } from '../services/archiveService';
+import { checkBeatAudioFile, checkProjectZipFile, publishProjectZipInBackground } from '../services/b2StorageService';
 
 interface TrackFormProps {
   initialTrack?: Track;

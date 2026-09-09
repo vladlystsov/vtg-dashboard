@@ -10,7 +10,7 @@ import {
   STATUS_LABELS,
 } from '../types/track';
 import type { ProjectDaw, ProjectStage, ProjectVariant, ProjectVocalType } from '../types/track';
-import { checkProjectZipFile, publishProjectZipInBackground } from '../services/archiveService';
+import { checkProjectZipFile, publishProjectZipInBackground } from '../services/b2StorageService';
 import { DownloadButton } from './TracksListView';
 import { asArray } from '../types/track';
 
