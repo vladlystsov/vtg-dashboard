@@ -27,10 +27,15 @@
  *       (нужны env IA_S3_ACCESS_KEY / IA_S3_SECRET_KEY «издательского» аккаунта)
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, createWriteStream, createReadStream } from 'node:fs';
+import { unlink, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import admin from 'firebase-admin';
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has('--dry-run');
@@ -51,9 +56,8 @@ if (missingEnv.length) {
   process.exit(1);
 }
 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
-const FieldPath = admin.firestore.FieldPath;
+initializeApp({ credential: cert(serviceAccount) });
+const db = getFirestore();
 
 const B2_REGION = process.env.B2_REGION.trim();
 const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME.trim();
@@ -113,26 +117,40 @@ function targetPath(ia) {
 // Дедупликация: один и тот же файл может упоминаться в нескольких документах
 const migrated = new Map(); // ia.raw → { path, url }
 
+const MAX_ATTEMPTS = 3;
+
 async function downloadFromIa(ia) {
   const url = `https://archive.org/download/${encodeURIComponent(ia.id)}/${ia.file
     .split('/')
     .map(encodeURIComponent)
     .join('/')}`;
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok || !res.body) throw new Error(`Archive.org ответил ${res.status}`);
-  return res;
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(url, { redirect: 'follow' });
+    if (res.ok && res.body) return res;
+    // 429/5xx — временная проблема IA, пробуем ещё раз
+    if ((res.status === 429 || res.status >= 500) && attempt < MAX_ATTEMPTS) {
+      process.stdout.write(` (${res.status}, retry ${attempt + 1}/${MAX_ATTEMPTS}) `);
+      await new Promise((r) => setTimeout(r, 3000 * attempt));
+      continue;
+    }
+    lastErr = new Error(`Archive.org ответил ${res.status}`);
+    lastErr.status = res.status;
+    return Promise.reject(lastErr);
+  }
+  return Promise.reject(lastErr || new Error('download failed'));
 }
 
-async function uploadToB2(path, res, ia) {
+async function uploadToB2(path, tmpFile, size, ia) {
   const ext = (ia.file.split('.').pop() || '').toLowerCase();
-  const headerType = (res.headers.get('content-type') || '').split(';')[0].trim();
-  const contentType =
-    headerType && headerType !== 'application/octet-stream' ? headerType : CT_BY_EXT[ext] || 'application/octet-stream';
+  // Content-Type берём по расширению — Archive.org часто отдаёт generic для mp3/zip
+  const contentType = CT_BY_EXT[ext] || 'application/octet-stream';
   await s3.send(
     new PutObjectCommand({
       Bucket: B2_BUCKET_NAME,
       Key: path,
-      Body: Readable.fromWeb(res.body),
+      Body: createReadStream(tmpFile),
+      ContentLength: size,
       ContentType: contentType,
     })
   );
@@ -142,12 +160,27 @@ async function uploadToB2(path, res, ia) {
 async function migrateIaFile(ia) {
   if (migrated.has(ia.raw)) return migrated.get(ia.raw);
   const path = targetPath(ia);
-  process.stdout.write(`   ↓ ${ia.id}/${ia.file} → ${path} … `);
-  const res = await downloadFromIa(ia);
-  const out = await uploadToB2(path, res, ia);
-  console.log('ok');
-  migrated.set(ia.raw, out);
-  return out;
+  const tmpFile = join(tmpdir(), `vtg-migrate-${randomBytes(6).toString('hex')}.tmp`);
+  try {
+    process.stdout.write(`   ↓ ${ia.id}/${ia.file} → ${path} … `);
+    const res = await downloadFromIa(ia);
+    // Качаем во временный файл — стрим в S3 без известной длины ломает B2 (aws-chunked)
+    const writeStream = createWriteStream(tmpFile);
+    await new Promise((resolve, reject) => {
+      Readable.fromWeb(res.body)
+        .pipe(writeStream)
+        .on('error', reject)
+        .on('finish', resolve);
+    });
+    const { size } = await stat(tmpFile);
+    if (size === 0) throw new Error('Пустой файл (0 байт)');
+    const out = await uploadToB2(path, tmpFile, size, ia);
+    console.log('ok');
+    migrated.set(ia.raw, out);
+    return out;
+  } finally {
+    await unlink(tmpFile).catch(() => {});
+  }
 }
 
 async function deleteFromIa(ia) {
