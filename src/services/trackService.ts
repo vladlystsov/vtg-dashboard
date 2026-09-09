@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Track, KanbanColumn } from '../types/track';
+import { normalizeTrack } from '../utils/normalizeTrack';
 import { v4 as uuidv4 } from 'uuid';
 
 const tracksRef = collection(db, 'tracks');
@@ -45,24 +46,8 @@ function cleanForFirestore(data: any): Record<string, any> {
 
 /**
  * Нормализация треков из Firestore.
- * Поле projectZips исторически могло сохраниться как объект-карта
- * { "0": {...}, "1": {...} } (при обновлении через FieldPath по индексам),
- * а компоненты ожидают массив. Приводим к массиву, сортируя по числовым ключам.
+ * См. src/utils/normalizeTrack.ts — projectZips в БД мог остаться картой.
  */
-function normalizeTrack(raw: any): Track {
-  const t = { ...raw } as any;
-  if (t.projectZips && !Array.isArray(t.projectZips)) {
-    if (typeof t.projectZips === 'object') {
-      t.projectZips = Object.keys(t.projectZips)
-        .sort((a, b) => Number(a) - Number(b))
-        .map((k) => t.projectZips[k]);
-    } else {
-      t.projectZips = undefined;
-    }
-  }
-  return t as Track;
-}
-
 export function subscribeToTracks(
   callback: (tracks: Track[]) => void,
   onError?: (e: Error) => void

@@ -34,9 +34,8 @@ export async function saveTrackOffline(track: Track) {
   await db.put('tracks', track);
 }
 
-export async function getTracksOffline(): Promise<Track[]> {
-  const db = await getDB();
-  return db.getAll('tracks');
+export function getTracksOffline(): Promise<Track[]> {
+  return getDB().then((db) => db.getAll('tracks'));
 }
 
 export async function deleteTrackOffline(id: string) {
