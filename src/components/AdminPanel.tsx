@@ -5,7 +5,6 @@ import {
   denyArtistRole,
 } from '../services/artistRequestService';
 import { getRoleOptionsFor, canChangeRole, canDenyArtist, isSoleOwnerDemoting } from '../utils/roles';
-import ArchiveExplorer from './ArchiveExplorer';
 import StorageExplorer from './StorageExplorer';
 
 interface AdminPanelProps {
@@ -31,7 +30,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export default function AdminPanel({ users, requests, tracks, beats, projects, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid, ownerCount = 1 }: AdminPanelProps) {
-  const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'storage' | 'storage-ia' | 'stats'>('requests');
+  const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'storage' | 'stats'>('requests');
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
@@ -56,9 +55,6 @@ export default function AdminPanel({ users, requests, tracks, beats, projects, o
         </button>
         <button className={`nav-btn ${tab === 'storage' ? 'active' : ''}`} onClick={() => setTab('storage')}>
           Хранилище
-        </button>
-        <button className={`nav-btn ${tab === 'storage-ia' ? 'active' : ''}`} onClick={() => setTab('storage-ia')}>
-          Archive.org (легаси)
         </button>
         <button className={`nav-btn ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')}>
           Состояние
@@ -169,12 +165,6 @@ export default function AdminPanel({ users, requests, tracks, beats, projects, o
       {tab === 'storage' && (
         <div className="admin-section">
           <StorageExplorer tracks={tracks} beats={beats || []} projects={projects || []} />
-        </div>
-      )}
-
-      {tab === 'storage-ia' && (
-        <div className="admin-section">
-          <ArchiveExplorer tracks={tracks} beats={beats || []} projects={projects || []} />
         </div>
       )}
 

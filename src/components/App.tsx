@@ -297,7 +297,7 @@ export default function App() {
       mixBy: data.mixBy || [],
       mixByUids: data.mixByUids || [],
       // карточка сохраняется сразу, прикреплённый mp3 публикуется в фоне
-      archiveStatus: (file ? 'uploading' : undefined) as 'uploading' | undefined,
+      uploadStatus: (file ? 'uploading' : undefined) as 'uploading' | undefined,
     };
 
     const isUpdate = !!id;
@@ -321,12 +321,12 @@ export default function App() {
             onReady: (url: string) => {
               void updateTrack(trackId as string, {
                 platformUrl: url,
-                archiveStatus: 'ready',
-                archiveError: undefined,
+                uploadStatus: 'ready',
+                uploadError: undefined,
               });
             },
             onError: (message: string) => {
-              void updateTrack(trackId as string, { archiveStatus: 'error', archiveError: message });
+              void updateTrack(trackId as string, { uploadStatus: 'error', uploadError: message });
             },
           },
         });
@@ -354,7 +354,7 @@ export default function App() {
         updatedAt: new Date().toISOString(),
         coverUrl: undefined,
         // в офлайне mp3 не публикуется — загрузка файла при синхронизации не сохранится
-        archiveStatus: undefined,
+        uploadStatus: undefined,
       } as any;
       await saveTrackOffline(offlineTrack);
       await addPendingSync(id ? 'update' : 'create', offlineTrack.id, offlineTrack);
@@ -380,7 +380,7 @@ export default function App() {
     }
     const newId = await createBeat(data as any);
     if (file) {
-      // Публикация mp3 в Firebase Storage идёт в фоне: карточка уже сохранена,
+      // Публикация mp3 в хранилище идёт в фоне: карточка уже сохранена,
       // загружаем файл и обновляем бит ссылкой, когда звук готов
       publishBeatAudioInBackground({
         file,
@@ -392,14 +392,14 @@ export default function App() {
             void updateBeat(newId, {
               platformUrl: url,
               platform: 'audio',
-              archiveStatus: 'ready',
-              archiveError: undefined,
+              uploadStatus: 'ready',
+              uploadError: undefined,
             });
           },
           onError: (message: string) => {
             void updateBeat(newId, {
-              archiveStatus: 'error',
-              archiveError: message,
+              uploadStatus: 'error',
+              uploadError: message,
             });
           },
         },

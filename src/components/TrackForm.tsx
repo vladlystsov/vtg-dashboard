@@ -740,12 +740,12 @@ export default function TrackForm({
             {audioFile && (
               <div className="form-hint" style={{ marginTop: 4 }}>
                 Файл «{audioFile.name}» будет опубликован
-                в Archive.org в фоне после сохранения. Трек сразу появится, а звук — через пару минут.
+                в хранилище в фоне после сохранения. Трек сразу появится, а звук — через пару минут.
                 Такие треки кэшируются на устройство и играют офлайн.
               </div>
             )}
             <div className="form-hint" style={{ marginTop: 4 }}>
-              Звук публикуется на бесплатном Archive.org (до 30 МБ). Ссылка на платформу и mp3 можно указать вместе —
+              Звук публикуется в хранилище (до 30 МБ). Ссылка на платформу и mp3 можно указать вместе —
               mp3 будет основным источником прослушивания.
             </div>
           </div>
@@ -808,7 +808,7 @@ export default function TrackForm({
             {projectZipFile && (
               <div className="form-hint" style={{ marginTop: 4 }}>
                 Архив «{projectZipFile.name}» ({(projectZipFile.size / 1024 / 1024).toFixed(1)} МБ) будет загружен
-                в Archive.org после сохранения.
+                в хранилище после сохранения.
               </div>
             )}
             <div className="form-row" style={{ marginTop: 8 }}>
@@ -840,8 +840,8 @@ export default function TrackForm({
                     {pz.zipStatus === 'ready' && pz.zipUrl && (
                       <a className="at-download" href={pz.zipUrl} target="_blank" rel="noreferrer" title="Скачать архив проекта">⬇</a>
                     )}
-                    {pz.zipStatus === 'uploading' && <span className="at-archive-badge at-archive-uploading">архив…</span>}
-                    {pz.zipStatus === 'error' && <span className="at-archive-badge at-archive-error" title={pz.zipError || 'Ошибка загрузки архива'}>ошибка</span>}
+                    {pz.zipStatus === 'uploading' && <span className="at-upload-badge at-upload-uploading">загрузка…</span>}
+                    {pz.zipStatus === 'error' && <span className="at-upload-badge at-upload-error" title={pz.zipError || 'Ошибка загрузки архива'}>ошибка</span>}
                   </div>
                 ))}
               </div>

@@ -329,7 +329,7 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false, track 
       </div>
     );
   }
-  // Прямой аудио-файл (например трек, загруженный на Archive.org) —
+  // Прямой аудио-файл из хранилища —
   // вместо «Слушать на платформе» показываем плеер с двигающейся точкой
   if (kind === 'audio') {
     if (track) {
@@ -641,11 +641,11 @@ function SingleTrackCard({
               <span className="album-track-title-name">{track.title}</span>
               {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
               {cachedIds.has(track.id) && <span className="at-cached-badge" title="Сохранено в кэше">✓</span>}
-              {track.archiveStatus === 'uploading' && (
-                <span className="at-archive-badge at-archive-uploading" title="Звук публикуется в Archive.org">звук…</span>
+              {track.uploadStatus === 'uploading' && (
+                <span className="at-upload-badge at-upload-uploading" title="Звук публикуется в хранилище">звук…</span>
               )}
-              {track.archiveStatus === 'error' && (
-                <span className="at-archive-badge at-archive-error" title={track.archiveError || 'Ошибка публикации звука'}>ошибка звука</span>
+              {track.uploadStatus === 'error' && (
+                <span className="at-upload-badge at-upload-error" title={track.uploadError || 'Ошибка публикации звука'}>ошибка звука</span>
               )}
             </div>
             {artistNamesStr(track, userMap) && (
@@ -860,11 +860,11 @@ function AlbumTrackRow({
             <span className="at-title">{track.title}</span>
             {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
             {cachedIds.has(track.id) && <span className="at-cached-badge" title="Сохранено в кэше">✓</span>}
-            {track.archiveStatus === 'uploading' && (
-              <span className="at-archive-badge at-archive-uploading" title="Звук публикуется в Archive.org">звук…</span>
+            {track.uploadStatus === 'uploading' && (
+              <span className="at-upload-badge at-upload-uploading" title="Звук публикуется в хранилище">звук…</span>
             )}
-            {track.archiveStatus === 'error' && (
-              <span className="at-archive-badge at-archive-error" title={track.archiveError || 'Ошибка публикации звука'}>ошибка звука</span>
+            {track.uploadStatus === 'error' && (
+              <span className="at-upload-badge at-upload-error" title={track.uploadError || 'Ошибка публикации звука'}>ошибка звука</span>
             )}
           </div>
           {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}

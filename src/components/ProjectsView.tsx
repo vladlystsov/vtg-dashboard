@@ -107,7 +107,7 @@ export default function ProjectsView({
   const projectTrackIdsOf = (p: Project): string[] => projectTrackIds(p);
 
   // Виртуальные версии: проекты, прикреплённые к треку через форму трека
-  // (projectZipUrl / projectZips на Archive.org), для которых ещё нет
+  // (projectZipUrl / projectZips), для которых ещё нет
   // отдельной записи в коллекции projects. Отображаются только для чтения.
   const virtualProjectsForTrack = (t: Track): Project[] => {
     const docIds = new Set(projects.map((p) => p.id));
@@ -347,7 +347,7 @@ export default function ProjectsView({
         <div className="project-zip project-zip-uploading">
           <span className="project-zip-spinner" />
           <span className="project-zip-cancel-label">
-            {cancellingId === p.id ? 'Отменяем…' : 'Загружаем архив версии в Archive.org…'}
+            {cancellingId === p.id ? 'Отменяем…' : 'Загружаем архив версии в хранилище…'}
           </span>
           {canEdit && (
             <button
@@ -780,7 +780,7 @@ export default function ProjectsView({
                 {modal.zipFile && (
                   <div className="form-hint" style={{ marginTop: 4 }}>
                     Архив «{modal.zipFile.name}» ({(modal.zipFile.size / 1024 / 1024).toFixed(1)} МБ)
-                    будет загружен в Archive.org после сохранения.
+                    будет загружен в хранилище после сохранения.
                   </div>
                 )}
               </div>

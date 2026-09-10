@@ -442,7 +442,7 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
               <div className="form-hint">
                 {playbackMode === 'platform'
                   ? 'Треки будут воспроизводиться через встроенные плееры SoundCloud/YouTube.'
-                  : 'Треки будут воспроизводиться через встроенный аудиоплеер на сайте (если загружены в Archive.org).'}
+                  : 'Треки будут воспроизводиться через встроенный аудиоплеер на сайте (если загружены как аудио-файл).'}
               </div>
             </div>
 

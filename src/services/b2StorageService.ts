@@ -1,5 +1,5 @@
 /**
- * Хранилище файлов на Backblaze B2 (замена Firebase Storage / Archive.org).
+ * Хранилище файлов на Backblaze B2.
  *
  * Схема: ключи B2 живут только в serverless-функции (api/b2-storage.mjs).
  * Браузер запрашивает у функции presigned PUT URL и льёт файл напрямую в B2 —
@@ -13,7 +13,7 @@
 import { auth } from '../config/firebase';
 
 // Валидаторы файлов общие (форматы и лимиты не менялись)
-import { checkBeatAudioFile, checkProjectZipFile } from './archiveService';
+import { checkBeatAudioFile, checkProjectZipFile } from './fileValidation';
 export { checkBeatAudioFile, checkProjectZipFile };
 
 // Прокси-функция хранилища: по умолчанию тот же origin (SPA на Vercel),
@@ -76,7 +76,15 @@ async function uploadFile(path: string, file: File, signal?: AbortSignal): Promi
     if ((e as Error)?.name === 'AbortError' || signal?.aborted) throw new Error('Загрузка отменена');
     throw e;
   }
-  if (!res.ok) throw new Error(`Ошибка загрузки в хранилище (${res.status})`);
+  if (!res.ok) {
+    if (res.status === 405 || res.status === 403) {
+      throw new Error(
+        `Ошибка загрузки в хранилище (${res.status}). Проверьте CORS-правила бакета Backblaze B2: ` +
+        `для прямых загрузок из браузера в бакете должны быть разрешены методы PUT/OPTIONS/HEAD и заголовок content-type.`
+      );
+    }
+    throw new Error(`Ошибка загрузки в хранилище (${res.status})`);
+  }
   return publicUrl;
 }
 
@@ -84,7 +92,7 @@ async function uploadFile(path: string, file: File, signal?: AbortSignal): Promi
 
 /**
  * Фоновая публикация mp3 (биты/треки) в Backblaze B2. Карточка уже сохранена
- * (archiveStatus: uploading) — здесь в фоне грузим файл и вызываем onReady,
+ * (uploadStatus: uploading) — здесь в фоне грузим файл и вызываем onReady,
  * когда появляется playable-ссылка; при неудаче onError.
  * itemPrefix: 'vtgtrack' (треки) или 'vtgbeat' (биты) — по нему выбирается папка.
  */
@@ -213,7 +221,7 @@ export async function deleteStorageFile(path: string): Promise<void> {
   await callApi('delete', { path });
 }
 
-/** Удалить файл по ссылке (игнорирует ссылки не из нашего хранилища, напр. Archive.org). */
+/** Удалить файл по ссылке (игнорирует ссылки не из нашего хранилища). */
 export async function deleteStorageFileByUrl(url: string): Promise<void> {
   const path = storagePathFromUrl(url);
   if (!path) return;

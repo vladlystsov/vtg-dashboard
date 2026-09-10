@@ -2748,7 +2748,7 @@ min-height: 220px;
   cursor: help;
 }
 
-.at-archive-badge {
+.at-upload-badge {
   font-size: 10px;
   font-weight: 700;
   color: #fff;
@@ -2763,12 +2763,12 @@ min-height: 220px;
   justify-content: center;
 }
 
-.at-archive-uploading {
+.at-upload-uploading {
   background: #d97706;
   cursor: help;
 }
 
-.at-archive-error {
+.at-upload-error {
   background: #b91c1c;
   cursor: help;
 }
@@ -4216,7 +4216,7 @@ min-height: 220px;
   border-radius: 999px;
 }
 
-.beat-badge-archive {
+.beat-badge-upload {
   position: absolute;
   bottom: 10px;
   left: 10px;
@@ -4228,7 +4228,7 @@ min-height: 220px;
   border-radius: 999px;
 }
 
-.beat-badge-archive-error {
+.beat-badge-upload-error {
   position: absolute;
   bottom: 10px;
   left: 10px;
@@ -4554,7 +4554,7 @@ min-height: 220px;
   width: 100%;
 }
 
-/* ===== РџСЂРѕРІРѕРґРЅРёРє С…СЂР°РЅРёР»РёС‰Р° Archive.org (Р°РґРјРёРЅ-РїР°РЅРµР»СЊ) ===== */
+/* ===== Проводник хранилища (админ-панель) ===== */
 .archive-explorer {
   display: flex;
   flex-direction: column;
@@ -4606,22 +4606,6 @@ min-height: 220px;
   font-size: 13px;
 }
 
-.archive-explorer-manual {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.archive-explorer-manual input {
-  flex: 1;
-  min-width: 220px;
-  padding: 8px 12px;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-}
-
 .archive-explorer-loading {
   padding: 12px;
   font-size: 13px;
@@ -4640,72 +4624,6 @@ min-height: 220px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.archive-item {
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  background: #fff;
-  overflow: hidden;
-}
-
-.archive-item.open {
-  border-color: var(--blue-300, #93c5fd);
-}
-
-.archive-item-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.archive-item-row:hover {
-  background: var(--gray-50);
-}
-
-.archive-item-caret {
-  color: var(--gray-400);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.archive-item-badge {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--gray-100);
-  color: var(--gray-500);
-}
-
-.archive-item-badge-beats {
-  background: rgba(217, 119, 6, 0.14);
-  color: #b45309;
-}
-
-.archive-item-badge-tracks {
-  background: rgba(37, 99, 235, 0.12);
-  color: var(--blue-600);
-}
-
-.archive-item-badge-projects {
-  background: rgba(22, 163, 74, 0.12);
-  color: #15803d;
-}
-
-.archive-item-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
 }
 
 /* ===== Р РµР»РёР·С‹ Рё РІРµСЂСЃРёРё (РџСЂРѕРµРєС‚С‹) ===== */
@@ -4928,40 +4846,6 @@ min-height: 220px;
   flex-shrink: 0;
 }
 
-.archive-item-size,
-.archive-item-date {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--gray-500);
-  white-space: nowrap;
-}
-
-.archive-item-link {
-  flex-shrink: 0;
-  color: var(--blue-600);
-  text-decoration: none;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-}
-
-.archive-item-link:hover {
-  background: rgba(37, 99, 235, 0.1);
-}
-
-.archive-item-linked {
-  padding: 0 12px 10px 34px;
-  font-size: 11px;
-  color: #b45309;
-}
-
-.archive-file-list {
-  border-top: 1px solid var(--gray-100);
-  background: var(--gray-50);
-  display: flex;
-  flex-direction: column;
-}
-
 .archive-file-row {
   display: flex;
   align-items: center;
@@ -5004,63 +4888,10 @@ min-height: 220px;
   white-space: nowrap;
 }
 
-.archive-file-system {
-  flex-shrink: 0;
-  color: var(--gray-400);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.archive-file-system-note {
-  padding: 8px 12px 8px 34px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--gray-500);
-  border-top: 1px solid var(--gray-100);
-}
-
-.archive-file-hide-btn {
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 11px;
-  color: var(--blue-600);
-  cursor: pointer;
-}
-
-.archive-file-hide-btn:hover {
-  text-decoration: underline;
-}
-
 .archive-explorer-usage {
   padding: 4px 12px;
   font-size: 12px;
   color: var(--gray-500);
-}
-
-.archive-explorer-hidden {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 12px;
-  font-size: 12px;
-  color: var(--gray-400);
-}
-
-@media (max-width: 700px) {
-  .archive-item-date {
-    display: none;
-  }
-
-  .archive-item-row {
-    flex-wrap: wrap;
-  }
-
-  .archive-item-name {
-    flex-basis: 100%;
-    order: 5;
-    white-space: normal;
-  }
 }
 
 /* ===== Loading Spinner with Cancel ===== */

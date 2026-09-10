@@ -4,13 +4,13 @@ import {
   BEAT_GENRE_OPTIONS,
   type Beat,
   type BeatStatus,
-  type BeatArchiveStatus,
+  type BeatUploadStatus,
   type BeatFormData,
 } from '../types/beat';
 import { detectPlatform, type PlatformKind } from '../types/track';
 import { useShippedPlayerManager, shippedFromUrl, ShippedMini } from './ShippedPlayer';
 import { PlatformPlayer, DownloadAudioButton } from './TracksListView';
-import { checkBeatAudioFile } from '../services/archiveService';
+import { checkBeatAudioFile } from '../services/fileValidation';
 import { listCachedAudio, deleteCachedAudio, clearAudioCache, onAudioCacheChange } from '../services/audioCacheService';
 
 const FALLBACK_COVER = `${import.meta.env.BASE_URL}logo_vtg_default.jpg`;
@@ -65,7 +65,7 @@ interface BeatFormState {
   free: boolean;
   collection: string;
   collectionNumber: string;
-  archiveStatus?: BeatArchiveStatus;
+  uploadStatus?: BeatUploadStatus;
 }
 
 const EMPTY_FORM: BeatFormState = {
@@ -83,7 +83,7 @@ const EMPTY_FORM: BeatFormState = {
   free: false,
   collection: '',
   collectionNumber: '',
-  archiveStatus: 'ready',
+  uploadStatus: 'ready',
 };
 
 function toFormState(b: Beat): BeatFormState {
@@ -102,7 +102,7 @@ function toFormState(b: Beat): BeatFormState {
     free: !!b.free,
     collection: b.collection || '',
     collectionNumber: b.collectionNumber ? String(b.collectionNumber) : '',
-    archiveStatus: b.archiveStatus || 'ready',
+    uploadStatus: b.uploadStatus || 'ready',
   };
 }
 
@@ -142,7 +142,7 @@ function BeatFormModal({
       setStage('saving');
       try {
         // Карточка сохраняется сразу (без ссылки), публикация mp3 идёт в фоне
-        const next = { ...f, platformUrl: '', archiveStatus: 'uploading' as const };
+        const next = { ...f, platformUrl: '', uploadStatus: 'uploading' as const };
         await onSubmit(next, audioFile);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Не удалось сохранить бит');
@@ -221,7 +221,7 @@ function BeatFormModal({
               )}
             </div>
             <span className="beat-link-hint">
-              {!audioFile && 'Прикрепите mp3 (до 30 МБ): сам опубликуется в Archive.org'}
+              {!audioFile && 'Прикрепите mp3 (до 30 МБ): сам опубликуется в хранилище'}
             </span>
           </div>
 
@@ -377,7 +377,7 @@ function BeatFormModal({
             Бесплатное использование
           </label>
           <p className="beat-publish-hint">
-            Если прикрепили mp3 — карточка сохранится сразу, а звук опубликуется в Archive.org в фоне (можно грузить несколько подряд).
+            Если прикрепили mp3 — карточка сохранится сразу, а звук опубликуется в хранилище в фоне (можно грузить несколько подряд).
           </p>
         </div>
 
@@ -528,7 +528,7 @@ export default function BeatsView({
         beatmakerUid: currentUid,
         beatmakerName: currentName,
         createdBy: currentUid,
-        archiveStatus: f.archiveStatus || (file ? 'uploading' : 'ready'),
+        uploadStatus: f.uploadStatus || (file ? 'uploading' : 'ready'),
       }, file);
       setForm(null);
     } finally {
@@ -709,16 +709,16 @@ export default function BeatsView({
                   <img className="beat-cover" src={b.coverUrl?.trim() || FALLBACK_COVER} alt="" />
                   {b.free && <span className="beat-badge-free">FREE</span>}
                   {b.status === 'hidden' && <span className="beat-badge-hidden">Скрыт</span>}
-                  {b.archiveStatus === 'error' && (
+                  {b.uploadStatus === 'error' && (
                     <span
-                      className="beat-badge-archive-error"
-                      title={b.archiveError || 'Произошла ошибка при публикации звука'}
+                      className="beat-badge-upload-error"
+                      title={b.uploadError || 'Произошла ошибка при публикации звука'}
                     >
                       Ошибка публикации
                     </span>
                   )}
-                  {b.archiveStatus === 'uploading' && (
-                    <span className="beat-badge-archive">Публикуем…</span>
+                  {b.uploadStatus === 'uploading' && (
+                    <span className="beat-badge-upload">Публикуем…</span>
                   )}
                   {playable && (
                     <button

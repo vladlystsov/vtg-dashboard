@@ -2,7 +2,7 @@ import type { PlatformKind } from './track';
 
 export type BeatStatus = 'published' | 'hidden';
 
-export type BeatArchiveStatus = 'uploading' | 'ready' | 'error';
+export type BeatUploadStatus = 'uploading' | 'ready' | 'error';
 
 export interface Beat {
   id: string;
@@ -25,9 +25,9 @@ export interface Beat {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
-  // Карточка создаётся сразу, публикация mp3 в Archive.org идёт в фоне
-  archiveStatus?: BeatArchiveStatus;
-  archiveError?: string;
+  // Карточка создаётся сразу, публикация mp3 идёт в фоне
+  uploadStatus?: BeatUploadStatus;
+  uploadError?: string;
   // Сборник (коллекция), в которую входит бит
   collection?: string;
   collectionNumber?: number;
@@ -74,7 +74,7 @@ export type BeatFormData = {
   beatmakerUid: string;
   beatmakerName: string;
   createdBy: string;
-  archiveStatus?: BeatArchiveStatus;
+  uploadStatus?: BeatUploadStatus;
   collection?: string;
   collectionNumber?: number;
 };

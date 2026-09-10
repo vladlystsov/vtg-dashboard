@@ -71,8 +71,8 @@ export type ArtistRole = 'artist' | 'beatmaker' | 'mixer' | 'feat';
 
 export type ReleaseType = 'single' | 'ep' | 'album' | 'auto';
 
-// Состояние фоновой публикации прямого mp3 в Archive.org
-export type TrackArchiveStatus = 'uploading' | 'ready' | 'error';
+// Состояние фоновой публикации mp3/архива в хранилище
+export type TrackUploadStatus = 'uploading' | 'ready' | 'error';
 
 export const RELEASE_TYPE_LABELS: Record<Exclude<ReleaseType, 'auto'>, string> = {
   single: 'Сингл',
@@ -143,11 +143,11 @@ export interface Track {
   albumBeatmakers?: string[] | string;
   albumMixBy?: string[] | string;
   platformUrl?: string;
-  archiveStatus?: TrackArchiveStatus;
-  archiveError?: string;
-  // Проект (zip) — архив с проектом трека, загружается через Archive.org
+  uploadStatus?: TrackUploadStatus;
+  uploadError?: string;
+  // Проект (zip) — архив с проектом трека
   projectZipUrl?: string;
-  projectZipStatus?: TrackArchiveStatus;
+  projectZipStatus?: TrackUploadStatus;
   projectZipError?: string;
   projectVariant?: ProjectVariant;
   projectVocalType?: ProjectVocalType;
@@ -156,7 +156,7 @@ export interface Track {
   projectDawVersion?: string;
   // Персональная обложка трека в альбоме (если отличается от обложки альбома)
   personalCoverUrl?: string;
-  // Список загруженных на Archive.org проектов (.zip), привязанных к этому треку
+  // Список загруженных проектов (.zip), привязанных к этому треку
   projectZips?: TrackProjectZip[];
   // Архив доски (пункт «Поместить в архив»)
   archived?: boolean;
@@ -168,7 +168,7 @@ export interface TrackProjectZip {
   projectId: string;
   projectName: string;
   zipUrl?: string;
-  zipStatus?: TrackArchiveStatus;
+  zipStatus?: TrackUploadStatus;
   zipError?: string;
   uploadedAt: string;
 }
@@ -178,7 +178,7 @@ export interface Project {
   name: string;
   tracks?: string[];
   zipUrl?: string;
-  zipStatus?: TrackArchiveStatus;
+  zipStatus?: TrackUploadStatus;
   zipError?: string;
   variants?: Record<string, { variant?: ProjectVariant; vocalType?: ProjectVocalType }>;
   createdAt: string;

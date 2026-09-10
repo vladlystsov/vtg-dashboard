@@ -46,7 +46,6 @@ interface StorageExplorerProps {
 /**
  * Проводник хранилища (Backblaze B2) в админ-панели — вкладка «Хранилище».
  * Показывает загруженные файлы с настоящим удалением и суммарным объёмом.
- * Старые загрузки на Archive.org — на вкладке «Archive.org (легаси)».
  */
 export default function StorageExplorer({ tracks, beats, projects }: StorageExplorerProps) {
   const [items, setItems] = useState<StorageItem[] | null>(null);
@@ -173,7 +172,6 @@ export default function StorageExplorer({ tracks, beats, projects }: StorageExpl
       {items !== null && visible.length === 0 && (
         <div className="empty-state">
           В этой папке файлов нет. Новые загрузки (биты, проекты) появятся здесь сразу после публикации.
-          Старые файлы на Archive.org — на вкладке «Archive.org (легаси)».
         </div>
       )}
 

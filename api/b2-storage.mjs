@@ -29,8 +29,10 @@ const PRESIGN_TTL_SECONDS = 6 * 60 * 60; // С…РІР°С‚РёС‚ РЅР°
 
 
 function cors(res) {
+  // CORS для браузера. GET нужен не только для 302-редиректа player'а, но и для
+  // кросс-доменного скачивания в кэш (fetch(url, {mode:'cors'}) из GitHub Pages).
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
 }
