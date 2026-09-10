@@ -117,6 +117,9 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, us
                   {archiveOpen && archivedTracks.length === 0 && (
                     <div className="kanban-archive-empty">Пусто</div>
                   )}
+                  {!archiveOpen && (
+                    <div className="kanban-archive-note">Перетащите сюда, чтобы заархивировать</div>
+                  )}
                   {archiveOpen && archivedTracks.map((track, index) => (
                     <TrackCard
                       key={track.id}

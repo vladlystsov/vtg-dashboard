@@ -860,6 +860,17 @@ body {
   text-align: center;
 }
 
+.kanban-archive-note {
+  padding: 4px 14px 14px;
+  font-size: 12px;
+  color: var(--gray-400);
+  text-align: center;
+}
+
+.kanban-column-archive-open .kanban-archive-note {
+  display: none;
+}
+
 .kanban-column-archive-open .kanban-archive-hint {
   display: none;
 }
