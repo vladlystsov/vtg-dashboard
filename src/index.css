@@ -817,8 +817,7 @@ body {
   background: var(--gray-100);
   border-style: dashed;
   border-color: var(--gray-300);
-min-height: 220px;
-  align-self: stretch;
+  min-height: 220px;
 }
 
 .kanban-column-archive .column-body {
@@ -828,6 +827,7 @@ min-height: 220px;
 }
 
 .kanban-column-archive-open {
+  align-self: stretch;
   max-height: none;
   overflow: visible;
 }
