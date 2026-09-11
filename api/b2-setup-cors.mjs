@@ -1,9 +1,8 @@
 ﻿/**
  * Скрипт для настройки CORS на бакете Backblaze B2.
  * 
- * Применяет правила CORS к обоим API:
- *   - B2 собственный API (b2_get_bucket, b2_set_bucket_cors)
- *   - S3-совместимый API (PutBucketCors через AWS SDK)
+ * Применяет правила CORS через B2 собственный API (b2_update_bucket).
+ * Если на бакете уже есть B2 Native CORS правила, S3 API не может их перезаписать.
  * 
  * Использование:
  *   node api/b2-setup-cors.mjs
@@ -12,79 +11,45 @@
  *   B2_KEY_ID, B2_APP_KEY, B2_BUCKET_NAME, B2_REGION
  */
 
-import { PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3';
-
-// CORS-правила для бакета
+// CORS-правила для B2 Native API
 // Разрешаем все необходимые операции из браузера
 const corsRules = [
   {
-    ID: 'allow-all-origins-read',
-    AllowedOrigins: ['*'],
-    AllowedMethods: ['GET', 'HEAD', 'OPTIONS'],
-    AllowedHeaders: ['*'],
-    ExposeHeaders: ['x-bz-content-sha1', 'x-bz-file-name', 'x-bz-upload-timestamp'],
-    MaxAgeSeconds: 3600,
+    corsRuleName: 'downloadFromAnyOrigin',
+    allowedOrigins: ['*'],
+    allowedOperations: [
+      'b2_download_file_by_id',
+      'b2_download_file_by_name',
+      's3_head',
+      's3_get',
+    ],
+    allowedHeaders: ['authorization', 'range'],
+    maxAgeSeconds: 3600,
   },
   {
-    ID: 'allow-all-origins-upload',
-    AllowedOrigins: ['*'],
-    AllowedMethods: ['PUT', 'POST', 'OPTIONS'],
-    AllowedHeaders: [
-      'content-type',
+    corsRuleName: 'uploadFromAnyOrigin',
+    allowedOrigins: ['*'],
+    allowedOperations: [
+      'b2_upload_file',
+      'b2_upload_part',
+      's3_put',
+      's3_post',
+      's3_delete',
+    ],
+    allowedHeaders: [
       'authorization',
+      'content-type',
+      'content-length',
       'x-bz-content-sha1',
       'x-bz-file-name',
       'x-bz-upload-timestamp',
       'x-bz-info-author',
       'cache-control',
     ],
-    ExposeHeaders: ['x-bz-content-sha1', 'x-bz-file-name', 'x-bz-upload-timestamp'],
-    MaxAgeSeconds: 3600,
+    exposeHeaders: ['x-bz-content-sha1', 'x-bz-file-name'],
+    maxAgeSeconds: 3600,
   },
 ];
-
-async function setupS3Cors() {
-  const region = (process.env.B2_REGION || '').trim();
-  const bucketName = process.env.B2_BUCKET_NAME || '';
-
-  if (!region || !bucketName) {
-    console.error('❌ Необходимо задать B2_REGION и B2_BUCKET_NAME');
-    process.exit(1);
-  }
-
-  const client = new S3Client({
-    region,
-    endpoint: `https://s3.${region}.backblazeb2.com`,
-    credentials: {
-      accessKeyId: process.env.B2_KEY_ID,
-      secretAccessKey: process.env.B2_APP_KEY,
-    },
-    forcePathStyle: true,
-  });
-
-  console.log(`🔧 Настройка CORS для бакета: ${bucketName} (регион: ${region})`);
-
-  try {
-    const command = new PutBucketCorsCommand({
-      Bucket: bucketName,
-      CORSConfiguration: {
-        CORSRules: corsRules.map((rule) => ({
-          AllowedOrigins: rule.AllowedOrigins,
-          AllowedMethods: rule.AllowedMethods,
-          AllowedHeaders: rule.AllowedHeaders,
-          ExposeHeaders: rule.ExposeHeaders,
-          MaxAgeSeconds: rule.MaxAgeSeconds,
-        })),
-      },
-    });
-
-    await client.send(command);
-    console.log('✅ CORS правила успешно применены через S3-совместимый API');
-  } catch (err) {
-    console.error('❌ Ошибка при настройке CORS через S3 API:', err.message);
-    throw err;
-  }
-}
 
 async function setupB2NativeCors() {
   const region = (process.env.B2_REGION || '').trim();
@@ -97,13 +62,13 @@ async function setupB2NativeCors() {
     process.exit(1);
   }
 
-  console.log(`🔧 Настройка CORS для бакета: ${bucketName} (B2 собственный API)`);
+  console.log(`🔧 Настройка CORS для бакета: ${bucketName} (B2 Native API)`);
 
   // Авторизация в B2 API
   const authString = Buffer.from(`${keyId}:${appKey}`).toString('base64');
   
-  // Шаг 1: Получаем bucketId по имени
   let bucketId;
+  let apiUrl;
   try {
     const authRes = await fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account', {
       headers: {
@@ -117,35 +82,51 @@ async function setupB2NativeCors() {
     
     const authData = await authRes.json();
     
-    // Получаем информацию о бакете
-    const bucketsRes = await fetch(`${authData.apiUrl}/b2api/v3/b2_list_buckets`, {
-      method: 'POST',
-      headers: {
-        Authorization: authData.authorizationToken,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        accountId: authData.accountId,
-        bucketName: bucketName,
-      }),
-    });
-    
-    if (!bucketsRes.ok) {
-      throw new Error(`Ошибка получения списка бакетов: ${bucketsRes.status}`);
+    // B2 API v3 возвращает apiUrl в apiInfo.storageApi
+    const storageApi = authData.apiInfo && authData.apiInfo.storageApi;
+    if (!storageApi || !storageApi.apiUrl) {
+      console.error('   Ответ авторизации:', JSON.stringify(authData, null, 2));
+      throw new Error('Не удалось получить apiUrl из ответа авторизации');
     }
     
-    const bucketsData = await bucketsRes.json();
-    const bucket = bucketsData.buckets.find((b) => b.bucketName === bucketName);
+    apiUrl = storageApi.apiUrl;
     
-    if (!bucket) {
-      throw new Error(`Бакет "${bucketName}" не найден`);
+    // Если bucketId уже есть в ответе (когда key привязан к конкретному бакету), используем его
+    if (storageApi.bucketId && storageApi.bucketName === bucketName) {
+      bucketId = storageApi.bucketId;
+      console.log(`   Найден бакет (из ключа): ${bucketId}`);
+    } else {
+      // Иначе получаем список бакетов и ищем нужный
+      const bucketsRes = await fetch(`${apiUrl}/b2api/v3/b2_list_buckets`, {
+        method: 'POST',
+        headers: {
+          Authorization: authData.authorizationToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accountId: authData.accountId,
+          bucketName: bucketName,
+        }),
+      });
+      
+      if (!bucketsRes.ok) {
+        const errorText = await bucketsRes.text();
+        throw new Error(`Ошибка получения списка бакетов: ${bucketsRes.status} - ${errorText}`);
+      }
+      
+      const bucketsData = await bucketsRes.json();
+      const bucket = bucketsData.buckets.find((b) => b.bucketName === bucketName);
+      
+      if (!bucket) {
+        throw new Error(`Бакет "${bucketName}" не найден`);
+      }
+      
+      bucketId = bucket.bucketId;
+      console.log(`   Найден бакет: ${bucketId}`);
     }
     
-    bucketId = bucket.bucketId;
-    console.log(`   Найден бакет: ${bucketId}`);
-    
-    // Шаг 2: Применяем CORS правила через B2 API
-    const corsRes = await fetch(`${authData.apiUrl}/b2api/v3/b2_set_bucket_cors`, {
+    // Применяем CORS правила через b2_update_bucket
+    const updateRes = await fetch(`${apiUrl}/b2api/v3/b2_update_bucket`, {
       method: 'POST',
       headers: {
         Authorization: authData.authorizationToken,
@@ -158,13 +139,17 @@ async function setupB2NativeCors() {
       }),
     });
     
-    if (!corsRes.ok) {
-      const errorText = await corsRes.text();
-      throw new Error(`Ошибка применения CORS: ${corsRes.status} - ${errorText}`);
+    if (!updateRes.ok) {
+      const errorText = await updateRes.text();
+      throw new Error(`Ошибка применения CORS: ${updateRes.status} - ${errorText}`);
     }
     
-    const corsData = await corsRes.json();
-    console.log('✅ CORS правила успешно применены через B2 собственный API');
+    const updateData = await updateRes.json();
+    console.log('✅ CORS правила успешно применены через B2 Native API');
+    console.log('   Правила:');
+    for (const rule of updateData.corsRules || []) {
+      console.log(`   - ${rule.corsRuleName}: ${rule.allowedOperations.join(', ')}`);
+    }
   } catch (err) {
     console.error('❌ Ошибка при настройке CORS через B2 API:', err.message);
     throw err;
@@ -177,25 +162,18 @@ async function main() {
   console.log('=' .repeat(60));
   console.log();
 
-  // Применяем CORS через S3-совместимый API
-  try {
-    await setupS3Cors();
-  } catch (err) {
-    console.warn('⚠️ Не удалось применить CORS через S3 API, продолжаем...');
-  }
-
-  console.log();
-
-  // Применяем CORS через B2 собственный API
+  // Применяем CORS через B2 Native API (b2_update_bucket)
+  // Примечание: S3 API не может перезаписать B2 Native CORS правила
   try {
     await setupB2NativeCors();
   } catch (err) {
-    console.warn('⚠️ Не удалось применить CORS через B2 API, продолжаем...');
+    console.error('❌ Не удалось применить CORS:', err.message);
+    process.exit(1);
   }
 
   console.log();
   console.log('='.repeat(60));
-  console.log('Готово! CORS правила применены к обоим API.');
+  console.log('Готово! CORS правила применены.');
   console.log('=' .repeat(60));
 }
 
