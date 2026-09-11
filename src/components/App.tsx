@@ -45,7 +45,7 @@ import {
   updateBeat,
   deleteBeat,
 } from '../services/beatsService';
-import { publishBeatAudioInBackground } from '../services/b2StorageService';
+import { publishBeatAudioInBackground, deleteStorageFileByUrl } from '../services/b2StorageService';
 import {
   subscribeToProjects,
   createProject,
@@ -58,6 +58,12 @@ import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
+
+function projectTrackIdsOf(p: Project): string[] {
+  const ids = Array.isArray(p.trackIds) ? p.trackIds : [];
+  const legacy = Array.isArray(p.tracks) ? p.tracks.filter((x): x is string => typeof x === 'string') : [];
+  return Array.from(new Set([...ids, ...legacy]));
+}
 
 function beatIdFromHash(): string | undefined {
   const m = window.location.hash.match(/#beat=([A-Za-z0-9_-]+)/);
@@ -364,9 +370,30 @@ export default function App() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Удалить трек?')) return;
+    if (!confirm('Удалить трек? Также будут удалены связанные файлы из хранилища.')) return;
     if (isOnline) {
+      const track = tracks.find((t) => t.id === id);
+      // Удаляем связанные файлы из B2, чтобы не оставалось битых ссылок
+      if (track) {
+        const urls = [
+          track.platformUrl,
+          track.personalCoverUrl,
+          track.coverUrl,
+          track.projectZipUrl,
+        ];
+        for (const pz of track.projectZips || []) urls.push(pz.zipUrl);
+        for (const u of urls) {
+          if (u) {
+            try { await deleteStorageFileByUrl(u); } catch { /* файл уже может быть удалён */ }
+          }
+        }
+      }
       await deleteTrack(id);
+      // Удаляем связанные проекты (записи в коллекции projects)
+      const linkedProjects = projectList.filter((p) => projectTrackIdsOf(p).includes(id));
+      for (const p of linkedProjects) {
+        try { await deleteProject(p.id); } catch { /* ignore */ }
+      }
     } else {
       await addPendingSync('delete', id);
       setTracks((prev) => prev.filter((t) => t.id !== id));
@@ -546,6 +573,7 @@ export default function App() {
             onSave={handleSaveProject}
             onDelete={handleDeleteProject}
             onUpdateTrack={updateTrack as any}
+            onOpenTrack={handleOpenTrack}
           />
         )}
 

@@ -25,6 +25,7 @@ interface ProjectsViewProps {
   ) => Promise<string | undefined>;
   onDelete: (id: string) => Promise<void>;
   onUpdateTrack: (id: string, patch: Partial<Track>) => Promise<void>;
+  onOpenTrack?: (track: Track) => void;
 }
 
 function projectTrackIds(p: Project): string[] {
@@ -86,6 +87,7 @@ export default function ProjectsView({
   onSave,
   onDelete,
   onUpdateTrack,
+  onOpenTrack,
 }: ProjectsViewProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -478,7 +480,13 @@ export default function ProjectsView({
               userMap.get(t.artistUids?.[0] || '')?.artistName ||
               '';
             return (
-              <div className="release-card project-track-card" key={t.id}>
+              <div
+                className="release-card project-track-card"
+                key={t.id}
+                onClick={() => onOpenTrack?.(t)}
+                role={onOpenTrack ? 'button' : undefined}
+                title={onOpenTrack ? 'Открыть трек' : undefined}
+              >
                 <div className="release-card-cover">
                   {(t.personalCoverUrl || t.coverUrl) ? (
                     <img src={t.personalCoverUrl || t.coverUrl} alt="" />
@@ -493,18 +501,14 @@ export default function ProjectsView({
                     <span className="release-card-title" title={t.title}>{t.title}</span>
                     <span className="column-count">{versions.length}</span>
                   </div>
+                  <div className="release-card-artist">
+                    {trackArtist || '—'}
+                  </div>
                   {t.project && (
                     <div className="release-card-meta">
                       <span className="beat-chip">Сборник: {t.project}</span>
                     </div>
                   )}
-                  <div className="project-track-row project-track-row-own">
-                    <span className="project-track-title">
-                      {t.trackNumber ? `${t.trackNumber}. ` : ''}
-                      {t.title}
-                    </span>
-                    <span className="project-track-meta">{trackArtist || '—'}</span>
-                  </div>
 
                   <div className="project-card-section-title">Проекты ({versions.length})</div>
                   {versions.length === 0 ? (
