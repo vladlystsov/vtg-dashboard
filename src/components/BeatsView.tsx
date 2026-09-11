@@ -12,6 +12,7 @@ import { useShippedPlayerManager, shippedFromUrl, ShippedMini } from './ShippedP
 import { PlatformPlayer, DownloadAudioButton } from './TracksListView';
 import { checkBeatAudioFile } from '../services/fileValidation';
 import { listCachedAudio, deleteCachedAudio, clearAudioCache, onAudioCacheChange } from '../services/audioCacheService';
+import { cancelUploadById } from '../services/uploadControllerRegistry';
 
 const FALLBACK_COVER = `${import.meta.env.BASE_URL}logo_vtg_default.jpg`;
 
@@ -718,7 +719,16 @@ export default function BeatsView({
                     </span>
                   )}
                   {b.uploadStatus === 'uploading' && (
-                    <span className="beat-badge-upload">Публикуем…</span>
+                    <span className="beat-upload-cancel-wrap" title="Отменить загрузку">
+                      <span className="beat-upload-spinner" />
+                      <button
+                        type="button"
+                        className="beat-upload-cancel-btn"
+                        onClick={(e) => { e.stopPropagation(); cancelUploadById(b.id); }}
+                      >
+                        ✕
+                      </button>
+                    </span>
                   )}
                   {playable && (
                     <button

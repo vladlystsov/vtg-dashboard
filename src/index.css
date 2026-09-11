@@ -2779,6 +2779,50 @@ body {
   cursor: help;
 }
 
+/* Upload cancel spinner + button for tracks */
+.at-upload-cancel-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.at-upload-spinner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--gray-300);
+  border-top-color: #d97706;
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+.at-upload-cancel-btn {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1;
+  transition: color 0.15s;
+}
+
+.at-upload-cancel-btn:hover {
+  color: #dc2626;
+}
+
 .at-upload-error {
   background: #b91c1c;
   cursor: help;
@@ -4237,6 +4281,51 @@ body {
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 999px;
+}
+
+/* Upload cancel spinner + button for beats */
+.beat-upload-cancel-wrap {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.beat-upload-spinner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+.beat-upload-cancel-btn {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1;
+  transition: color 0.15s;
+}
+
+.beat-upload-cancel-btn:hover {
+  color: #fee2e2;
 }
 
 .beat-badge-upload-error {

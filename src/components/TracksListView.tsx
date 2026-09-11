@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ShippedMini, toShippedItem, useShippedPlayerManager } from './ShippedPlayer';
 import { uploadCover } from '../services/fileService';
 import { listCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
+import { cancelUploadById } from '../services/uploadControllerRegistry';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -861,7 +862,16 @@ function AlbumTrackRow({
             {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
             {cachedIds.has(track.id) && <span className="at-cached-badge" title="Сохранено в кэше">✓</span>}
             {track.uploadStatus === 'uploading' && (
-              <span className="at-upload-badge at-upload-uploading" title="Звук публикуется в хранилище">звук…</span>
+              <span className="at-upload-cancel-wrap" title="Отменить загрузку">
+                <span className="at-upload-spinner" />
+                <button
+                  type="button"
+                  className="at-upload-cancel-btn"
+                  onClick={(e) => { e.stopPropagation(); cancelUploadById(track.id); }}
+                >
+                  ✕
+                </button>
+              </span>
             )}
             {track.uploadStatus === 'error' && (
               <span className="at-upload-badge at-upload-error" title={track.uploadError || 'Ошибка публикации звука'}>ошибка звука</span>

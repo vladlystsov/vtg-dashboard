@@ -46,6 +46,7 @@ import {
   deleteBeat,
 } from '../services/beatsService';
 import { publishBeatAudioInBackground } from '../services/b2StorageService';
+import { registerUploadController, clearUploadController } from '../services/uploadControllerRegistry';
 import {
   subscribeToProjects,
   createProject,
@@ -311,14 +312,18 @@ export default function App() {
         trackId = await createTrack(payload as any);
       }
       if (file && trackId) {
+        const controller = new AbortController();
+        registerUploadController(trackId, controller);
         publishBeatAudioInBackground({
           file,
           title: payload.title,
           description: payload.artists?.join(', ') || undefined,
           creator: payload.artists?.[0],
           itemPrefix: 'vtgtrack',
+          signal: controller.signal,
           callbacks: {
             onReady: (url: string) => {
+              clearUploadController(trackId);
               void updateTrack(trackId as string, {
                 platformUrl: url,
                 uploadStatus: 'ready',
@@ -326,6 +331,7 @@ export default function App() {
               });
             },
             onError: (message: string) => {
+              clearUploadController(trackId);
               void updateTrack(trackId as string, { uploadStatus: 'error', uploadError: message });
             },
           },
@@ -382,13 +388,17 @@ export default function App() {
     if (file) {
       // Публикация mp3 в хранилище идёт в фоне: карточка уже сохранена,
       // загружаем файл и обновляем бит ссылкой, когда звук готов
+      const controller = new AbortController();
+      registerUploadController(newId, controller);
       publishBeatAudioInBackground({
         file,
         title: data.title,
         description: data.description,
         creator: data.beatmakerName,
+        signal: controller.signal,
         callbacks: {
           onReady: (url: string) => {
+            clearUploadController(newId);
             void updateBeat(newId, {
               platformUrl: url,
               platform: 'audio',
@@ -397,6 +407,7 @@ export default function App() {
             });
           },
           onError: (message: string) => {
+            clearUploadController(newId);
             void updateBeat(newId, {
               uploadStatus: 'error',
               uploadError: message,
