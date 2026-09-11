@@ -85,6 +85,7 @@ body {
   max-width: 1600px;
   width: 100%;
   margin: 0 auto;
+  min-height: 0;
 }
 
 /* ===== Login ===== */
@@ -3010,8 +3011,10 @@ body {
   margin-bottom: 14px;
   flex-wrap: wrap;
   position: sticky;
-  top: 60px;
-  z-index: 5;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  background: rgba(248, 250, 252, 0.95);
 }
 
 .album-track-list .shipped-player {
