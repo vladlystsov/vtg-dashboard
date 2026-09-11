@@ -4834,6 +4834,23 @@ body {
   gap: 4px;
 }
 
+/* Кнопка удаления карточки проекта (в шапке карточки) */
+.release-card-delete {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Чип версии проекта: «Основной» — зелёный, «Другая версия» — жёлтый */
+.project-variant-chip-main {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green-600);
+}
+
+.project-variant-chip-other {
+  background: rgba(245, 158, 11, 0.18);
+  color: #a16207;
+}
+
 .release-version-zip {
   display: flex;
   align-items: center;

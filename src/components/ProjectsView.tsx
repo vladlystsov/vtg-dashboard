@@ -90,6 +90,7 @@ export default function ProjectsView({
   onOpenTrack,
 }: ProjectsViewProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingCardTrackId, setDeletingCardTrackId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
@@ -499,7 +500,35 @@ export default function ProjectsView({
                 <div className="release-card-body">
                   <div className="release-card-header">
                     <span className="release-card-title" title={t.title}>{t.title}</span>
-                    <span className="column-count">{versions.length}</span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        className="at-delete release-card-delete"
+                        title="Удалить карточку проекта и все её версии"
+                        disabled={deletingCardTrackId === t.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!window.confirm(`Удалить карточку проекта «${t.title}» вместе со всеми версиями (${versions.length})?`)) return;
+                          setDeletingCardTrackId(t.id);
+                          void (async () => {
+                            for (const p of versions) {
+                              if (isVirtualProject(p)) continue;
+                              await onDelete(p.id);
+                            }
+                            // Убираем виртуальные версии (архивы, прикреплённые
+                            // к треку напрямую), чтобы карточка исчезла совсем.
+                            await onUpdateTrack(t.id, {
+                              projectZips: [],
+                              projectZipUrl: '',
+                              projectZipStatus: undefined,
+                              projectZipError: undefined,
+                            });
+                          })().finally(() => setDeletingCardTrackId(null));
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                   <div className="release-card-artist">
                     {trackArtist || '—'}
@@ -518,8 +547,8 @@ export default function ProjectsView({
                   ) : (
                     <div className="release-versions">
                       {versions.map((p) => {
+                        const variantLabel = p.variant ? PROJECT_VARIANT_LABELS[p.variant] : '';
                         const chips = [
-                          p.variant ? PROJECT_VARIANT_LABELS[p.variant] : '',
                           p.vocalType ? PROJECT_VOCAL_TYPE_LABELS[p.vocalType] : '',
                           p.daw ? PROJECT_DAW_LABELS[p.daw] : '',
                           p.dawVersion ? `v${p.dawVersion}` : '',
@@ -556,8 +585,15 @@ export default function ProjectsView({
                                 </div>
                               )}
                             </div>
-                            {chips.length > 0 && (
+                            {(variantLabel || chips.length > 0) && (
                               <div className="release-version-chips">
+                                {variantLabel && (
+                                  <span
+                                    className={`beat-chip project-variant-chip ${p.variant === 'main' ? 'project-variant-chip-main' : 'project-variant-chip-other'}`}
+                                  >
+                                    {variantLabel}
+                                  </span>
+                                )}
                                 {chips.map((c) => <span className="beat-chip" key={c}>{c}</span>)}
                               </div>
                             )}
