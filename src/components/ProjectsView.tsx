@@ -90,6 +90,7 @@ export default function ProjectsView({
   const [zipError, setZipError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState<VersionFormState | null>(null);
+  const [trackSearch, setTrackSearch] = useState('');
   const [savingVersion, setSavingVersion] = useState(false);
 
   const uploadControllers = useRef(new Map<string, AbortController>());
@@ -386,10 +387,12 @@ export default function ProjectsView({
   };
 
   const openNewVersion = (t?: Track) => {
+    setTrackSearch('');
     setModal(emptyForm(t ? [t.id] : [], t ? t.title : ''));
   };
 
   const openEditVersion = (p: Project) => {
+    setTrackSearch('');
     setModal({
       ...emptyForm(projectTrackIds(p), p.name),
       editing: p,
@@ -406,6 +409,23 @@ export default function ProjectsView({
       status: p.status || 'draft',
     });
   };
+
+  // Список треков для селектора в модалке версии (с поиском)
+  const trackSearchQuery = trackSearch.trim().toLowerCase();
+  const visibleTrackOptions = trackSearchQuery
+    ? tracks.filter((t) => {
+        const haystack = [
+          t.title,
+          t.project || '',
+          trackArtistName(t),
+          ...asArray(t.artists).map((a) => String(a)),
+        ].join(' ').toLowerCase();
+        return (
+          haystack.includes(trackSearchQuery) ||
+          String(t.trackNumber ?? '').includes(trackSearchQuery)
+        );
+      })
+    : tracks;
 
   return (
     <div className="projects-view">
@@ -623,8 +643,15 @@ export default function ProjectsView({
 
               <div className="form-group">
                 <label>Трек, к которому привязывается версия проекта *</label>
+                <input
+                  type="text"
+                  value={trackSearch}
+                  onChange={(e) => setTrackSearch(e.target.value)}
+                  placeholder="Поиск трека: название, артист, сборник, номер…"
+                  style={{ marginBottom: 8 }}
+                />
                 <div className="release-multiselect">
-                  {tracks.map((t) => {
+                  {visibleTrackOptions.map((t) => {
                     const checked = modal.trackIds.includes(t.id);
                     const select = () => {
                       setModal({ ...modal, trackIds: checked ? [] : [t.id] });
@@ -639,6 +666,11 @@ export default function ProjectsView({
                       </label>
                     );
                   })}
+                  {visibleTrackOptions.length === 0 && tracks.length > 0 && (
+                    <div className="project-card-empty">
+                      По запросу «{trackSearch.trim()}» треки не найдены.
+                    </div>
+                  )}
                   {tracks.length === 0 && (
                     <div className="project-card-empty">Сначала создайте хотя бы один трек.</div>
                   )}
