@@ -8,12 +8,14 @@ export interface ImportedItem {
   url: string;
   author: string;
   thumbnail?: string;
-  /** Со-артисты из шапки названия («A x B — Song»). */
+  /** Со-артисты из шапки названия («A x B — Song») и со-кредитов (publisher_artist). */
   extraArtists?: string[];
   /** Участники «feat. / ft. / при участии». */
   feat?: string[];
   /** «prod by …» → битмейкеры. */
   beatmakers?: string[];
+  /** «mixed by …» → микс-инженеры. */
+  mixers?: string[];
 }
 
 export interface PlatformImportResult {
@@ -282,6 +284,7 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
   const dc = desc.trim() ? parseTrackCollaborators(desc, { mainAuthor: author, allowArtistSplit: false }) : null;
   const beatmakers = pc.beatmakers.length ? pc.beatmakers : dc?.beatmakers || [];
   const featNames = pc.feat.length ? pc.feat : dc?.feat || [];
+  const mixers = pc.mixers.length ? pc.mixers : dc?.mixers || [];
   // Со-артисты: из названия + из описания (для релизов с несколькими авторами)
   const extraArtists = [...pc.extraArtists];
   if (dc?.extraArtists.length) {
@@ -301,6 +304,7 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
         ...(extraArtists.length ? { extraArtists } : {}),
         ...(featNames.length ? { feat: featNames } : {}),
         ...(beatmakers.length ? { beatmakers } : {}),
+        ...(mixers.length ? { mixers } : {}),
       },
     ],
     type,
@@ -485,6 +489,12 @@ export async function updateTracksFromItems(pairs: ExistingTrackMatch[]): Promis
       beatmakerUids: beatmakers.map(() => ''),
       feat: (item.feat || []).join(', '),
     };
+    // Микс-инженеры перезаписываем только если площадка их указала — иначе
+    // сотрём вручную проставленные mix by.
+    if ((item.mixers || []).length) {
+      patch.mixBy = item.mixers!.slice();
+      patch.mixByUids = item.mixers!.map(() => '');
+    }
     if (item.thumbnail?.trim()) patch.coverUrl = item.thumbnail.trim();
     if (!track.platformUrl?.trim()) patch.platformUrl = sanitizePlatformUrl(item.url);
     try {
@@ -526,8 +536,8 @@ export async function persistItems(items: ImportedItem[], opts: ImportOptions): 
       artistUids: authors.map(() => ''),
       beatmakers,
       beatmakerUids: beatmakers.map(() => ''),
-      mixBy: [],
-      mixByUids: [],
+      mixBy: (it.mixers || []).slice(),
+      mixByUids: (it.mixers || []).map(() => ''),
       feat: (it.feat || []).join(', '),
       project: '',
       // Импортированные треки оставляем только в разделе «Отгружено»:
@@ -718,6 +728,7 @@ async function fetchSoundCloudProfileItems(
     const dc = desc.trim() ? parseTrackCollaborators(desc, { mainAuthor: author, allowArtistSplit: false }) : null;
     const beatmakers = pc.beatmakers.length ? pc.beatmakers : dc?.beatmakers || [];
     const featNames = pc.feat.length ? pc.feat : dc?.feat || [];
+    const mixers = pc.mixers.length ? pc.mixers : dc?.mixers || [];
     for (const a of dc?.extraArtists || []) addExtra(a);
     items.push({
       title,
@@ -727,6 +738,7 @@ async function fetchSoundCloudProfileItems(
       ...(extraArtists.length ? { extraArtists } : {}),
       ...(featNames.length ? { feat: featNames } : {}),
       ...(beatmakers.length ? { beatmakers } : {}),
+      ...(mixers.length ? { mixers } : {}),
     });
   }
   const profileLabel = String(data?.user?.username || data?.user?.permalink || profileUrl);

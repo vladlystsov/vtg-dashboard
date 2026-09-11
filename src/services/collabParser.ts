@@ -20,6 +20,8 @@ export interface ParsedCollabs {
   feat: string[];
   /** Из «prod / produced by / продюсер / beat by». */
   beatmakers: string[];
+  /** Из «mixed by / mix by / сведение». */
+  mixers: string[];
 }
 
 const NAME_MIN_LEN = 2;
@@ -32,17 +34,22 @@ const NAME_MAX_WORDS = 5;
  * поэтому границы проверяем lookbehind/lookahead по классу букв и цифр.
  */
 const KEYWORD_RE =
-  /(?<![\p{L}\p{N}@])(?:prod(?:uced)?(?:\s*\.?\s*by)?\.?|прод\.?(?:\s*by)?|продюсер|beat\s+by|feat(?:uring)?\.?|ft\.?|при\s+(?:участии|уч\.)|совместно\s+с|with|уч\.?)(?![\p{L}\p{N}])/giu;
+  /(?<![\p{L}\p{N}@])(?:prod(?:uced)?(?:\s*\.?\s*by)?\.?|прод\.?(?:\s*by)?|продюсер|beat\s+by|mix(?:ed)?\s*\.?\s*by|сведени[ея]\.?(?:\s*by)?|feat(?:uring)?\.?|ft\.?|при\s+(?:участии|уч\.)|совместно\s+с|with|уч\.?)(?![\p{L}\p{N}])/giu;
 
 /** Позиция ключевого слова в тексте. */
 interface KeywordHit {
   start: number;
   end: number;
   isProd: boolean;
+  isMix: boolean;
 }
 
 function isProdKeyword(text: string): boolean {
   return /^(?:prod|прод|продюсер|beat)/i.test(text.trim());
+}
+
+function isMixKeyword(text: string): boolean {
+  return /^(?:mix|сведени)/i.test(text.trim());
 }
 
 function cleanName(raw: string): string {
@@ -84,7 +91,7 @@ export function parseTrackCollaborators(
   text: string,
   opts?: { mainAuthor?: string; allowArtistSplit?: boolean }
 ): ParsedCollabs {
-  const out: ParsedCollabs = { extraArtists: [], feat: [], beatmakers: [] };
+  const out: ParsedCollabs = { extraArtists: [], feat: [], beatmakers: [], mixers: [] };
   const source = String(text || '');
   if (!source.trim()) return out;
   const mainAuthor = (opts?.mainAuthor || '').trim().toLowerCase();
@@ -94,11 +101,11 @@ export function parseTrackCollaborators(
   const hits: KeywordHit[] = [];
   KEYWORD_RE.lastIndex = 0;
   for (let m = KEYWORD_RE.exec(source); m; m = KEYWORD_RE.exec(source)) {
-    hits.push({ start: m.index, end: m.index + m[0].length, isProd: isProdKeyword(m[0]) });
+    hits.push({ start: m.index, end: m.index + m[0].length, isProd: isProdKeyword(m[0]), isMix: isMixKeyword(m[0]) });
   }
 
   // 2. Значение каждого ключа: до следующего ключа, закрывающей скобки,
-  //    «прозы» (mixed by / mastered / …) или конца строки.
+  //    «прозы» (mastered / recorded / …) или конца строки.
   for (let i = 0; i < hits.length; i++) {
     let stop = source.length;
     for (let p = hits[i].end; p < source.length; p++) {
@@ -111,9 +118,9 @@ export function parseTrackCollaborators(
       if (hits[j].start >= hits[i].end) stop = Math.min(stop, hits[j].start);
     }
     let value = source.slice(hits[i].end, stop);
-    value = value.split(/\b(?:mixed|mix|mastered|recorded|written|released)(?![a-zа-яё])/i)[0];
+    value = value.split(/\b(?:mastered|recorded|written|released)(?![a-zа-яё])/i)[0];
     const names = splitNames(value);
-    const target = hits[i].isProd ? out.beatmakers : out.feat;
+    const target = hits[i].isProd ? out.beatmakers : hits[i].isMix ? out.mixers : out.feat;
     for (const n of names) pushUnique(target, n);
   }
 

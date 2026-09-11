@@ -26,7 +26,7 @@ r = P('WHOOP WHOOP prod.by @FlexxxyBeatz', 'FLEXXXY');
 eq(r.beatmakers, ['FlexxxyBeatz'], '«prod.by @FlexxxyBeatz»');
 
 r = P('WAY TO HOOD', 'FLEXXXY');
-eq(r, { extraArtists: [], feat: [], beatmakers: [] }, 'без упоминаний → всё пусто');
+eq(r, { extraArtists: [], feat: [], beatmakers: [], mixers: [] }, 'без упоминаний → всё пусто');
 
 // feat / комбинации
 r = P('Song (feat. Artist B & Artist C) (prod. by Killa)', 'MAIN');
@@ -74,7 +74,7 @@ eq(r.extraArtists, [], '«Song, Part 2» без тире/участников �
 
 // ложные срабатывания
 r = P('Track production started', 'MAIN');
-eq(r, { extraArtists: [], feat: [], beatmakers: [] }, '«production» не матчится');
+eq(r, { extraArtists: [], feat: [], beatmakers: [], mixers: [] }, '«production» не матчится');
 
 r = P('Song feat. official video', 'MAIN');
 eq(r.feat, [], 'мусорное «official video» отброшено');
@@ -94,5 +94,18 @@ r = parseTrackCollaborators('prod by Killa, mixed by Dj, mastered at Home Studio
   allowArtistSplit: false,
 });
 eq(r.beatmakers, ['Killa'], 'проза описания («mixed by», «mastered») отсечена');
+eq(r.mixers, ['Dj'], '«mixed by» в описании → mixers');
+
+// описание реального трека PRINZ: Prod.by / Mixed.by с точкой
+r = parseTrackCollaborators('From LL2\nProd.by @Flexxxy\nMixed.by @Dzzzy\nTgk: @Flexxxy_team', {
+  mainAuthor: 'FLEXXXY',
+});
+eq(r.beatmakers, ['Flexxxy'], '«Prod.by @Flexxxy» → beatmakers');
+eq(r.mixers, ['Dzzzy'], '«Mixed.by @Dzzzy» → mixers');
+eq(r.extraArtists, [], 'описание не даёт со-артистов');
+
+// «mix» внутри имени артиста больше не рвёт значение feat
+r = P('Song (feat. DJ Mix Master)', 'MAIN');
+eq(r.feat, ['DJ Mix Master'], '«DJ Mix Master» не режется по «Mix»');
 
 console.log(process.exitCode ? 'PARSER: ЕСТЬ ОШИБКИ' : 'PARSER: всё ок');
