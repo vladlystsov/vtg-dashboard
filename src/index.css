@@ -2487,7 +2487,7 @@ body {
   line-height: 22.5px;
   min-width: 0;
   overflow-wrap: anywhere;
-  padding: 0 8px;
+  padding: 0;
 }
 
 .album-header {
@@ -2670,7 +2670,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 0;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
@@ -5109,10 +5109,10 @@ body {
   color: var(--blue-800);
 }
 
-/* ===== Отступ количества битов под названием сборника ===== */
+/* ===== Подпись количества битов под названием сборника ===== */
 .album-subtitle {
   margin: 2px 0 0;
-  padding: 0 8px;
+  padding: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--gray-500);
