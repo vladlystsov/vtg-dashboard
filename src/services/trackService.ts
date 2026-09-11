@@ -3,6 +3,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   query,
@@ -84,6 +85,17 @@ export async function updateTrack(id: string, data: Partial<Track>) {
 
 export async function deleteTrack(id: string) {
   await deleteDoc(doc(db, 'tracks', id));
+}
+
+/**
+ * Обновляет поля трека; undefined в значении трактуется как «удалить поле»
+ * (deleteField). В отличие от updateTrack, здесь не применяется
+ * cleanForFirestore, который вырезает undefined — иначе поле не очистить.
+ */
+export async function updateTrackFields(id: string, patch: Record<string, unknown>) {
+  const data: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  for (const [k, v] of Object.entries(patch)) data[k] = v === undefined ? deleteField() : v;
+  await updateDoc(doc(db, 'tracks', id), data);
 }
 
 export async function moveTrack(id: string, newColumn: KanbanColumn) {

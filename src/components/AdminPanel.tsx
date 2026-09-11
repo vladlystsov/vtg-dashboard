@@ -21,6 +21,11 @@ interface AdminPanelProps {
   currentUserRole?: UserRole;
   currentUid?: string;
   ownerCount?: number;
+  // Очистка при удалении файлов из хранилища (вкладка «Хранилище»):
+  // удаление карточки проекта и точечная очистка полей трека/бита
+  onStorageDeleteProject?: (id: string) => Promise<void>;
+  onUpdateTrackFields?: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  onUpdateBeatFields?: (id: string, patch: Record<string, unknown>) => Promise<void>;
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -29,7 +34,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Владелец',
 };
 
-export default function AdminPanel({ users, requests, tracks, beats, projects, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid, ownerCount = 1 }: AdminPanelProps) {
+export default function AdminPanel({ users, requests, tracks, beats, projects, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid, ownerCount = 1, onStorageDeleteProject, onUpdateTrackFields, onUpdateBeatFields }: AdminPanelProps) {
   const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'storage' | 'stats'>('requests');
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
@@ -164,7 +169,14 @@ export default function AdminPanel({ users, requests, tracks, beats, projects, o
 
       {tab === 'storage' && (
         <div className="admin-section">
-          <StorageExplorer tracks={tracks} beats={beats || []} projects={projects || []} />
+          <StorageExplorer
+            tracks={tracks}
+            beats={beats || []}
+            projects={projects || []}
+            onStorageDeleteProject={onStorageDeleteProject}
+            onUpdateTrackFields={onUpdateTrackFields}
+            onUpdateBeatFields={onUpdateBeatFields}
+          />
         </div>
       )}
 

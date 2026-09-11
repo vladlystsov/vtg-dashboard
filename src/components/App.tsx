@@ -17,6 +17,7 @@ import {
   subscribeToTracks,
   createTrack,
   updateTrack,
+  updateTrackFields,
   deleteTrack,
   moveTrack,
 } from '../services/trackService';
@@ -43,13 +44,19 @@ import {
   subscribeToBeats,
   createBeat,
   updateBeat,
+  updateBeatFields,
   deleteBeat,
 } from '../services/beatsService';
-import { publishBeatAudioInBackground, deleteStorageFileByUrl } from '../services/b2StorageService';
+import {
+  publishBeatAudioInBackground,
+  deleteStorageFileByUrl,
+  storagePathFromUrl,
+} from '../services/b2StorageService';
 import {
   subscribeToProjects,
   createProject,
   updateProject,
+  updateProjectFields,
   deleteProject,
 } from '../services/projectsService';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,12 +65,6 @@ import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
-
-function projectTrackIdsOf(p: Project): string[] {
-  const ids = Array.isArray(p.trackIds) ? p.trackIds : [];
-  const legacy = Array.isArray(p.tracks) ? p.tracks.filter((x): x is string => typeof x === 'string') : [];
-  return Array.from(new Set([...ids, ...legacy]));
-}
 
 function beatIdFromHash(): string | undefined {
   const m = window.location.hash.match(/#beat=([A-Za-z0-9_-]+)/);
@@ -370,10 +371,11 @@ export default function App() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Удалить трек? Также будут удалены связанные файлы из хранилища.')) return;
+    if (!confirm('Удалить трек? Связанные файлы будут удалены из хранилища. Карточки проектов останутся.')) return;
     if (isOnline) {
       const track = tracks.find((t) => t.id === id);
-      // Удаляем связанные файлы из B2, чтобы не оставалось битых ссылок
+      // Удаляем файлы трека из B2, чтобы не оставалось битых ссылок.
+      // Карточки проектов НЕ удаляем — только чистим в них ссылки на архивы.
       if (track) {
         const urls = [
           track.platformUrl,
@@ -382,18 +384,25 @@ export default function App() {
           track.projectZipUrl,
         ];
         for (const pz of track.projectZips || []) urls.push(pz.zipUrl);
+        const zipPaths = new Set<string>();
         for (const u of urls) {
-          if (u) {
-            try { await deleteStorageFileByUrl(u); } catch { /* файл уже может быть удалён */ }
+          if (!u) continue;
+          const isZip = u === track.projectZipUrl || (track.projectZips || []).some((z) => z.zipUrl === u);
+          const path = isZip ? storagePathFromUrl(u) : null;
+          if (path) zipPaths.add(path);
+          try { await deleteStorageFileByUrl(u); } catch { /* файл уже может быть удалён */ }
+        }
+        // Убираем ссылки на удалённые архивы из карточек проектов
+        for (const zp of zipPaths) {
+          const refProjects = projectList.filter((p) => storagePathFromUrl(p.zipUrl || '') === zp);
+          for (const p of refProjects) {
+            try {
+              await updateProjectFields(p.id, { zipUrl: undefined, zipStatus: undefined, zipError: undefined });
+            } catch { /* ignore */ }
           }
         }
       }
       await deleteTrack(id);
-      // Удаляем связанные проекты (записи в коллекции projects)
-      const linkedProjects = projectList.filter((p) => projectTrackIdsOf(p).includes(id));
-      for (const p of linkedProjects) {
-        try { await deleteProject(p.id); } catch { /* ignore */ }
-      }
     } else {
       await addPendingSync('delete', id);
       setTracks((prev) => prev.filter((t) => t.id !== id));
@@ -435,7 +444,11 @@ export default function App() {
   };
 
   const handleDeleteBeat = async (id: string) => {
-    if (!confirm('Удалить бит?')) return;
+    if (!confirm('Удалить бит? Его файл будет удалён из хранилища.')) return;
+    const beat = (beats || []).find((b) => b.id === id);
+    if (isOnline && beat?.platformUrl) {
+      try { await deleteStorageFileByUrl(beat.platformUrl); } catch { /* файл уже может быть удалён */ }
+    }
     await deleteBeat(id);
   };
 
@@ -457,7 +470,43 @@ export default function App() {
     return createProject({ ...data, createdBy: data.createdBy || profile?.uid || '' } as any);
   };
 
+  // Чистит в треках ссылки на архив проекта по пути файла в хранилище
+  // (убирает элементы projectZips и поля projectZip*), карточки остаются.
+  const cleanProjectZipRefsFromTracks = async (zipPath: string) => {
+    for (const t of tracks) {
+      const patch: Record<string, unknown> = {};
+      if (storagePathFromUrl(t.projectZipUrl || '') === zipPath) {
+        patch.projectZipUrl = undefined;
+        patch.projectZipStatus = undefined;
+        patch.projectZipError = undefined;
+      }
+      const zips = t.projectZips || [];
+      const next = zips.filter((z) => storagePathFromUrl(z.zipUrl || '') !== zipPath);
+      if (next.length !== zips.length) patch.projectZips = next.length ? next : undefined;
+      if (Object.keys(patch).length) {
+        try { await updateTrackFields(t.id, patch); } catch { /* ignore */ }
+      }
+    }
+  };
+
   const handleDeleteProject = async (id: string) => {
+    // При удалении проекта пропадает и его карточка, и его следы:
+    // архив из хранилища + ссылки на него в треках
+    const project = projectList.find((p) => p.id === id);
+    if (project?.zipUrl) {
+      try { await deleteStorageFileByUrl(project.zipUrl); } catch { /* файл уже может быть удалён */ }
+    }
+    const zipPath = project ? storagePathFromUrl(project.zipUrl || '') : null;
+    if (zipPath) await cleanProjectZipRefsFromTracks(zipPath);
+    await deleteProject(id);
+  };
+
+  // Удаление проекта, когда его архив уже удалён из хранилища
+  // (вкладка «Хранилище»): чистим ссылки и убираем карточку.
+  const handleStorageProjectDeleted = async (id: string) => {
+    const project = projectList.find((p) => p.id === id);
+    const zipPath = project ? storagePathFromUrl(project.zipUrl || '') : null;
+    if (zipPath) await cleanProjectZipRefsFromTracks(zipPath);
     await deleteProject(id);
   };
 
@@ -607,6 +656,9 @@ export default function App() {
             currentUserRole={profile?.role}
             currentUid={profile?.uid}
             ownerCount={ownerCount}
+            onStorageDeleteProject={handleStorageProjectDeleted}
+            onUpdateTrackFields={updateTrackFields}
+            onUpdateBeatFields={updateBeatFields}
           />
         )}
       </main>

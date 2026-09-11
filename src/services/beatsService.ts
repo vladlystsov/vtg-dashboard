@@ -3,6 +3,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   query,
@@ -70,4 +71,15 @@ export async function updateBeat(id: string, data: Partial<Beat>) {
 
 export async function deleteBeat(id: string) {
   await deleteDoc(doc(db, 'beats', id));
+}
+
+/**
+ * Обновляет поля бита; undefined в значении трактуется как «удалить поле»
+ * (deleteField). В отличие от updateBeat, здесь не применяется
+ * cleanForFirestore, который вырезает undefined — иначе поле не очистить.
+ */
+export async function updateBeatFields(id: string, patch: Record<string, unknown>) {
+  const data: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  for (const [k, v] of Object.entries(patch)) data[k] = v === undefined ? deleteField() : v;
+  await updateDoc(doc(db, 'beats', id), data);
 }
