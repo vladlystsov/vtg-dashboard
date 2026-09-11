@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "b2:setup-cors": "node api/b2-setup-cors.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1128.0",
