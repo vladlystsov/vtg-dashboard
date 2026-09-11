@@ -88,6 +88,7 @@ export default function ProjectsView({
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState<VersionFormState | null>(null);
   const [savingVersion, setSavingVersion] = useState(false);
 
@@ -172,6 +173,29 @@ export default function ProjectsView({
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, projects]);
+
+  const trackArtistName = (t: Track): string =>
+    asArray(t.artists).map((a) => String(a)).filter(Boolean)[0] ||
+    userMap.get(t.artistUids?.[0] || '')?.artistName ||
+    '';
+
+  // Фильтрация карточек по поисковому запросу: название трека, артист,
+  // сборник, названия версий проекта.
+  const visibleProjectTracks = useMemo<Track[]>(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return projectTracks;
+    return projectTracks.filter((t) => {
+      const haystack = [
+        t.title,
+        t.project || '',
+        trackArtistName(t),
+        ...asArray(t.artists).map((a) => String(a)),
+        ...projectsForTrack(t).map((p) => p.name),
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectTracks, searchQuery, tracks, projects, userMap]);
 
   const publishZip = (
     savedProject: Project,
@@ -387,6 +411,13 @@ export default function ProjectsView({
     <div className="projects-view">
       <div className="beats-head">
         <h2>Проекты</h2>
+        <input
+          className="beats-search"
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Поиск по названию трека, артисту, сборнику, версии…"
+        />
         <div className="projects-head-actions">
           <button className="btn-primary" onClick={() => openNewVersion()}>
             + Новая версия
@@ -401,14 +432,15 @@ export default function ProjectsView({
           Проектов пока нет. Каждый проект привязывается к одному конкретному треку
           (сингл или трек из сборника). Создайте первую версию проекта — и карточка трека появится здесь.
         </div>
+      ) : visibleProjectTracks.length === 0 ? (
+        <div className="beats-empty">
+          По запросу «{searchQuery.trim()}» ничего не найдено.
+        </div>
       ) : (
         <div className="projects-grid">
-          {projectTracks.map((t) => {
+          {visibleProjectTracks.map((t) => {
             const versions = projectsForTrack(t);
-            const trackArtist =
-              asArray(t.artists).map((a) => String(a)).filter(Boolean)[0] ||
-              userMap.get(t.artistUids?.[0] || '')?.artistName ||
-              '';
+            const trackArtist = trackArtistName(t);
             return (
               <div
                 className="release-card project-track-card"
