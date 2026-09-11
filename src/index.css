@@ -3008,16 +3008,22 @@ body {
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   background: var(--gray-50);
-  margin-bottom: 14px;
   flex-wrap: wrap;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  backdrop-filter: blur(8px);
-  background: rgba(248, 250, 252, 0.95);
 }
 
-.album-track-list .shipped-player {
+.sp-sticky {
+  position: sticky;
+  top: 56px;
+  z-index: 5;
+  margin-bottom: 14px;
+}
+
+.sp-sticky:has(.sp-drawer) .shipped-player {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.album-track-list .sp-sticky {
   position: static;
   top: auto;
 }
@@ -3205,11 +3211,12 @@ body {
 .sp-drawer {
   width: 100%;
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
   background: #fff;
-  margin-bottom: 14px;
   max-height: 320px;
   overflow-y: auto;
+  box-shadow: var(--shadow-md);
 }
 
 .sp-list {

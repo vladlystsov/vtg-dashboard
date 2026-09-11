@@ -810,7 +810,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   return (
     <ShippedPlayerContext.Provider value={manager}>
       {order.length > 0 && (
-        <>
+        <div className="sp-sticky">
           <div className="shipped-player" onClick={(e) => e.stopPropagation()}>
             <div className="sp-controls">
               <button
@@ -907,7 +907,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               </DragDropContext>
             </div>
           )}
-        </>
+        </div>
       )}
       {children}
     </ShippedPlayerContext.Provider>
