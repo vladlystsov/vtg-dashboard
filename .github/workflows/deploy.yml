@@ -41,6 +41,9 @@ jobs:
           # Адрес serverless-прокси профиля SoundCloud (api/soundcloud-profile.mjs на Vercel).
           # Не обязателен: если не задан, SPA будет пробовать /api/soundcloud-profile на своём origin.
           VITE_SOUNDCLOUD_PROXY_URL: ${{ secrets.VITE_SOUNDCLOUD_PROXY_URL }}
+          # Адрес serverless-прокси хранилища B2 (api/b2-storage.mjs на Vercel).
+          # Обязателен для GitHub Pages: без него SPA зовёт /api/b2-storage на своём origin → 405.
+          VITE_B2_PROXY_URL: ${{ secrets.VITE_B2_PROXY_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
