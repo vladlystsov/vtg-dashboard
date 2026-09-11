@@ -490,8 +490,12 @@ export default function ProjectsView({
                             title={canEdit && !isVirtualProject(p) ? 'Изменить версию' : undefined}
                             onClick={(e) => {
                               if (!canEdit || isVirtualProject(p)) return;
-                              // Клик по кнопкам внутри блока не открывает редактирование
-                              if ((e.target as HTMLElement).closest('button')) return;
+                              // Клик по кнопкам/ссылкам внутри блока не открывает
+                              // редактирование и не всплывает до карточки трека
+                              if ((e.target as HTMLElement).closest('button, a')) {
+                                e.stopPropagation();
+                                return;
+                              }
                               e.stopPropagation();
                               openEditVersion(p);
                             }}
@@ -547,7 +551,15 @@ export default function ProjectsView({
                   )}
 
                   {canEdit && (
-                    <button type="button" className="btn-add-inline" onClick={() => openNewVersion(t)}>
+                    <button
+                      type="button"
+                      className="btn-add-inline"
+                      onClick={(e) => {
+                        // Не всплываем до карточки, иначе откроется трек
+                        e.stopPropagation();
+                        openNewVersion(t);
+                      }}
+                    >
                       + Новая версия проекта для «{t.title}»
                     </button>
                   )}
