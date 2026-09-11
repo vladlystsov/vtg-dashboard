@@ -34,10 +34,6 @@ function projectTrackIds(p: Project): string[] {
   return Array.from(new Set([...ids, ...legacy]));
 }
 
-function overlap(a: string[], b: string[]): boolean {
-  return a.some((x) => b.includes(x));
-}
-
 interface VersionFormState {
   editing?: Project;
   trackIds: string[];
@@ -47,7 +43,6 @@ interface VersionFormState {
   daw: ProjectDaw;
   dawVersion: string;
   stage: ProjectStage;
-  active: boolean;
   zipFile: File | null;
   description: string;
   genre: string;
@@ -68,7 +63,6 @@ function emptyForm(preselectedTrackIds: string[] = [], preselectedTitle = ''): V
     daw: 'fl',
     dawVersion: DEFAULT_DLD_VERSION,
     stage: 'mixing',
-    active: true,
     zipFile: null,
     description: '',
     genre: '',
@@ -260,18 +254,6 @@ export default function ProjectsView({
     controller.abort();
   };
 
-  const deactivateOverlapping = async (self: Project | null, trackIds: string[]) => {
-    const others = projects.filter((p) => {
-      if (self && p.id === self.id) return false;
-      return overlap(projectTrackIds(p), trackIds);
-    });
-    for (const p of others) {
-      if (p.active) {
-        await onSave(p.id, { ...p, active: false } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
-      }
-    }
-  };
-
   const saveVersion = async () => {
     if (!modal) return;
     if (modal.trackIds.length === 0) {
@@ -296,7 +278,8 @@ export default function ProjectsView({
       daw: modal.daw,
       dawVersion: modal.dawVersion.trim() || undefined,
       stage: modal.stage,
-      active: modal.active,
+      // Роль «активной версии» выполняет вариант «Основной» (variant === 'main')
+      active: modal.variant === 'main',
       zipStatus: modal.zipFile ? ('uploading' as const) : undefined,
       description: modal.description.trim() || undefined,
       genre: modal.genre.trim() || undefined,
@@ -315,9 +298,6 @@ export default function ProjectsView({
     try {
       if (modal.editing) {
         await onSave(modal.editing.id, payload);
-        if (modal.active) {
-          await deactivateOverlapping(modal.editing, modal.trackIds);
-        }
         if (modal.zipFile) {
           publishZip({ ...modal.editing, ...payload } as Project, modal.zipFile, modal.trackIds);
         }
@@ -325,7 +305,6 @@ export default function ProjectsView({
         const id = await onSave(null, { ...payload, createdBy: '' });
         if (id) {
           const saved = { id, ...payload } as Project;
-          if (modal.active) await deactivateOverlapping(null, modal.trackIds);
           if (modal.zipFile) publishZip(saved, modal.zipFile, modal.trackIds);
         }
       }
@@ -333,15 +312,6 @@ export default function ProjectsView({
     } finally {
       setSavingVersion(false);
     }
-  };
-
-  const setActive = async (version: Project) => {
-    for (const p of projects) {
-      if (p.id !== version.id && p.active && overlap(projectTrackIds(p), projectTrackIds(version))) {
-        await onSave(p.id, { ...p, active: false } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
-      }
-    }
-    await onSave(version.id, { ...version, active: true } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
   };
 
   const renderZipSection = (p: Project) => {
@@ -392,10 +362,7 @@ export default function ProjectsView({
   };
 
   const openNewVersion = (t?: Track) => {
-    // Новая версия становится активной автоматически только если у трека
-    // ещё нет ни одной версии проекта.
-    const hasVersions = t ? projectsForTrack(t).length > 0 : projects.length > 0;
-    setModal({ ...emptyForm(t ? [t.id] : [], t ? t.title : ''), active: !hasVersions });
+    setModal(emptyForm(t ? [t.id] : [], t ? t.title : ''));
   };
 
   const openEditVersion = (p: Project) => {
@@ -407,7 +374,6 @@ export default function ProjectsView({
       daw: p.daw || 'fl',
       dawVersion: p.dawVersion || '',
       stage: p.stage || 'mixing',
-      active: !!p.active,
       description: p.description || '',
       genre: p.genre || '',
       tags: (p.tags || []).join(', '),
@@ -519,7 +485,7 @@ export default function ProjectsView({
                         ].filter(Boolean);
                         return (
                           <div
-                            className={`release-version ${p.active ? 'release-version-active' : ''} ${canEdit && !isVirtualProject(p) ? 'release-version-clickable' : ''}`}
+                            className={`release-version ${canEdit && !isVirtualProject(p) ? 'release-version-clickable' : ''}`}
                             key={p.id}
                             title={canEdit && !isVirtualProject(p) ? 'Изменить версию' : undefined}
                             onClick={(e) => {
@@ -532,14 +498,8 @@ export default function ProjectsView({
                           >
                             <div className="release-version-head">
                               <span className="release-version-name" title={p.name}>{p.name}</span>
-                              {p.active && <span className="beat-chip release-active-chip">активная</span>}
                               {canEdit && !isVirtualProject(p) && (
                                 <div className="release-version-actions">
-                                  {!p.active && (
-                                    <button type="button" className="btn-small-ghost" onClick={() => void setActive(p)}>
-                                      Сделать активной
-                                    </button>
-                                  )}
                                   <button
                                     type="button"
                                     className="at-delete"
