@@ -370,26 +370,6 @@ export default function ProjectsView({
       return (
         <div className="project-zip project-zip-error">
           <span>{p.zipError || 'Ошибка публикации'}</span>
-          {!isVirtualProject(p) && (
-            <button type="button" className="btn-small-ghost" onClick={() => setModal({
-              ...emptyForm(projectTrackIds(p), p.name),
-              editing: p,
-              variant: p.variant || 'main',
-              vocalType: p.vocalType || '',
-              daw: p.daw || 'fl',
-              dawVersion: p.dawVersion || '',
-              stage: p.stage || 'mixing',
-              active: !!p.active,
-              description: p.description || '',
-              genre: p.genre || '',
-              tags: (p.tags || []).join(', '),
-              artists: (p.artists || []).join(', '),
-              coverUrl: p.coverUrl || '',
-              status: p.status || 'draft',
-            })}>
-              Заменить
-            </button>
-          )}
         </div>
       );
     }
@@ -405,26 +385,6 @@ export default function ProjectsView({
           >
             Скачать архив версии
           </DownloadButton>
-          {!isVirtualProject(p) && (
-            <button type="button" className="btn-small-ghost" onClick={() => setModal({
-              ...emptyForm(projectTrackIds(p), p.name),
-              editing: p,
-              variant: p.variant || 'main',
-              vocalType: p.vocalType || '',
-              daw: p.daw || 'fl',
-              dawVersion: p.dawVersion || '',
-              stage: p.stage || 'mixing',
-              active: !!p.active,
-              description: p.description || '',
-              genre: p.genre || '',
-              tags: (p.tags || []).join(', '),
-              artists: (p.artists || []).join(', '),
-              coverUrl: p.coverUrl || '',
-              status: p.status || 'draft',
-            })}>
-              Заменить
-            </button>
-          )}
         </div>
       );
     }
@@ -432,7 +392,10 @@ export default function ProjectsView({
   };
 
   const openNewVersion = (t?: Track) => {
-    setModal(emptyForm(t ? [t.id] : [], t ? t.title : ''));
+    // Новая версия становится активной автоматически только если у трека
+    // ещё нет ни одной версии проекта.
+    const hasVersions = t ? projectsForTrack(t).length > 0 : projects.length > 0;
+    setModal({ ...emptyForm(t ? [t.id] : [], t ? t.title : ''), active: !hasVersions });
   };
 
   const openEditVersion = (p: Project) => {
@@ -577,9 +540,6 @@ export default function ProjectsView({
                                       Сделать активной
                                     </button>
                                   )}
-                                  <button type="button" className="btn-small-ghost" onClick={() => openEditVersion(p)}>
-                                    Изменить
-                                  </button>
                                   <button
                                     type="button"
                                     className="at-delete"
@@ -810,13 +770,6 @@ export default function ProjectsView({
                     {PROJECT_STAGES.map((s) => (
                       <option key={s} value={s}>{PROJECT_STAGE_LABELS[s]}</option>
                     ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Активная версия</label>
-                  <select value={modal.active ? '1' : '0'} onChange={(e) => setModal({ ...modal, active: e.target.value === '1' })}>
-                    <option value="1">Да (главная)</option>
-                    <option value="0">Нет</option>
                   </select>
                 </div>
               </div>
