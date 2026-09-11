@@ -167,6 +167,16 @@ const SOUNDCLOUD_PROFILE_SECTIONS = /^(tracks|likes|reposts|comments|followers|f
 const SOUNDCLOUD_PROFILE_PROXY =
   (import.meta.env.VITE_SOUNDCLOUD_PROXY_URL as string | undefined)?.trim() || '/api/soundcloud-profile';
 
+/**
+ * Адрес serverless-прокси импорта каналов YouTube (api/youtube-rss.mjs).
+ * RSS youtube.com и страницы каналов не отдают CORS браузеру, публичные
+ * CORS-прокси нестабильны — поэтому канал читает наша Vercel-функция.
+ * По умолчанию — тот же origin (SPA на Vercel); для GitHub Pages задайте
+ * VITE_YOUTUBE_PROXY_URL — полный URL функции.
+ */
+const YOUTUBE_RSS_PROXY =
+  (import.meta.env.VITE_YOUTUBE_PROXY_URL as string | undefined)?.trim() || '/api/youtube-rss';
+
 async function fetchJson(url: string, timeoutMs = 15000): Promise<any> {
   const text = await fetchTextWithCorsFallback(url, timeoutMs);
   return JSON.parse(text);
@@ -340,6 +350,46 @@ async function resolveYouTubeHandleToChannelId(handle: string): Promise<string |
     }
   }
   return null;
+}
+
+/**
+ * Импорт канала через наш serverless-прокси (api/youtube-rss.mjs):
+ * серверно резолвит channel ID (включая @handle и music.youtube.com) и
+ * читает RSS. Основной путь — RSS/публичные CORS-прокси нестабильны.
+ * При недоступности прокси — фолбэк на старый путь (RSS через CORS-фолбэк).
+ */
+async function importYouTubeChannelViaProxy(rawUrl: string): Promise<ImportedItem[]> {
+  const endpoint = new URL(YOUTUBE_RSS_PROXY, window.location.origin);
+  endpoint.searchParams.set('url', rawUrl);
+  const res = await Promise.race<Response>([
+    fetch(endpoint.toString()),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('таймаут')), 25000)),
+  ]);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    let detail = '';
+    try {
+      detail = String(JSON.parse(body)?.error || '');
+    } catch {
+      detail = body;
+    }
+    throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
+  }
+  const data = await res.json();
+  const raw: any[] = Array.isArray(data?.items) ? data.items : [];
+  const out: ImportedItem[] = [];
+  for (const t of raw) {
+    const title = String(t?.title || '').trim();
+    const url = String(t?.url || '').trim();
+    if (!title || !/^https:\/\/(www\.)?youtube\.com\/watch/i.test(url)) continue;
+    out.push({
+      title,
+      url,
+      author: String(t?.author || '').trim() || 'YouTube',
+      thumbnail: t?.thumbnail ? String(t.thumbnail) : undefined,
+    });
+  }
+  return out;
 }
 
 async function importYouTubeChannelRss(channelIdOrHandle: string): Promise<ImportedItem[]> {
@@ -596,7 +646,14 @@ export async function fetchYouTubeItems(input: string): Promise<{ items: Importe
         items.push(...o);
       } else if (channelId) {
         try {
-          const rss = await importYouTubeChannelRss(channelId);
+          // Основной путь — наш serverless-прокси (надёжен из браузера).
+          let rss: ImportedItem[] = [];
+          try {
+            rss = await importYouTubeChannelViaProxy(trimmed);
+          } catch {
+            // Фолбэк: RSS напрямую/через публичный CORS-прокси.
+            rss = await importYouTubeChannelRss(channelId);
+          }
           if (rss.length === 0) warnings.push(`В канале «${trimmed}» не найдено видео.`);
           items.push(...rss);
         } catch {

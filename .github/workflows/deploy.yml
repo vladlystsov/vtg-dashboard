@@ -44,6 +44,9 @@ jobs:
           # Адрес serverless-прокси хранилища B2 (api/b2-storage.mjs на Vercel).
           # Обязателен для GitHub Pages: без него SPA зовёт /api/b2-storage на своём origin → 405.
           VITE_B2_PROXY_URL: ${{ secrets.VITE_B2_PROXY_URL }}
+          # Адрес serverless-прокси импорта каналов YouTube (api/youtube-rss.mjs на Vercel).
+          # Обязателен для GitHub Pages: RSS youtube.com и страницы каналов закрыты CORS.
+          VITE_YOUTUBE_PROXY_URL: ${{ secrets.VITE_YOUTUBE_PROXY_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
