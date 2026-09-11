@@ -555,7 +555,18 @@ export default function ProjectsView({
                           p.stage ? PROJECT_STAGE_LABELS[p.stage] : '',
                         ].filter(Boolean);
                         return (
-                          <div className={`release-version ${p.active ? 'release-version-active' : ''}`} key={p.id}>
+                          <div
+                            className={`release-version ${p.active ? 'release-version-active' : ''} ${canEdit && !isVirtualProject(p) ? 'release-version-clickable' : ''}`}
+                            key={p.id}
+                            title={canEdit && !isVirtualProject(p) ? 'Изменить версию' : undefined}
+                            onClick={(e) => {
+                              if (!canEdit || isVirtualProject(p)) return;
+                              // Клик по кнопкам внутри блока не открывает редактирование
+                              if ((e.target as HTMLElement).closest('button')) return;
+                              e.stopPropagation();
+                              openEditVersion(p);
+                            }}
+                          >
                             <div className="release-version-head">
                               <span className="release-version-name" title={p.name}>{p.name}</span>
                               {p.active && <span className="beat-chip release-active-chip">активная</span>}

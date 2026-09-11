@@ -4840,6 +4840,16 @@ body {
   margin-left: auto;
 }
 
+/* Клик по блоку версии открывает окно изменения версии */
+.release-version-clickable {
+  cursor: pointer;
+}
+
+.release-version-clickable:hover {
+  border-color: var(--blue-300, #93c5fd);
+  background: var(--gray-50);
+}
+
 /* Чип версии проекта: «Основной» — зелёный, «Другая версия» — жёлтый */
 .project-variant-chip-main {
   background: rgba(16, 185, 129, 0.15);
