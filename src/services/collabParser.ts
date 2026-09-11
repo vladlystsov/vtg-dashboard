@@ -118,13 +118,19 @@ export function parseTrackCollaborators(
   }
 
   // 3. Со-артисты из шапки названия (текст до первого ключевого слова).
+  //    Разделители: «x», «&», «+» и запятая. Запятая считается разделителем
+  //    со-артистов только когда шапка отделена от названия тире или
+  //    продолжается ключевым словом — иначе «Song, Part 2» (без тире и
+  //    участников) породило бы мусорного со-артиста «Part 2».
   if (allowArtistSplit) {
     const head = source.slice(0, hits.length ? hits[0].start : source.length);
     const dashIdx = head.search(/[-–—]/);
     const pre = dashIdx >= 0 ? head.slice(0, dashIdx) : head;
-    if (/\s+[x×+]\s+|&/i.test(pre)) {
+    const commaCounts = dashIdx >= 0 || hits.length > 0;
+    const sepRe = commaCounts ? /\s+[x×+]\s+|&|,/i : /\s+[x×+]\s+|&/i;
+    if (sepRe.test(pre)) {
       const parts = pre
-        .split(/\s+[x×+]\s+|&/i)
+        .split(sepRe)
         .map(cleanName)
         .filter(isValidName);
       const allShort = parts.every((p) => p.split(/\s+/).length <= NAME_MAX_WORDS);

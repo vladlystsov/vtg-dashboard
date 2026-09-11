@@ -59,6 +59,19 @@ eq(r.extraArtists, ['SAINT'], '«FLEX x SAINT - Song» → SAINT со-артис
 r = P('FLEX & SAINT - Song', 'FLEX');
 eq(r.extraArtists, ['SAINT'], '«FLEX & SAINT - Song» → SAINT со-артист');
 
+// со-артисты через запятую (частый формат SoundCloud)
+r = P('Macklemore, Ryan Lewis - Cant Hold Us', 'Macklemore');
+eq(r.extraArtists, ['Ryan Lewis'], '«A, B - Song» → B со-артист');
+
+r = P('FLEXXXY, DZZZY - PRINZ', 'DZZZY');
+eq(r.extraArtists, ['FLEXXXY'], '«FLEXXXY, DZZZY - PRINZ» → FLEXXXY со-артист');
+
+r = P('FLEX, SAINT (feat. Killa)', 'FLEX');
+eq(r.extraArtists, ['SAINT'], '«A, B (feat. …)» → B со-артист');
+
+r = P('Song, Part 2', 'MAIN');
+eq(r.extraArtists, [], '«Song, Part 2» без тире/участников → без со-артистов');
+
 // ложные срабатывания
 r = P('Track production started', 'MAIN');
 eq(r, { extraArtists: [], feat: [], beatmakers: [] }, '«production» не матчится');

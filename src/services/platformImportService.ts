@@ -698,14 +698,35 @@ async function fetchSoundCloudProfileItems(
     seen.add(key);
     const author = String(t?.author || '').trim() || 'SoundCloud';
     const pc = parseTrackCollaborators(title, { mainAuthor: author });
+    // Со-кредиты SoundCloud (publisher_artist из прокси): «FLEXXXY & DZZZY» и
+    // т.п. — полноценные со-артисты, даже если их нет в заголовке.
+    const extraArtists = [...pc.extraArtists];
+    const addExtra = (name: string): void => {
+      const v = String(name || '').trim();
+      if (!v || v.length > 40 || /https?:|prod/i.test(v)) return;
+      const k = v.toLowerCase();
+      if (k === author.toLowerCase()) return;
+      if (extraArtists.some((x) => x.toLowerCase() === k)) return;
+      extraArtists.push(v);
+    };
+    const publisherArtist = String(t?.publisherArtist || '').trim();
+    if (publisherArtist) {
+      for (const name of publisherArtist.split(/\s*(?:,|&|\/|\+|\b×\b|\bx\b)\s*/i)) addExtra(name);
+    }
+    // Описание трека: «prod by …», feat прописью, со-артисты — как в oEmbed-пути.
+    const desc = String(t?.description || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    const dc = desc.trim() ? parseTrackCollaborators(desc, { mainAuthor: author, allowArtistSplit: false }) : null;
+    const beatmakers = pc.beatmakers.length ? pc.beatmakers : dc?.beatmakers || [];
+    const featNames = pc.feat.length ? pc.feat : dc?.feat || [];
+    for (const a of dc?.extraArtists || []) addExtra(a);
     items.push({
       title,
       url: sanitizePlatformUrl(url),
       author,
       thumbnail: t?.thumbnail ? String(t.thumbnail) : undefined,
-      ...(pc.extraArtists.length ? { extraArtists: pc.extraArtists } : {}),
-      ...(pc.feat.length ? { feat: pc.feat } : {}),
-      ...(pc.beatmakers.length ? { beatmakers: pc.beatmakers } : {}),
+      ...(extraArtists.length ? { extraArtists } : {}),
+      ...(featNames.length ? { feat: featNames } : {}),
+      ...(beatmakers.length ? { beatmakers } : {}),
     });
   }
   const profileLabel = String(data?.user?.username || data?.user?.permalink || profileUrl);

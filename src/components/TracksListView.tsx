@@ -250,6 +250,11 @@ function beatmakerNamesStr(track: Track, userMap: Map<string, UserProfile>): str
   return resolveNames(track.beatmakers, track.beatmakerUids, userMap).join(', ');
 }
 
+/** feat-артисты трека (поле feat — строка через запятую). */
+function featNamesStr(track: Track): string {
+  return splitNames(String(track.feat || '')).join(', ');
+}
+
 function mixByNamesStr(track: Track, userMap: Map<string, UserProfile>): string {
   return resolveNames(track.mixBy, track.mixByUids, userMap).join(', ');
 }
@@ -654,6 +659,7 @@ function SingleTrackCard({
             {artistNamesStr(track, userMap) && (
               <div className="album-track-credits">
                 {artistNamesStr(track, userMap)}
+                {featNamesStr(track) && <span className="album-track-credit-role"> (feat. {featNamesStr(track)})</span>}
                 {beatmakerNamesStr(track, userMap) && <span className="album-track-credit-role"> (prod. by {beatmakerNamesStr(track, userMap)})</span>}
                 {mixByNamesStr(track, userMap) && <span className="album-track-credit-role"> (mix by {mixByNamesStr(track, userMap)})</span>}
               </div>
@@ -871,10 +877,11 @@ function AlbumTrackRow({
             )}
           </div>
           {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}
-          {(beatmakerNamesStr(track, userMap) || mixByNamesStr(track, userMap)) && (
+          {(beatmakerNamesStr(track, userMap) || mixByNamesStr(track, userMap) || featNamesStr(track)) && (
             <div className="at-credits">
               {beatmakerNamesStr(track, userMap) && <span>(prod. by {beatmakerNamesStr(track, userMap)})</span>}
               {mixByNamesStr(track, userMap) && <span>(mix by {mixByNamesStr(track, userMap)})</span>}
+              {featNamesStr(track) && <span>(feat. {featNamesStr(track)})</span>}
             </div>
           )}
         </div>
@@ -1253,7 +1260,13 @@ function AlbumEditTrackRow({
               <span className="at-title">{track.title}</span>
               {track.personalCoverUrl && <span className="at-mine" style={{ background: 'var(--green-600)' }}>обложка</span>}
             </div>
-            {artistNamesStr(track, userMap) && <div className="at-artists">{artistNamesStr(track, userMap)}</div>}
+            {(artistNamesStr(track, userMap) || featNamesStr(track)) && (
+              <div className="at-artists">
+                {artistNamesStr(track, userMap)}
+                {artistNamesStr(track, userMap) && featNamesStr(track) && ' '}
+                {featNamesStr(track) && <span>(feat. {featNamesStr(track)})</span>}
+              </div>
+            )}
           </div>
         </div>
       )}
