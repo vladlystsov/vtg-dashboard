@@ -7,7 +7,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { ShippedMini, toShippedItem, useShippedPlayerManager } from './ShippedPlayer';
 import { uploadCover } from '../services/fileService';
 import { listCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
-import { cancelUploadById } from '../services/uploadControllerRegistry';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -467,10 +466,8 @@ export function DownloadButton({
 
   return (
     <span className={`at-download-wrap ${className || ''}`} onClick={(e) => e.stopPropagation()}>
-      {(downloading || done) && (
-        <span className={`at-downloading-badge ${done ? 'at-downloaded' : ''}`}>
-          {done ? '✓ Скачано' : <span className="at-spinner" />}
-        </span>
+      {done && (
+        <span className="at-downloading-badge at-downloaded">✓ Скачано</span>
       )}
       <a
         className={`at-download ${downloading ? 'at-download-cancel' : ''} ${children ? 'at-download-link' : ''}`}
@@ -478,7 +475,12 @@ export function DownloadButton({
         title={downloading ? 'Отменить загрузку' : (hrefTitle || 'Скачать')}
         onClick={handleDownload}
       >
-        {downloading ? '✕' : (children || '⬇')}
+        {downloading ? (
+          <span className="at-download-cancel-wrap">
+            <span className="at-download-spinner" />
+            <span className="at-download-cancel-icon">✕</span>
+          </span>
+        ) : (children || '⬇')}
       </a>
     </span>
   );
@@ -862,16 +864,7 @@ function AlbumTrackRow({
             {badge && <span className={isArtist ? 'at-mine' : 'at-mine at-participant'}>{badge}</span>}
             {cachedIds.has(track.id) && <span className="at-cached-badge" title="Сохранено в кэше">✓</span>}
             {track.uploadStatus === 'uploading' && (
-              <span className="at-upload-cancel-wrap" title="Отменить загрузку">
-                <span className="at-upload-spinner" />
-                <button
-                  type="button"
-                  className="at-upload-cancel-btn"
-                  onClick={(e) => { e.stopPropagation(); cancelUploadById(track.id); }}
-                >
-                  ✕
-                </button>
-              </span>
+              <span className="at-upload-badge at-upload-uploading" title="Звук публикуется в хранилище">звук…</span>
             )}
             {track.uploadStatus === 'error' && (
               <span className="at-upload-badge at-upload-error" title={track.uploadError || 'Ошибка публикации звука'}>ошибка звука</span>
