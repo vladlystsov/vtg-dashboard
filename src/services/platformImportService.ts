@@ -1,6 +1,7 @@
 import { createTrack, updateTrack } from './trackService';
+import { createBeat } from './beatsService';
 import type { Track } from '../types/track';
-import { youtubeVideoId } from '../types/track';
+import { detectPlatform, youtubeVideoId } from '../types/track';
 import { parseTrackCollaborators } from './collabParser';
 
 export interface ImportedItem {
@@ -28,6 +29,8 @@ export interface PlatformImportResult {
 interface ImportOptions {
   uid: string;
   existingTracks: Track[];
+  /** Имя изготовителя бита (из профиля): пишется в записи бита. */
+  beatmakerName?: string;
 }
 
 export function isYouTubeHost(url: string): boolean {
@@ -616,6 +619,37 @@ export async function persistItems(items: ImportedItem[], opts: ImportOptions): 
       imported++;
     } catch {
       // отдельный трек не критичен — продолжаем остальные
+    }
+  }
+  return imported;
+}
+
+/**
+ * Сохраняет импортированные элементы как биты (коллекция «beats»).
+ * Отличается от persistItems полями бита: beatmaker, статус «published»,
+ * платформа-источник и т.д.
+ */
+export async function persistBeats(items: ImportedItem[], opts: ImportOptions): Promise<number> {
+  let imported = 0;
+  for (const it of items) {
+    if (!it.author.trim()) continue;
+    const artists = dedupeNames([it.author.trim(), ...(it.extraArtists || [])]);
+    try {
+      await createBeat({
+        title: it.title.trim(),
+        artists,
+        artistUids: artists.map(() => ''),
+        platformUrl: sanitizePlatformUrl(it.url),
+        platform: detectPlatform(it.url),
+        coverUrl: it.thumbnail?.trim() || undefined,
+        beatmakerUid: opts.uid,
+        beatmakerName: opts.beatmakerName?.trim() || it.author.trim(),
+        status: 'published',
+        createdBy: opts.uid,
+      });
+      imported++;
+    } catch {
+      // отдельный бит не критичен — продолжаем остальные
     }
   }
   return imported;

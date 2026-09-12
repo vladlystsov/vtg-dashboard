@@ -11,6 +11,7 @@ import {
   findTitleDuplicates,
   matchExistingTracks,
   persistItems,
+  persistBeats,
   updateTracksFromItems,
   sanitizePlatformUrl,
   parsePlatformLinks,
@@ -46,20 +47,46 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [dupDialog, setDupDialog] = useState<{ pairs: ExistingTrackMatch[]; isBeat: boolean } | null>(null);
+  const [dupDialog, setDupDialog] = useState<{ pairs: ExistingTrackMatch[]; fresh: ImportedItem[]; isBeat: boolean } | null>(null);
   const [selectedDups, setSelectedDups] = useState<Set<number>>(new Set());
   const [dupDestination, setDupDestination] = useState<'track' | 'beat'>('track');
-  const dupResolverRef = useRef<((r: { add: ImportedItem[]; replace: ExistingTrackMatch[]; destination: 'track' | 'beat' }) => void) | null>(null);
+  // Персональная категория каждого подгружаемого элемента (ключ — url). Это
+  // индивидуальный тумблер «Трек/Бит»; кнопки «Все — треки/биты» заполняют его
+  // для всех элементов на экране. Храним синхронный ref, чтобы прочитать
+  // выбранные категории при закрытии окна.
+  const [itemKinds, setItemKinds] = useState<Record<string, 'track' | 'beat'>>({});
+  const itemKindsRef = useRef<Record<string, 'track' | 'beat'>>({});
+  const dupResolverRef = useRef<((r: { add: ImportedItem[]; replace: ExistingTrackMatch[]; kinds: Record<string, 'track' | 'beat'> }) => void) | null>(null);
+
+  const setKindFor = (url: string, kind: 'track' | 'beat') => {
+    const next = { ...itemKindsRef.current, [url.toLowerCase()]: kind };
+    itemKindsRef.current = next;
+    setItemKinds(next);
+  };
+  const setKindsForAll = (kind: 'track' | 'beat', urls: string[]) => {
+    const next = { ...itemKindsRef.current };
+    for (const u of urls) next[u.toLowerCase()] = kind;
+    itemKindsRef.current = next;
+    setItemKinds(next);
+  };
 
   // Окно «Были обнаружены дубликаты»: пользователь отмечает треки и выбирает —
   // заменить существующие данными с площадки или добавить как новые.
   // Окно теперь открывается всегда, даже если дубликатов нет.
-  const openDupDialog = (pairs: ExistingTrackMatch[], isBeat = false): Promise<{ add: ImportedItem[]; replace: ExistingTrackMatch[]; destination: 'track' | 'beat' }> => {
+  const openDupDialog = (pairs: ExistingTrackMatch[], isBeat = false, fresh: ImportedItem[] = []): Promise<{ add: ImportedItem[]; replace: ExistingTrackMatch[]; kinds: Record<string, 'track' | 'beat'> }> => {
     return new Promise((resolve) => {
       dupResolverRef.current = resolve;
       setSelectedDups(new Set(pairs.map((_, i) => i)));
       setDupDestination(isBeat ? 'beat' : 'track');
-      setDupDialog({ pairs, isBeat });
+      // По умолчанию категория для новых элементов — как выбрал пользователь
+      // (dev-тумблер площадки), а не «всё в треки».
+      const urls = [...fresh, ...pairs.map((p) => p.item)].map((it) => it.url.trim().toLowerCase());
+      const defaultKind: 'track' | 'beat' = isBeat ? 'beat' : 'track';
+      const next: Record<string, 'track' | 'beat'> = {};
+      for (const u of urls) next[u] = defaultKind;
+      itemKindsRef.current = next;
+      setItemKinds(next);
+      setDupDialog({ pairs, fresh, isBeat });
     });
   };
 
@@ -68,12 +95,24 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
     dupResolverRef.current = null;
     const pairs = dupDialog?.pairs || [];
     const chosen = pairs.filter((_, i) => selectedDups.has(i));
+    // Категории для элементов, добавляемых как новые: базовые (fresh) из окна
+    // + выбранные дубликаты в режиме «add». Категория дубликата при «replace»
+    // не важна — заменяем существующий трек как есть.
+    const kinds: Record<string, 'track' | 'beat'> = {};
+    const collectKinds = (items: ImportedItem[]) => {
+      for (const it of items) {
+        const key = it.url.trim().toLowerCase();
+        kinds[key] = itemKindsRef.current[key] || dupDestination;
+      }
+    };
+    if (mode === 'add' || mode === 'none') collectKinds(dupDialog?.fresh || []);
+    if (mode === 'add') collectKinds(chosen.map((p) => p.item));
     setDupDialog(null);
     setSelectedDups(new Set());
     resolve?.({
       add: mode === 'add' ? chosen.map((p) => p.item) : [],
       replace: mode === 'replace' ? chosen : [],
-      destination: dupDestination,
+      kinds,
     });
   };
 
@@ -197,8 +236,11 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
       // Всегда открываем окно дубликатов, передаём все найденные треки
       const allDupCandidates = [...urlDuplicates, ...titleDups];
       const pairs = matchExistingTracks(allDupCandidates, tracks);
-      // Открываем окно с дубликатами (или сообщением «Нет дубликатов»)
-      const resolved = await openDupDialog(pairs);
+      // Открываем окно с дубликатами (или сообщением «Нет дубликатов»).
+      // Передаём `fresh` — все подгруженные как новые элементы: их тоже
+      // показываем в окне с персональным тумблером «Трек/Бит» и кнопками
+      // «Все треки/биты».
+      const resolved = await openDupDialog(pairs, false, base);
       if (resolved.replace.length) {
         updated = await updateTracksFromItems(resolved.replace);
       }
@@ -212,20 +254,32 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         ).length;
       }
 
-      const imported = finalItems.length
-        ? await persistItems(finalItems, { uid: profile!.uid, existingTracks: tracks })
-        : 0;
+      // Распределяем добавляемые как новые элементы по коллекциям:
+      // треки → persistItems, биты → persistBeats. Категория берётся из
+      // персонального тумблера каждого элемента в окне (resolved.kinds).
+      const kindFor = (it: ImportedItem): 'track' | 'beat' =>
+        resolved.kinds[it.url.trim().toLowerCase()] || 'track';
+      const trackItems = finalItems.filter((it) => kindFor(it) === 'track');
+      const beatItems = finalItems.filter((it) => kindFor(it) === 'beat');
+      const importOpts = {
+        uid: profile!.uid,
+        existingTracks: tracks,
+        beatmakerName: profile?.artistName || profile?.displayName || '',
+      };
+      const imported = trackItems.length ? await persistItems(trackItems, importOpts) : 0;
+      const importedBeats = beatItems.length ? await persistBeats(beatItems, importOpts) : 0;
       const skippedTotal = skippedByUrl + skippedByTitle;
       setImporting(false);
       const importedTotal = parts.join('; ');
       const updatedPart = updated > 0 ? `, обновлено ${updated}` : '';
+      const beatsPart = importedBeats > 0 ? `, +${importedBeats} бит` : '';
       if (platformErrors.length > 0) {
-        setMessage(`Импортировано: ${importedTotal}; всего +${imported}${updatedPart}, пропущено ${skippedTotal}`);
+        setMessage(`Импортировано: ${importedTotal}; всего +${imported}${beatsPart}${updatedPart}, пропущено ${skippedTotal}`);
         setError(platformErrors.join('\n'));
         return;
       }
       setMessage(
-        `Импортировано: ${importedTotal}; всего +${imported}${updatedPart}, пропущено ${skippedTotal}. ` +
+        `Импортировано: ${importedTotal}; всего +${imported}${beatsPart}${updatedPart}, пропущено ${skippedTotal}. ` +
           'Импортированные треки появились в разделе «Отгружено».'
       );
       void refreshProfile();
@@ -239,8 +293,31 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
 
   if (!profile) return null;
 
-  const toggleRole = (r: ArtistRole) => {
+    const toggleRole = (r: ArtistRole) => {
     setRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  };
+
+  // Персональный тумблер «Трек/Бит» для одного подгруженного элемента.
+  const ImportItemKindToggle = ({ url }: { url: string }) => {
+    const kind = itemKinds[url.trim().toLowerCase()] ?? dupDestination;
+    return (
+      <span className="dup-item-kind" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className={`dup-kind-btn ${kind === 'track' ? 'active' : ''}`}
+          onClick={() => setKindFor(url, 'track')}
+        >
+          Трек
+        </button>
+        <button
+          type="button"
+          className={`dup-kind-btn ${kind === 'beat' ? 'active' : ''}`}
+          onClick={() => setKindFor(url, 'beat')}
+        >
+          Бит
+        </button>
+      </span>
+    );
   };
 
   const handleSaveProfile = async () => {
@@ -472,7 +549,11 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
         <div className="modal-overlay" onClick={() => closeDupDialog('none')}>
           <div className="track-form-modal import-dup-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{dupDialog.pairs.length > 0 ? 'Были обнаружены дубликаты. Заменить или добавить?' : 'Нет дубликатов'}</h2>
+              <h2>
+                  {dupDialog.pairs.length > 0
+                    ? 'Были обнаружены дубликаты. Заменить или добавить?'
+                    : 'Проверьте, куда добавить подгруженное'}
+                </h2>
               <button
                 className="modal-close"
                 title="Закрыть"
@@ -481,8 +562,8 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
                 ×
               </button>
             </div>
-            <div className="form-section">
-              {/* Тумблер Треки/Биты */}
+                        <div className="form-section">
+              {/* Общий тумблер по умолчанию для новых элементов */}
               <div className="dup-destination-toggle">
                 <span className="dup-destination-label">Импортировать как:</span>
                 <div className="dup-destination-btns">
@@ -501,15 +582,48 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
                     Биты
                   </button>
                 </div>
+                <span className="form-hint">
+                  По умолчанию новые элементы добавляются в выбранный раздел. Каждому элементу
+                  можно переключить категорию индивидуально.
+                </span>
               </div>
 
-              {dupDialog.pairs.length === 0 ? (
-                <div className="dup-no-duplicates">
-                  <span className="dup-no-dup-icon">✓</span>
-                  <span>Дубликатов не найдено. Все треки будут добавлены как новые в раздел «{dupDestination === 'track' ? 'Треки' : 'Биты'}».</span>
+              {/* Свежие элементы, не найденные на сайте */}
+              <div className="dup-section">
+                <div className="dup-section-head">
+                  <span className="dup-section-title">Новые на сайте ({dupDialog.fresh.length})</span>
+                  {dupDialog.fresh.length > 0 && (
+                    <div className="dup-kind-actions">
+                      <button type="button" className="btn-link-small" onClick={(e) => { e.stopPropagation(); setKindsForAll('track', dupDialog.fresh.map((it) => it.url)); }}>
+                        Все — треки
+                      </button>
+                      <button type="button" className="btn-link-small" onClick={(e) => { e.stopPropagation(); setKindsForAll('beat', dupDialog.fresh.map((it) => it.url)); }}>
+                        Все — биты
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <>
+                <div className="dup-list">
+                  {dupDialog.fresh.length === 0 ? (
+                    <span className="dup-empty">Новых треков не найдено — всё уже есть на сайте.</span>
+                  ) : (
+                    dupDialog.fresh.map((it) => (
+                      <div className="dup-item dup-item-new" key={it.url}>
+                        <span className="dup-item-info">
+                          {it.thumbnail && <img className="dup-item-cover" src={it.thumbnail} alt={it.title} />}
+                          <span className="dup-item-title">{it.title}</span>
+                          <span className="dup-item-author">{it.author}</span>
+                        </span>
+                        <ImportItemKindToggle url={it.url} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Дубликаты (уже есть на сайте) */}
+              {dupDialog.pairs.length > 0 && (
+                <div className="dup-section">
                   <p className="form-hint">
                     Эти треки уже есть на сайте — совпала ссылка или название. Отметьте нужные и выберите
                     действие: заменить существующие свежими данными с площадки (обновятся артисты, битмейкеры,
@@ -533,10 +647,11 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
                             {p.track.artists?.length ? ` — на сайте: ${p.track.artists.join(', ')}` : ''}
                           </span>
                         </span>
+                        <ImportItemKindToggle url={p.item.url} />
                       </label>
                     ))}
                   </div>
-                </>
+                </div>
               )}
             </div>
             <div className="modal-footer">
@@ -556,9 +671,11 @@ export default function ProfileView({ tracks = [] }: { tracks?: Track[] }) {
                 className="btn-primary"
                 onClick={() => closeDupDialog(dupDialog.pairs.length > 0 ? 'add' : 'none')}
               >
-                {dupDialog.pairs.length > 0
+                                {dupDialog.pairs.length > 0
                   ? `Добавить как новые (${selectedDups.size})`
-                  : 'Добавить все'}
+                  : dupDialog.fresh.length > 0
+                    ? 'Добавить все'
+                    : 'Готово'}
               </button>
             </div>
           </div>
