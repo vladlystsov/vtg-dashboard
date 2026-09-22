@@ -68,5 +68,10 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read, write: if isAuthenticated();
     }
+
+    match /eduProjects/{projectId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
   }
 }
