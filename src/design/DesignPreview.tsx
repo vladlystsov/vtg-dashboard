@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import './preview.css';
 import {
-  LogoMark, BellIcon, ChatIcon, GroupIcon, TrashIcon, PlusIcon, CheckIcon,
+  BellIcon, ChatIcon, GroupIcon, TrashIcon, PlusIcon, CheckIcon,
   CloseIcon, SunIcon, MoonIcon, CalendarIcon, SparkIcon, DownloadIcon,
 } from './icons';
 
@@ -46,7 +46,7 @@ export default function DesignPreview() {
     <div className="dv-page">
       {/* ===== Переключатель темы (для проверки) ===== */}
       <div className="dv-topbar">
-        <LogoMark size={30} />
+        <span className="dv-logo-img dv-logo-img-sm" role="img" aria-label="VTG" />
         <div>
           <div className="dv-topbar-title">Превью новой дизайн-системы</div>
           <div className="dv-topbar-sub">Фаза 0-1 · тема, палитра, иконки, страница входа</div>
@@ -72,11 +72,7 @@ export default function DesignPreview() {
       <div className="dv-header">
         <div className="dv-header-left">
           <div className="dv-logo">
-            <LogoMark size={38} />
-            <div>
-              <div className="dv-logo-text">VTG</div>
-              <div className="dv-logo-sub">Dashboard</div>
-            </div>
+            <span className="dv-logo-img dv-logo-img-sm" role="img" aria-label="VTG" />
           </div>
           <nav className="dv-nav">
             <button className="active">Доска</button>
@@ -142,7 +138,14 @@ export default function DesignPreview() {
               <span className="dv-iconbtn"><MoonIcon size={19} /></span>
               <span className="dv-iconbtn"><PlusIcon size={19} /></span>
               <span className="dv-iconbtn"><CloseIcon size={19} /></span>
-              <span className="dv-iconbtn"><LogoMark size={26} /></span>
+            </div>
+            <div className="dv-subhead dv-mt">Логотип (светлая тема)</div>
+            <div className="dv-row">
+              <span className="dv-logo-img" role="img" aria-label="VTG" />
+            </div>
+            <div className="dv-subhead dv-mt">Логотип (тёмная тема — белый)</div>
+            <div className="dv-row dv-logo-dark">
+              <span className="dv-logo-img" role="img" aria-label="VTG" />
             </div>
           </div>
         </section>
@@ -438,7 +441,7 @@ export default function DesignPreview() {
           <div className="dv-login">
             <div className="dv-login-card">
               <div className="dv-login-logo">
-                <h1>VTG</h1>
+                <span className="dv-logo-img dv-logo-img-lg" role="img" aria-label="VTG" />
                 <p>Internal Dashboard</p>
               </div>
               <div className="dv-field">

@@ -240,6 +240,34 @@ body {
 .dv-progress { height: 5px; background: var(--surface-inset); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
 .dv-progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold-500), var(--gold-400)); border-radius: 3px; }
 
+/* ---- Логотип (PNG-маска) ----
+   Файл logo_vtg.png белый на прозрачном фоне. Показываем его как маску:
+   цвет берётся из background-color, поэтому один и тот же файл даёт
+   белый логотип в тёмной теме и чёрный в светлой. */
+.dv-logo-img {
+  width: 132px;
+  height: auto;
+  aspect-ratio: 410 / 280;
+  background-color: var(--gray-900);
+  -webkit-mask: var(--vtg-logo) center / contain no-repeat;
+  mask: var(--vtg-logo) center / contain no-repeat;
+}
+[data-theme='dark'] .dv-logo-img { background-color: #ffffff; }
+
+/* Подложка-образец: показать, как логотип выглядит в тёмной теме,
+   пока сама страница ещё в светлой. */
+.dv-logo-dark {
+  padding: 16px 20px;
+  border-radius: var(--radius-sm);
+  background: var(--gray-900);
+}
+
+/* Компактный вариант для шапки приложения */
+.dv-logo-img-sm { width: 104px; }
+
+/* Крупный, для страницы входа */
+.dv-logo-img-lg { width: 168px; }
+
 /* ---- Кнопки ---- */
 .dv-btn {
   display: inline-flex;
@@ -421,13 +449,9 @@ body {
   padding: 36px 32px;
 }
 .dv-login-logo { text-align: center; margin-bottom: 26px; }
-.dv-login-logo h1 {
-  font-size: 40px; font-weight: 900; letter-spacing: 6px; margin: 0;
-  background: linear-gradient(135deg, var(--gold-600), var(--gold-400));
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
+.dv-login-logo .dv-logo-img { display: inline-block; }
 .dv-login-logo p {
-  margin: 6px 0 0; font-size: 12px; letter-spacing: 3px;
+  margin: 14px 0 0; font-size: 12px; letter-spacing: 3px;
   text-transform: uppercase; color: var(--gray-500);
 }
 .dv-login-toggle {
