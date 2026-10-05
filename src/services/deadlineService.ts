@@ -25,11 +25,6 @@ export interface DueInfo {
 const DAY = 24 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
 
-/** Сутки округляем по календарю, а не по 24ч от «сейчас». */
-function startOfDay(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
 function plural(n: number, one: string, few: string, many: string): string {
   const a = Math.abs(n) % 100;
   const b = a % 10;

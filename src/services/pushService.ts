@@ -76,10 +76,29 @@ export async function registerForPush(uid: string): Promise<string | null> {
         const req = await PushNotifications.requestPermissions();
         if (req.receive !== 'granted') return null;
       }
-      const { value: token } = await PushNotifications.register();
-      if (!token) return null;
-      await saveToken(token, uid);
-      return token;
+      // register() возвращает void — токен приходит событием 'registration'.
+      let resolveToken: (t: string | null) => void = () => {};
+      const tokenPromise = new Promise<string | null>((r) => { resolveToken = r; });
+      const onReg = await PushNotifications.addListener('registration', (data) => {
+        resolveToken(data.value);
+      });
+      const onErr = await PushNotifications.addListener('registrationError', (e) => {
+        console.error('native push registrationError', e);
+        resolveToken(null);
+      });
+      try {
+        await PushNotifications.register();
+        const token = await Promise.race([
+          tokenPromise,
+          new Promise<null>((r) => setTimeout(() => r(null), 15000)),
+        ]);
+        if (!token) return null;
+        await saveToken(token, uid);
+        return token;
+      } finally {
+        await onReg.remove();
+        await onErr.remove();
+      }
     } catch (e) {
       console.error('native push registration', e);
       return null;
