@@ -1,8 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { isNativeApp } from './services/platform'
 
 /**
- * Регистрация service worker для PWA (офлайн-оболочка + Web Push).
  *
  * В нативных приложениях (Capacitor WebView) SW не регистрируем:
  * там ассеты локальные и офлайн и так работает, а SW наоборот мог бы
@@ -10,8 +10,7 @@ import { createRoot } from 'react-dom/client'
  */
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  if (cap?.isNativePlatform?.()) return;
+  if (isNativeApp()) return;
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch((e) => {
       console.warn('service worker registration failed', e);

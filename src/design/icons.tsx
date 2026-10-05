@@ -123,3 +123,12 @@ export function DownloadIcon({ size = 18, ...rest }: P) {
     </svg>
   );
 }
+
+/** Стрелка вниз — раскрытие подробностей в плашке новостей. Поворот на 180° = свёрнуто. */
+export function ChevronIcon({ size = 18, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="m6 9.5 6 6 6-6" />
+    </svg>
+  );
+}

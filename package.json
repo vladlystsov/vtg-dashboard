@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "vitest run",
     "preview": "vite preview",
     "deploy": "gh-pages -d dist",
     "b2:setup-cors": "node api/b2-setup-cors.mjs",

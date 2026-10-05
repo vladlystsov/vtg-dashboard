@@ -31,8 +31,6 @@ const appNewsRef = collection(db, 'appNews');
 
 /** Локальные отметки «прочитано» — per-news id, живут в localStorage. */
 const READ_KEY = 'vtg-appnews-read';
-/** Последняя просмотренная версия приложения. */
-const VERSION_KEY = 'vtg-app-version';
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -54,18 +52,6 @@ export function markNewsRead(id: string) {
     localStorage.setItem(READ_KEY, JSON.stringify([...ids]));
   } catch {
     /* приватный режим — просто не кэшируем */
-  }
-}
-
-export function getLastSeenVersion(): string | null {
-  return readJson<string | null>(VERSION_KEY, null);
-}
-
-export function setLastSeenVersion(version: string) {
-  try {
-    localStorage.setItem(VERSION_KEY, JSON.stringify(version));
-  } catch {
-    /* ignore */
   }
 }
 

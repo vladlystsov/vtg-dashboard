@@ -66,6 +66,8 @@ import { collectDueReminders } from '../services/deadlineService';
 import { registerForPush, sendPushToUsers } from '../services/pushService';
 import { subscribeToAppNews } from '../services/appNewsService';
 import type { AppNewsItem } from '../services/appNewsService';
+import { loadAppVersion } from '../services/appVersionService';
+import type { AppVersionInfo } from '../services/appVersionService';
 import NewsBanner from './NewsBanner';
 
 
@@ -86,7 +88,7 @@ export default function App() {
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [appNews, setAppNews] = useState<AppNewsItem[]>([]);
-  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<AppVersionInfo | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>(beatIdFromHash() ? 'beats' : 'board');
   const requestedBeatId = beatIdFromHash();
@@ -219,12 +221,19 @@ export default function App() {
     return unsub;
   }, [user]);
 
-  // Версия из public/app-meta.json — держим синхронно с versionName в build.gradle.
+  // Версия приложения. В нативе читается реальная versionName из APK
+  // (@capacitor/app), в вебе — версия загруженного бандра; «последняя»
+  // версия всегда приходит из сети, минуя кэш service worker'а.
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}app-meta.json`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((m) => setAppVersion(m && typeof m.version === 'string' ? m.version : null))
-      .catch(() => setAppVersion(null));
+    let alive = true;
+    void loadAppVersion()
+      .then((info) => {
+        if (alive) setAppVersion(info);
+      })
+      .catch((e) => console.error('app version', e));
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const seenNotif = useRef<Set<string>>(new Set());

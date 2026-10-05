@@ -38,6 +38,10 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          # Где нативное приложение ищет последнюю версию (app-meta.json).
+          # Не секрет — значение по умолчанию совпадает с адресом сайта,
+          # поэтому задавать его нужно только при смене домена.
+          VITE_APP_LATEST_URL: ${{ vars.VITE_APP_LATEST_URL }}
           # Адрес serverless-прокси профиля SoundCloud (api/soundcloud-profile.mjs на Vercel).
           # Не обязателен: если не задан, SPA будет пробовать /api/soundcloud-profile на своём origin.
           VITE_SOUNDCLOUD_PROXY_URL: ${{ secrets.VITE_SOUNDCLOUD_PROXY_URL }}

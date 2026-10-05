@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   /* ===== Красный (акцент) — переопределяет «синюю» шкалу =====
      Имена переменных сохранены, поэтому все ~4600 строк ниже
      перекрашиваются автоматически без их правки.
@@ -4381,7 +4381,11 @@ input[type='radio'] {
   flex-shrink: 0;
 }
 
-/* ===== Toast ===== */
+/* ===== Toast =====
+   Фон и текст тоста инвертируются вместе с темой: в светлой тёмный фон
+   со светлым текстом, в тёмной — светлый фон с тёмным. Текст берём из
+   --gray-50 (светлый в светлой теме, почти чёрный в тёмной), поэтому он
+   всегда контрастен фону --gray-800 и не был белым по белому. */
 .toast {
   position: fixed;
   bottom: 20px;
@@ -4389,7 +4393,7 @@ input[type='radio'] {
   transform: translateX(-50%);
   max-width: 90vw;
   background: var(--gray-800);
-  color: #fff;
+  color: var(--gray-50);
   padding: 12px 18px;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -5743,14 +5747,15 @@ input[type='radio'] {
   }
 }
 
-/* ===== овости приложения (аза 5) ===== */
+/* ===== Новости приложения (Фаза 5) ===== */
+/* Отступ сверху даёт .app-main, снизу — от toolbar'а с «Фильтр:». */
 .news-banner {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin: 16px auto 0;
+  margin: 0 0 16px;
   max-width: 1200px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background: var(--surface);
   border: 1px solid var(--gray-200);
   border-left: 4px solid var(--blue-600);
@@ -5758,19 +5763,60 @@ input[type='radio'] {
   box-shadow: var(--shadow-sm);
 }
 
+.news-banner--current {
+  border-left-color: var(--green-500);
+}
+
+.news-banner-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  color: var(--blue-600);
+}
+
+.news-banner--current .news-banner-icon {
+  color: var(--green-500);
+}
+
 .news-banner-body {
   flex: 1;
   min-width: 0;
 }
 
+/* Вся строка — кнопка: нажатие раскрывает подробности. */
 .news-banner-head {
   display: flex;
   align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.news-banner-head:disabled {
+  cursor: default;
+}
+
+.news-banner-headline {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .news-banner-version {
+  flex-shrink: 0;
   background: var(--blue-600);
   color: var(--on-accent);
   font-size: 12px;
@@ -5785,27 +5831,70 @@ input[type='radio'] {
   color: var(--gray-800);
 }
 
-.news-banner-text {
-  margin-top: 4px;
+.news-banner-summary {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
-  line-height: 1.45;
+  color: var(--gray-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-banner-caret {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--gray-400);
+  transition: transform .15s ease;
+}
+
+.news-banner-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.news-banner-head:not(:disabled):hover .news-banner-caret {
+  color: var(--gray-700);
+}
+
+.news-banner-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.news-banner-text {
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--gray-600);
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
 
+.news-banner-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  text-decoration: none;
+}
+
 .news-banner-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   background: none;
   border: none;
+  border-radius: var(--radius-sm);
   color: var(--gray-400);
-  font-size: 16px;
-  line-height: 1;
-  padding: 4px 6px;
   cursor: pointer;
 }
 
 .news-banner-close:hover {
   color: var(--crimson-red);
+  background: var(--surface-2);
 }
 
 /* убликация новостей (админка → вкладка «овости») */

@@ -2,6 +2,7 @@ import {
   doc, getDoc, setDoc, deleteDoc, collection, getDocs, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { isNativeApp } from './platform';
 
 /**
  * Токен устройства для push. Ключ документа = сам токен (он и уникален,
@@ -22,11 +23,6 @@ const devicesRef = collection(db, 'devices');
 /** Адрес serverless-функции отправки push (api/push-send.mjs на Vercel). */
 const PUSH_API = (import.meta.env.VITE_PUSH_PROXY_URL as string | undefined)?.trim() || '/api/push-send';
 
-function isNative(): boolean {
-  const cap = (globalThis as any).Capacitor;
-  return !!cap?.isNativePlatform?.();
-}
-
 /** Публичный VAPID-ключ для web-push (в Android используется FCM). */
 const VAPID_KEY = (import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined)?.trim();
 
@@ -39,7 +35,7 @@ async function saveToken(token: string, uid: string) {
     {
       token,
       uid,
-      platform: isNative() ? 'android' : 'web',
+      platform: isNativeApp() ? 'android' : 'web',
       app: 'vtg-android',
       lastSeenAt: serverTimestamp(),
       ...(existing ? {} : { createdAt: serverTimestamp() }),
@@ -68,7 +64,7 @@ export async function registerForPush(uid: string): Promise<string | null> {
   if (!uid) return null;
 
   // --- Нативное приложение (Android) ---
-  if (isNative()) {
+  if (isNativeApp()) {
     try {
       const { PushNotifications } = await import('@capacitor/push-notifications');
       const perm = await PushNotifications.checkPermissions();
