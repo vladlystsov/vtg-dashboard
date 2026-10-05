@@ -64,6 +64,9 @@ import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 import { collectDueReminders } from '../services/deadlineService';
 import { registerForPush, sendPushToUsers } from '../services/pushService';
+import { subscribeToAppNews } from '../services/appNewsService';
+import type { AppNewsItem } from '../services/appNewsService';
+import NewsBanner from './NewsBanner';
 
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
@@ -82,6 +85,8 @@ export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [appNews, setAppNews] = useState<AppNewsItem[]>([]);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>(beatIdFromHash() ? 'beats' : 'board');
   const requestedBeatId = beatIdFromHash();
@@ -203,6 +208,24 @@ export default function App() {
     }, (e) => console.error('notif sub', e), user.uid);
     return () => { notifUnsubRef.current?.(); notifUnsubRef.current = null; };
   }, [user]);
+
+  // ---- Новости приложения (Фаза 5) ----
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToAppNews(
+      (data) => setAppNews(data),
+      (e) => console.error('appNews sub', e)
+    );
+    return unsub;
+  }, [user]);
+
+  // Версия из public/app-meta.json — держим синхронно с versionName в build.gradle.
+  useEffect(() => {
+    fetch(`${import.meta.env.BASE_URL}app-meta.json`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => setAppVersion(m && typeof m.version === 'string' ? m.version : null))
+      .catch(() => setAppVersion(null));
+  }, []);
 
   const seenNotif = useRef<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -652,6 +675,7 @@ export default function App() {
 
       <ShippedPlayer tracks={playerTracks}>
         <main className="app-main">
+          <NewsBanner news={appNews} version={appVersion} />
         {!canUseBoard && (
           <div className="gate-block">
             <h2>Доска недоступна</h2>

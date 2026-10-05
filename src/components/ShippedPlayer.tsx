@@ -200,7 +200,10 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   // добавляется только кнопкой (All), а пересборка под «выставленный фильтр»
   // происходит в момент, когда пользователь выбирает в нём новый трек (playTrack).
   useEffect(() => {
-    const base = allOnRef.current ? tracks : scopeRef.current ?? tracks;
+    // В очередь попадают только отгруженные (shipped) — неотгруженные
+    // карточки в плейлист не отображаются (в т.ч. в режиме (All)).
+    const base = (allOnRef.current ? tracks : scopeRef.current ?? tracks)
+      .filter((t) => t.shipped !== false);
     setOrder((prev) => {
       const ids = new Set(base.map((t) => t.id));
       const keep = prev.filter((x) => ids.has(x.id));
@@ -255,7 +258,10 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   // пользователь явно выбирает трек. Смена раздела сама по себе очередь не трогает.
   const ensureOrder = useCallback(
     (id: string) => {
-      const base = allOnRef.current ? tracks : scopeRef.current ?? tracks;
+      // Только отгруженные: неотгруженные карточки не показываем в плейлисте
+      // даже при (All) — явно запущенный трек добавляется ниже, если он отгружен.
+      const base = (allOnRef.current ? tracks : scopeRef.current ?? tracks)
+        .filter((t) => t.shipped !== false);
       if (base.length === 0) return;
       const baseIds = new Set(base.map((t) => t.id));
       setOrder((prev) => {

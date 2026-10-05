@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { UserProfile, Track, ArtistRequest, UserRole, Project } from '../types/track';
 import type { Beat } from '../types/beat';
 import {
@@ -6,6 +6,12 @@ import {
 } from '../services/artistRequestService';
 import { getRoleOptionsFor, canChangeRole, canDenyArtist, isSoleOwnerDemoting } from '../utils/roles';
 import StorageExplorer from './StorageExplorer';
+import {
+  subscribeToAppNews,
+  createAppNews,
+  deleteAppNews,
+} from '../services/appNewsService';
+import type { AppNewsItem } from '../services/appNewsService';
 
 interface AdminPanelProps {
   users: UserProfile[];
@@ -35,7 +41,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export default function AdminPanel({ users, requests, tracks, beats, projects, onSetRole, onDeleteTrack, onApprove, onReject, onClearRequests, currentUserRole, currentUid, ownerCount = 1, onStorageDeleteProject, onUpdateTrackFields, onUpdateBeatFields }: AdminPanelProps) {
-  const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'storage' | 'stats'>('requests');
+  const [tab, setTab] = useState<'requests' | 'users' | 'tracks' | 'news' | 'storage' | 'stats'>('requests');
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
 
@@ -57,6 +63,9 @@ export default function AdminPanel({ users, requests, tracks, beats, projects, o
         </button>
         <button className={`nav-btn ${tab === 'tracks' ? 'active' : ''}`} onClick={() => setTab('tracks')}>
           Треки ({tracks.length})
+        </button>
+        <button className={`nav-btn ${tab === 'news' ? 'active' : ''}`} onClick={() => setTab('news')}>
+          Новости
         </button>
         <button className={`nav-btn ${tab === 'storage' ? 'active' : ''}`} onClick={() => setTab('storage')}>
           Хранилище
@@ -167,6 +176,12 @@ export default function AdminPanel({ users, requests, tracks, beats, projects, o
         </div>
       )}
 
+      {tab === 'news' && (
+        <div className="admin-section">
+          <NewsTab currentUid={currentUid} />
+        </div>
+      )}
+
       {tab === 'storage' && (
         <div className="admin-section">
           <StorageExplorer
@@ -203,5 +218,109 @@ export default function AdminPanel({ users, requests, tracks, beats, projects, o
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Вкладка «Новости» (Фаза 5): публикация записи в `appNews` —
+ * она появится как плашка у всех авторизованных (см. NewsBanner).
+ */
+function NewsTab({ currentUid }: { currentUid?: string }) {
+  const [items, setItems] = useState<AppNewsItem[]>([]);
+  const [title, setTitle] = useState('');
+  const [text, setText] = useState('');
+  const [version, setVersion] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => subscribeToAppNews(setItems, (e) => console.error('appNews sub', e)), []);
+
+  const publish = async () => {
+    if (!title.trim() || !text.trim() || busy) return;
+    setBusy(true);
+    try {
+      await createAppNews({
+        title: title.trim(),
+        text: text.trim(),
+        version: version.trim() || undefined,
+        authorUid: currentUid,
+      });
+      setTitle('');
+      setText('');
+      setVersion('');
+    } catch (e) {
+      console.error('appNews create', e);
+      alert('Не удалось опубликовать новость (нужна роль админа/владельца).');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="news-form">
+        <input
+          className="news-input"
+          placeholder="Заголовок (напр. «Что нового в 2.5.0»)"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={120}
+        />
+        <textarea
+          className="news-input news-textarea"
+          placeholder="Текст новости: что изменилось, что нужно сделать пользователям"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          maxLength={4000}
+        />
+        <div className="news-form-row">
+          <input
+            className="news-input news-version"
+            placeholder="Версия, напр. 2.4.0"
+            value={version}
+            onChange={(e) => setVersion(e.target.value)}
+            maxLength={20}
+          />
+          <button
+            type="button"
+            className="btn-create"
+            disabled={busy || !title.trim() || !text.trim()}
+            onClick={publish}
+          >
+            {busy ? 'Публикация…' : 'Опубликовать'}
+          </button>
+        </div>
+      </div>
+
+      {items.length === 0 && <div className="empty-state">Новостей пока нет</div>}
+      {items.map((n) => (
+        <div className="news-admin-item" key={n.id}>
+          <div className="news-admin-info">
+            <div className="news-admin-title">
+              {n.version && <span className="news-banner-version">v{n.version}</span>} {n.title}
+            </div>
+            <div className="news-admin-text">{n.text}</div>
+            <div className="news-admin-date">
+              {new Date(n.createdAt).toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn-reject"
+            onClick={() => {
+              if (confirm(`Удалить новость «${n.title}»?`)) deleteAppNews(n.id).catch(console.error);
+            }}
+          >
+            Удалить
+          </button>
+        </div>
+      ))}
+    </>
   );
 }

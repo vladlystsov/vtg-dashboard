@@ -4263,10 +4263,18 @@ input[type='radio'] {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 45;
-  overflow: hidden;
+  overflow-x: hidden;
+  /* Длинный список уведомлений листается (на тач-устройствах — пальцем) */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: min(70vh, 520px);
 }
 
 .notif-header {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5733,4 +5741,145 @@ input[type='radio'] {
   .app-header {
     top: env(safe-area-inset-top);
   }
+}
+
+/* ===== овости приложения (аза 5) ===== */
+.news-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 16px auto 0;
+  max-width: 1200px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--gray-200);
+  border-left: 4px solid var(--blue-600);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.news-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.news-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.news-banner-version {
+  background: var(--blue-600);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.news-banner-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray-800);
+}
+
+.news-banner-text {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gray-600);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.news-banner-close {
+  background: none;
+  border: none;
+  color: var(--gray-400);
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.news-banner-close:hover {
+  color: var(--crimson-red);
+}
+
+/* убликация новостей (админка → вкладка «овости») */
+.news-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.news-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--gray-800);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.news-input:focus {
+  outline: none;
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.news-textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.news-form-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.news-version {
+  width: 180px;
+}
+
+.news-admin-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.news-admin-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.news-admin-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray-800);
+}
+
+.news-admin-text {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--gray-600);
+  white-space: pre-wrap;
+}
+
+.news-admin-date {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-400);
 }
