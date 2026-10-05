@@ -5724,3 +5724,13 @@ input[type='radio'] {
 }
 
 
+
+/* ===== iOS standalone (black-translucent): контент не уходит под статус-бар ===== */
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+  .app-header {
+    top: env(safe-area-inset-top);
+  }
+}
