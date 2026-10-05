@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VTG · Превью дизайна</title>
+    <style>
+      /* Ставим тему до первой отрисовки — иначе мигнёт светлый фон */
+      (function () {
+        try {
+          var t = localStorage.getItem('vtg-theme') || 'light';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+      })();
+    </style>
+    <script type="module" crossorigin src="./assets/design-WkuZ-Jkk.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/jsx-runtime-qMczmY0L.js">
+    <link rel="modulepreload" crossorigin href="./assets/icons-B13rtUq0.js">
+    <link rel="stylesheet" crossorigin href="./assets/design-D6AVbPMY.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

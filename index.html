@@ -3,12 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <!-- PWA: установка на домашний экран (Android/desktop) -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <!-- iOS: иконка и полноэкранный режим без Safari-интерфейса -->
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VTG Dashboard" />
     <title>VTG Dashboard</title>
-    <script type="module" crossorigin src="./assets/index-CjSC4J5e.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-C3_dMs22.css">
+    <style>
+      /* Ставим тему до первой отрисовки, иначе мигнёт светлый фон */
+      (function () {
+        try {
+          var t = localStorage.getItem('vtg-theme');
+          document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </style>
+    <script type="module" crossorigin src="./assets/main-BtoHBU4c.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/jsx-runtime-qMczmY0L.js">
+    <link rel="stylesheet" crossorigin href="./assets/main-CTuLT1wj.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>
