@@ -62,6 +62,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
+import { collectDueReminders } from '../services/deadlineService';
 
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
@@ -204,6 +205,61 @@ export default function App() {
 
   const seenNotif = useRef<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ---- Напоминания о сроках сдачи (Фаза 2) ----
+  // При появлении треков и раз в минуту проверяем, не пора ли отправить
+  // напоминание. Каждое отправляется один раз: ключи уже показанных
+  // напоминаний храним в localStorage.
+  const firedRemindersRef = useRef<Set<string>>(new Set());
+  const remindersTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`vtg-reminders-${profile?.uid || 'anon'}`);
+      if (saved) firedRemindersRef.current = new Set(JSON.parse(saved));
+    } catch {
+      /* приватный режим */
+    }
+  }, [profile?.uid]);
+
+  useEffect(() => {
+    if (!profile || !tracks.length) return;
+
+    const fire = async () => {
+      const due = collectDueReminders(tracks, new Date());
+      for (const r of due) {
+        if (firedRemindersRef.current.has(r.key)) continue;
+        firedRemindersRef.current.add(r.key);
+        try {
+          localStorage.setItem(
+            `vtg-reminders-${profile.uid}`,
+            JSON.stringify([...firedRemindersRef.current])
+          );
+        } catch {
+          /* приватный режим */
+        }
+        try {
+          await createNotification({
+            type: 'deadline',
+            text: `Скоро срок сдачи: «${r.track.title}» — ${r.due.label}`,
+            actorUid: profile.uid,
+            actorName: profile.artistName || profile.displayName,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.error('deadline reminder', e);
+        }
+      }
+    };
+
+    void fire();
+    if (remindersTimerRef.current) clearInterval(remindersTimerRef.current);
+    remindersTimerRef.current = setInterval(() => void fire(), 60_000);
+    return () => {
+      if (remindersTimerRef.current) clearInterval(remindersTimerRef.current);
+      remindersTimerRef.current = null;
+    };
+  }, [tracks, profile]);
 
   useEffect(() => {
     if (!profile) return;

@@ -117,6 +117,20 @@ export interface ChecklistItem {
   fileName?: string;
 }
 
+/**
+ * Варианты напоминания о сроке сдачи — сколько часов до дедлайна.
+ * Пользователь отмечает нужные в форме задачи.
+ */
+export const REMIND_OFFSETS: { hours: number; label: string }[] = [
+  { hours: 1, label: 'за час' },
+  { hours: 24, label: 'за день' },
+  { hours: 48, label: 'за 2 дня' },
+  { hours: 72, label: 'за 3 дня' },
+];
+
+/** Напоминания по умолчанию — за час и за день. */
+export const DEFAULT_REMIND_OFFSETS = [1, 24];
+
 export interface Track {
   id: string;
   title: string;
@@ -162,6 +176,12 @@ export interface Track {
   archived?: boolean;
   // Маркер импорта из площадок: такие треки живут только в разделе «Отгружено»
   imported?: boolean;
+  // Срок сдачи задачи (ISO). Показывается тегом даты на карточке доски.
+  dueDate?: string;
+  // Через сколько часов до срока напоминать (из REMIND_OFFSETS).
+  remindOffsets?: number[];
+  // Кому адресовать напоминания: пусто — всем участникам трека.
+  remindAssignee?: string;
 }
 
 export interface TrackProjectZip {

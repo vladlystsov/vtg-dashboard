@@ -1,7 +1,8 @@
 import { Draggable } from '@hello-pangea/dnd';
 import type { Track, UserProfile } from '../types/track';
 import { KANBAN_COLUMNS, STATUS_LABELS, resolveNames } from '../types/track';
-import { format } from 'date-fns';
+import { nextDueOf } from '../services/deadlineService';
+import { CalendarIcon } from '../design/icons';
 
 interface TrackCardProps {
   track: Track;
@@ -26,7 +27,7 @@ export default function TrackCard({ track, index, onOpen, userMap, onRestore }: 
 
   const mixBy = resolveNames(track.mixBy, track.mixByUids, userMap).join(', ');
 
-  const nextDeadline = (checklist || []).find((c) => c.deadline && c.status !== 'verified' && c.status !== 'done');
+  const nextDeadline = nextDueOf(track);
 
   return (
     <Draggable draggableId={track.id} index={index}>
@@ -53,6 +54,15 @@ export default function TrackCard({ track, index, onOpen, userMap, onRestore }: 
               <span className="track-project">
                 {track.trackNumber ? `${track.trackNumber}. ` : ''}{track.project}
               </span>
+              {nextDeadline && (
+                <span
+                  className={`track-due track-due-${nextDeadline.urgency}`}
+                  title={`Срок сдачи: ${nextDeadline.label}`}
+                >
+                  <CalendarIcon size={12} />
+                  {nextDeadline.short}
+                </span>
+              )}
             </div>
             <h3 className="track-title">{track.title}</h3>
             <div className="track-meta">
@@ -76,8 +86,8 @@ export default function TrackCard({ track, index, onOpen, userMap, onRestore }: 
             <div className="track-card-footer">
               <span className="track-status">{STATUS_LABELS[track.status]}</span>
               {nextDeadline && (
-                <span className="track-deadline">
-                  {format(new Date(nextDeadline.deadline!), 'dd.MM')}
+                <span className={`track-due-label track-due-${nextDeadline.urgency}`}>
+                  {nextDeadline.label}
                 </span>
               )}
             </div>
