@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../hooks/useTheme';
+import { SunIcon, MoonIcon } from '../design/icons';
 
 export default function LoginPage() {
   const { signIn, signUp } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -29,9 +32,17 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
+      <button
+        className="theme-toggle login-theme-toggle"
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+        aria-label="Переключить тему"
+      >
+        {theme === 'dark' ? <SunIcon size={18} /> : <MoonIcon size={18} />}
+      </button>
       <div className="login-card">
         <div className="login-logo">
-          <h1>VTG</h1>
+          <span className="login-logo-img" role="img" aria-label="VTG" />
           <p>Internal Dashboard</p>
         </div>
         <form onSubmit={handleSubmit}>

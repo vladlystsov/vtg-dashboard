@@ -245,7 +245,7 @@ body {
    цвет берётся из background-color, поэтому один и тот же файл даёт
    белый логотип в тёмной теме и чёрный в светлой. */
 .dv-logo-img {
-  width: 132px;
+  width: 118px;
   height: auto;
   aspect-ratio: 410 / 280;
   background-color: var(--gray-900);
@@ -263,10 +263,10 @@ body {
 }
 
 /* Компактный вариант для шапки приложения */
-.dv-logo-img-sm { width: 104px; }
+.dv-logo-img-sm { width: 92px; }
 
 /* Крупный, для страницы входа */
-.dv-logo-img-lg { width: 168px; }
+.dv-logo-img-lg { width: 142px; }
 
 /* ---- Кнопки ---- */
 .dv-btn {

@@ -1,38 +1,166 @@
 ﻿:root {
-  --blue-900: #1e3a5f;
-  --blue-800: #24466f;
-  --blue-700: #2d5a8e;
-  --blue-600: #3b82f6;
-  --blue-500: #60a5fa;
-  --blue-400: #93c5fd;
-  --blue-100: #dbeafe;
-  --blue-50: #eff6ff;
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-800: #1f2937;
-  --gray-900: #111827;
-  --crimson-500: #dc2626;
-  --crimson-600: #dc2626;
-  --crimson-red: #b91c1c;
-  --green-500: #10b981;
-  --green-600: #059669;
-  --amber-500: #f59e0b;
-  --purple-500: #8b5cf6;
+  /* ===== Золото (акцент) — переопределяет «синюю» шкалу =====
+     Имена переменных сохранены, поэтому все ~4600 строк ниже
+     перекрашиваются автоматически без их правки. */
+  --gold-900: #241b05;
+  --gold-800: #45360a;
+  --gold-700: #6b5410;
+  --gold-600: #8a6d12;
+  --gold-500: #a67f18;
+  --gold-400: #c9a227;
+  --gold-300: #e0bc5e;
+  --gold-200: #eddaa4;
+
+  --red-600: #b02525;
+  --red-500: #e03131;
+
+  --blue-900: #241b05;
+  --blue-800: #45360a;
+  --blue-700: #6b5410;
+  --blue-600: #8a6d12;
+  --blue-500: #a67f18;
+  --blue-400: #c9a227;
+  --blue-100: #f3e8cc;
+  --blue-50: #faf6ea;
+  --gray-50: #ffffff;
+  --gray-100: #f7f6f3;
+  --gray-200: #e8e6e1;
+  --gray-300: #d5d2cb;
+  --gray-400: #9a968e;
+  --gray-500: #6f6b64;
+  --gray-600: #4d4a44;
+  --gray-700: #33312d;
+  --gray-800: #1a1917;
+  --gray-900: #0d0c0b;
+  --crimson-500: #e03131;
+  --crimson-600: #c92a2a;
+  --crimson-red: #b02525;
+  --green-500: #2f9e44;
+  --green-600: #2b8a3e;
+  --amber-500: #f08c00;
+  --purple-500: #7950f2;
   --orange-100: #ffedd5;
   --orange-300: #fdba74;
   --orange-600: #ea580c;
+
+  /* Поверхности — заменяют жёсткие #fff, чтобы тема переключалась */
+  --surface: #ffffff;
+  --surface-2: #faf9f6;
+  --surface-3: #f2f0eb;
+  --surface-inset: #f4f2ed;
+  --header-bg: rgba(255, 255, 255, 0.86);
+  --overlay-bg: rgba(24, 20, 12, 0.55);
+  --on-accent: #ffffff;
+  --focus-ring: rgba(201, 162, 39, 0.35);
+
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px -1px rgba(15,23,42,0.1), 0 2px 4px -2px rgba(15,23,42,0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(15,23,42,0.1), 0 4px 6px -4px rgba(15,23,42,0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.12), 0 4px 6px -4px rgba(0,0,0,0.1);
+  --shadow-gold: 0 4px 14px rgba(201, 162, 39, 0.22);
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /** Логотип: используется как CSS-маска, цвет задаёт background-color.
+     public/logo_vtg.png — белый на прозрачном фоне. */
+  --vtg-logo: url('/logo_vtg.png');
+}
+
+/* Логотип в шапке: белый в тёмной теме, чёрный в светлой */
+.logo-img {
+  width: 92px;
+  height: auto;
+  aspect-ratio: 410 / 280;
+  background-color: var(--gray-900);
+  -webkit-mask: var(--vtg-logo) center / contain no-repeat;
+  mask: var(--vtg-logo) center / contain no-repeat;
+  transition: background-color .2s ease;
+}
+[data-theme='dark'] .logo-img { background-color: #ffffff; }
+
+/* Переключатель светлой/тёмной темы */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.theme-toggle:hover {
+  color: var(--gold-600);
+  border-color: var(--gold-400);
+  background: var(--surface-2);
+}
+
+@media (max-width: 480px) {
+  .logo-img { width: 78px; }
+}
+
+/* ===== ТЁМНАЯ ТЕМА: чёрный фон, белый текст, золото/красный =====
+   Инверсия шкал — все существующие правила переключаются сами. */
+[data-theme='dark'] {
+  --gold-900: #0d0a02;
+  --gold-800: #3a2d0b;
+  --gold-700: #7a6015;
+  --gold-600: #a8842a;
+  --gold-500: #d9b64a;
+  --gold-400: #e8cd7d;
+  --gold-300: #f2ddab;
+  --gold-200: #f7eccb;
+  --red-600: #f03e3e;
+  --red-500: #ff6b6b;
+  --green-600: #40c057;
+  --green-500: #51cf66;
+  --blue-900: #0d0a02;
+  --blue-800: #3a2d0b;
+  --blue-700: #7a6015;
+  --blue-600: #a8842a;
+  --blue-500: #d9b64a;
+  --blue-400: #e8cd7d;
+  --blue-100: #2b230d;
+  --blue-50: #171205;
+  --gray-50: #0a0a0b;
+  --gray-100: #131315;
+  --gray-200: #1e1e21;
+  --gray-300: #2c2c30;
+  --gray-400: #8b8b90;
+  --gray-500: #a5a5aa;
+  --gray-600: #c4c4c9;
+  --gray-700: #dedee2;
+  --gray-800: #f2f2f4;
+  --gray-900: #ffffff;
+  --crimson-500: #ff6b6b;
+  --crimson-600: #f03e3e;
+  --crimson-red: #ff8787;
+  --amber-500: #ffd43b;
+  --purple-500: #b197fc;
+  --orange-100: #3a2410;
+  --orange-300: #ffa94d;
+  --orange-600: #ff922b;
+  --surface: #161618;
+  --surface-2: #1d1d20;
+  --surface-3: #242428;
+  --surface-inset: #101012;
+  --header-bg: rgba(12, 12, 14, 0.88);
+  --overlay-bg: rgba(0, 0, 0, 0.72);
+  --on-accent: #0d0c0b;
+  --focus-ring: rgba(232, 205, 125, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.6), 0 2px 4px -2px rgba(0,0,0,0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.7), 0 4px 6px -4px rgba(0,0,0,0.6);
+  --shadow-gold: 0 4px 16px rgba(217, 182, 74, 0.18);
+}
+
+/* Плавная смена темы (без неё — только фон/текст, без transition) */
+body, .app, .app-header, .track-card, .modal-overlay, .track-form-modal {
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease;
 }
 
 * {
@@ -94,37 +222,58 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--blue-900) 0%, var(--blue-700) 50%, var(--blue-600) 100%);
+  background:
+    radial-gradient(900px 420px at 50% -8%, var(--blue-900), transparent 70%),
+    linear-gradient(160deg, var(--gray-900) 0%, var(--gray-800) 55%, var(--gray-900) 100%);
   padding: 20px;
+  position: relative;
+}
+
+/* Переключатель темы в углу экрана входа */
+.login-theme-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.login-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--gold-300);
+  border-color: var(--gold-500);
 }
 
 .login-card {
-  background: rgba(255,255,255,0.97);
+  background: var(--surface);
   backdrop-filter: blur(10px);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 40px 36px;
   width: 100%;
   max-width: 400px;
-  border: 1px solid rgba(255,255,255,0.6);
+  border: 1px solid var(--gold-400);
 }
 
-.login-logo h1 {
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: 4px;
-  background: linear-gradient(135deg, var(--blue-800), var(--crimson-red));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+/* Логотип на странице входа: белый в тёмной теме, чёрный в светлой */
+.login-logo-img {
+  width: 142px;
+  height: auto;
+  aspect-ratio: 410 / 280;
+  margin: 0 auto;
+  background-color: var(--gray-900);
+  -webkit-mask: var(--vtg-logo) center / contain no-repeat;
+  mask: var(--vtg-logo) center / contain no-repeat;
 }
+[data-theme='dark'] .login-logo-img { background-color: #ffffff; }
 
 .login-logo p {
-  color: var(--gray-400);
-  margin-bottom: 32px;
-  font-size: 13px;
-  letter-spacing: 2px;
+  color: var(--gray-500);
+  margin: 12px 0 32px;
+  font-size: 12px;
+  letter-spacing: 3px;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .login-card form {
@@ -188,7 +337,7 @@ body {
 /* ===== Buttons ===== */
 .btn-primary {
   background: linear-gradient(135deg, var(--blue-700), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius-sm);
   padding: 12px 20px;
@@ -279,7 +428,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
-  background: rgba(255,255,255,0.85);
+  background: var(--header-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--gray-200);
   position: sticky;
@@ -440,7 +589,7 @@ body {
 .kanban-filter-btns {
   display: flex;
   gap: 4px;
-  background: rgba(255,255,255,0.7);
+  background: var(--surface);
   border-radius: var(--radius-md);
   padding: 3px;
   border: 1px solid var(--gray-200);
@@ -487,7 +636,7 @@ body {
   padding: 7px 10px;
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   color: var(--gray-700);
   cursor: pointer;
@@ -562,7 +711,7 @@ body {
 }
 
 .project-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -631,7 +780,7 @@ body {
   justify-content: center;
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
   color: var(--gray-500);
   font-size: 12px;
   line-height: 1;
@@ -813,7 +962,7 @@ body {
 }
 
 .kanban-column {
-  background: rgba(255,255,255,0.7);
+  background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
@@ -931,7 +1080,7 @@ body {
 
 /* ===== Track Card ===== */
 .track-card {
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-md);
   padding: 10px 12px;
   border: 1px solid var(--gray-200);
@@ -1221,7 +1370,7 @@ body {
   grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr auto;
   gap: 16px;
   align-items: center;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   padding: 14px 18px;
@@ -1301,7 +1450,7 @@ body {
   text-align: center;
   color: var(--gray-400);
   padding: 60px 20px;
-  background: #fff;
+  background: var(--surface);
   border: 1px dashed var(--gray-300);
   border-radius: var(--radius-md);
 }
@@ -1323,7 +1472,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   padding: 20px;
@@ -1336,7 +1485,7 @@ body {
   height: 48px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--blue-700), var(--blue-500));
-  color: #fff;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1404,7 +1553,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15,23,42,0.5);
+  background: var(--overlay-bg);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -1414,7 +1563,7 @@ body {
 }
 
 .track-form-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 640px;
@@ -1437,7 +1586,7 @@ body {
   border-bottom: 1px solid var(--gray-200);
   position: sticky;
   top: 0;
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
@@ -1498,7 +1647,15 @@ body {
   font-size: 14px;
   outline: none;
   font-family: inherit;
+  /* Без явного фона поля остаются белыми в тёмной теме */
+  background-color: var(--surface);
+  color: var(--gray-900);
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: var(--gray-400);
 }
 
 .form-group textarea {
@@ -1560,7 +1717,7 @@ body {
   height: 22px;
   border-radius: 50%;
   border: 2px solid var(--gray-300);
-  background: #fff;
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1787,7 +1944,7 @@ body {
   grid-template-columns: 36px 56px 1fr auto auto;
   gap: 14px;
   align-items: center;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   padding: 10px 16px;
@@ -1827,7 +1984,7 @@ body {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 800;
   font-size: 12px;
 }
@@ -1900,7 +2057,7 @@ body {
 }
 
 .deck-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -2034,7 +2191,7 @@ body {
   font-weight: 700;
   padding: 3px 9px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -2133,7 +2290,7 @@ body {
 }
 
 .project-create-form {
-  background: rgba(255,255,255,0.9);
+  background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   padding: 20px;
@@ -2153,7 +2310,7 @@ body {
 }
 
 .project-card {
-  background: rgba(255,255,255,0.9);
+  background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
@@ -2290,7 +2447,7 @@ body {
 }
 
 .tracks-tab.active {
-  background: #fff;
+  background: var(--surface);
   color: var(--gray-800);
   box-shadow: var(--shadow-sm);
 }
@@ -2300,7 +2457,7 @@ body {
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-sm);
   font-size: 14px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .albums-list {
@@ -2312,7 +2469,7 @@ body {
 .album-card {
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -2559,7 +2716,7 @@ body {
   gap: 8px;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   cursor: pointer;
 }
@@ -2613,7 +2770,7 @@ body {
   color: var(--gray-400);
   font-weight: 800;
   background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .at-cover-change {
@@ -3045,7 +3202,7 @@ body {
   height: 34px;
   border-radius: 50%;
   border: 1px solid var(--gray-300);
-  background: #fff;
+  background: var(--surface);
   color: var(--gray-700);
   font-size: 14px;
   line-height: 1;
@@ -3219,7 +3376,7 @@ body {
   border: 1px solid var(--gray-200);
   border-top: none;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   max-height: 320px;
   overflow-y: auto;
   box-shadow: var(--shadow-md);
@@ -3421,7 +3578,7 @@ body {
 .gate-block {
   text-align: center;
   padding: 80px 20px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   max-width: 520px;
@@ -3450,7 +3607,7 @@ body {
 }
 
 .profile-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -3541,7 +3698,7 @@ body {
 }
 
 .admin-section {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   padding: 16px;
@@ -3792,6 +3949,54 @@ body {
   }
 }
 
+/* ============================================================================
+   ТЁМНАЯ ТЕМА: элементы формы и мелочи
+   Браузер рисует input/select/textarea системными цветами — без этих
+   правил поля и выпадающие списки остались бы белыми на чёрном фоне.
+   ========================================================================== */
+
+/* Любые поля вне .form-group (фильтры, комбобоксы, даты) */
+input:not([type='checkbox']):not([type='radio']):not([type='file']),
+select,
+textarea {
+  background-color: var(--surface);
+  color: var(--gray-900);
+  border-color: var(--gray-300);
+}
+/* Иконка календаря у date/time — иначе тёмная на тёмном фоне */
+[data-theme='dark'] input[type='date'],
+[data-theme='dark'] input[type='datetime-local'],
+[data-theme='dark'] input[type='time'] {
+  color-scheme: dark;
+}
+/* Варианты выпадающего списка (цвет системный) */
+[data-theme='dark'] select option {
+  background: var(--surface);
+  color: var(--gray-900);
+}
+/* Чекбоксы/радио — золотой акцент вместо синего */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--gold-600);
+}
+/* Скроллбары в тёмной теме */
+[data-theme='dark'] ::-webkit-scrollbar { width: 10px; height: 10px; }
+[data-theme='dark'] ::-webkit-scrollbar-track { background: var(--surface-inset); }
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 5px;
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
+/* Выделение текста */
+::selection {
+  background: var(--gold-200);
+  color: var(--gray-900);
+}
+[data-theme='dark'] ::selection {
+  background: var(--gold-600);
+  color: var(--on-accent);
+}
+
 /* ===== Combobox (person selector) ===== */
 .combobox {
   position: relative;
@@ -3808,7 +4013,7 @@ body {
   right: 0;
   max-height: 200px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
@@ -3866,7 +4071,7 @@ body {
   height: 30px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3884,7 +4089,7 @@ body {
   right: 0;
   top: calc(100% + 6px);
   min-width: 200px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -3960,7 +4165,7 @@ body {
   top: calc(100% + 6px);
   width: 320px;
   max-width: calc(100vw - 24px);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -4102,7 +4307,7 @@ body {
   max-width: 520px;
   margin: 80px auto;
   padding: 24px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   text-align: center;
@@ -4210,7 +4415,7 @@ body {
   padding: 40px;
   text-align: center;
   color: var(--gray-500);
-  background: #fff;
+  background: var(--surface);
   border: 1px dashed var(--gray-300);
   border-radius: var(--radius-lg);
   font-size: 14px;
@@ -4223,7 +4428,7 @@ body {
 }
 
 .beat-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -4635,7 +4840,7 @@ body {
 
 .archive-folder {
   border: 1px solid var(--gray-200);
-  background: #fff;
+  background: var(--surface);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 13px;
@@ -4738,7 +4943,7 @@ body {
   background: var(--gray-100);
 }
 .dup-kind-btn.active {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--blue-600);
   color: var(--blue-600);
   font-weight: 600;
@@ -4784,7 +4989,7 @@ body {
 }
 
 .release-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -5394,7 +5599,7 @@ body {
   color: var(--gray-800);
 }
 .dup-destination-btn.active {
-  background: #fff;
+  background: var(--surface);
   color: var(--blue-600);
   box-shadow: var(--shadow-sm);
 }

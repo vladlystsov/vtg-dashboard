@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
+import { useTheme } from '../hooks/useTheme';
 import type { AppNotification } from '../services/notificationService';
+import {
+  BellIcon, SunIcon, MoonIcon, PlusIcon, TrashIcon,
+} from '../design/icons';
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
 
@@ -37,6 +41,7 @@ export default function Header({
 }: HeaderProps) {
   const { profile, signOut } = useAuth();
   const isOnline = useNetwork();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -68,8 +73,7 @@ export default function Header({
     <header className="app-header">
       <div className="header-left">
         <div className="logo">
-          <span className="logo-text">VTG</span>
-          <span className="logo-sub">Dashboard</span>
+          <span className="logo-img" role="img" aria-label="VTG" />
         </div>
         <nav className="header-nav">
           {NAV.map((n) => (
@@ -88,13 +92,26 @@ export default function Header({
           <span className="network-dot" />
           {isOnline ? 'Онлайн' : 'Офлайн'}
         </div>
-        <button className="btn-create" onClick={onCreateTrack}>
-          + Создать трек
+        <button
+          className="btn-create"
+          onClick={onCreateTrack}
+          title="Создать трек"
+        >
+          <PlusIcon size={16} /> Создать трек
+        </button>
+
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+          aria-label="Переключить тему"
+        >
+          {theme === 'dark' ? <SunIcon size={18} /> : <MoonIcon size={18} />}
         </button>
 
         <div className="notif-menu" ref={notifRef}>
-          <button className="notif-bell" onClick={() => setNotifOpen((o) => !o)}>
-            🔔
+          <button className="notif-bell" onClick={() => setNotifOpen((o) => !o)} title="Уведомления">
+            <BellIcon size={19} />
             {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
           </button>
           {notifOpen && (
@@ -136,7 +153,7 @@ export default function Header({
                         onDeleteNotification(n.id);
                       }}
                     >
-                      🗑
+                      <TrashIcon size={15} />
                     </button>
                   </div>
                 );
