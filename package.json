@@ -10,11 +10,21 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "deploy": "gh-pages -d dist",
-    "b2:setup-cors": "node api/b2-setup-cors.mjs"
+    "b2:setup-cors": "node api/b2-setup-cors.mjs",
+    "cap:sync": "npm run build && cap sync",
+    "cap:android": "npm run cap:sync && cap open android",
+    "cap:apk": "npm run cap:sync && cd android && gradlew assembleDebug"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1128.0",
     "@aws-sdk/s3-request-presigner": "^3.1128.0",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/preferences": "^7.0.4",
+    "@capacitor/push-notifications": "^7.0.7",
+    "@capacitor/status-bar": "^7.0.6",
     "@hello-pangea/dnd": "^18.0.1",
     "date-fns": "^4.4.0",
     "firebase": "^12.19.0",
@@ -26,6 +36,7 @@
     "uuid": "^14.0.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

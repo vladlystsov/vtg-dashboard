@@ -33,3 +33,14 @@ serviceAccountKey.json
 *.sw?
 .vercel
 .env*
+
+
+# ===== Android / Capacitor =====
+# Собираемые артефакты Gradle (сама платформа android/ — в репозитории).
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+# Секрет Firebase для push — кладём локально, в git не коммитим.
+android/app/google-services.json

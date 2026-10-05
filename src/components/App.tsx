@@ -63,6 +63,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
 import { collectDueReminders } from '../services/deadlineService';
+import { registerForPush, sendPushToUsers } from '../services/pushService';
 
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
@@ -206,6 +207,15 @@ export default function App() {
   const seenNotif = useRef<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ---- Push-уведомления (Фаза 4) ----
+  // Один раз при входе регистрируем устройство в Firestore (для FCM).
+  // Ошибка не критична: без push приложение работает с локальными
+  // уведомлениями как раньше.
+  useEffect(() => {
+    if (!user) return;
+    void registerForPush(user.uid).catch((e) => console.error('push register', e));
+  }, [user]);
+
   // ---- Напоминания о сроках сдачи (Фаза 2) ----
   // При появлении треков и раз в минуту проверяем, не пора ли отправить
   // напоминание. Каждое отправляется один раз: ключи уже показанных
@@ -239,13 +249,25 @@ export default function App() {
           /* приватный режим */
         }
         try {
+          const text = `Скоро срок сдачи: «${r.track.title}» — ${r.due.label}`;
           await createNotification({
             type: 'deadline',
-            text: `Скоро срок сдачи: «${r.track.title}» — ${r.due.label}`,
+            text,
             actorUid: profile.uid,
             actorName: profile.artistName || profile.displayName,
             createdAt: new Date().toISOString(),
           });
+          // Push участникам трека (себе — не отправляем: уведомление
+          // и так уже показано локально тостом).
+          const recipients = Array.from(new Set([
+            ...(r.track.artistUids || []),
+            ...(r.track.beatmakerUids || []),
+            ...(r.track.mixByUids || []),
+            ...(r.track.remindAssignee ? [r.track.remindAssignee] : []),
+          ].filter(Boolean))).filter((uid) => uid !== profile.uid);
+          if (recipients.length) {
+            void sendPushToUsers(recipients, { title: 'VTG Dashboard', body: text, data: { type: 'deadline', trackId: r.track.id } });
+          }
         } catch (e) {
           console.error('deadline reminder', e);
         }
@@ -343,6 +365,13 @@ export default function App() {
         actorName: profile?.artistName || profile?.displayName,
         createdAt: now,
       });
+      // Push админам и владельцу (себе — не отправляем).
+      const recipients = users
+        .filter((u) => (u.role === 'admin' || u.role === 'owner') && u.uid !== profile?.uid)
+        .map((u) => u.uid);
+      if (recipients.length) {
+        void sendPushToUsers(recipients, { title: 'VTG Dashboard', body: text, data: { type: 'task_status_changed' } });
+      }
     } catch {
       // ignore notification errors
     }

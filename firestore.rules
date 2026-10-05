@@ -68,5 +68,42 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read, write: if isAuthenticated();
     }
+
+    // ===== Push-уведомления (Фаза 4) =====
+    // Ключ документа = токен устройства. Пользователь управляет только
+    // своими записями; читать/удалять чужие нельзя.
+    match /devices/{tokenId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthenticated() &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+
+    // ===== Чат (Фаза 6) =====
+    // Личные диалоги: ключ — отсортированная пара uid'ов.
+    match /chats/{chatId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.members;
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.members;
+      // Участники могут обновлять метаданные (последнее сообщение, unread).
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.members;
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow create: if isAuthenticated() &&
+          request.resource.data.uid == request.auth.uid &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow update, delete: if isAuthenticated() &&
+          resource.data.uid == request.auth.uid;
+      }
+    }
+
+    // ===== Новости приложения (Фаза 5) =====
+    // Читать могут все авторизованные, публиковать — админы.
+    match /appNews/{newsId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
   }
 }
