@@ -1,7 +1,9 @@
 ﻿:root {
-  /* ===== Золото (акцент) — переопределяет «синюю» шкалу =====
+  /* ===== Красный (акцент) — переопределяет «синюю» шкалу =====
      Имена переменных сохранены, поэтому все ~4600 строк ниже
-     перекрашиваются автоматически без их правки. */
+     перекрашиваются автоматически без их правки.
+     Золото (--gold-*) осталось ТОЛЬКО для метки не просроченного
+     дедлайна — как сигнал «всё под контролем». */
   --gold-900: #241b05;
   --gold-800: #45360a;
   --gold-700: #6b5410;
@@ -14,14 +16,14 @@
   --red-600: #b02525;
   --red-500: #e03131;
 
-  --blue-900: #241b05;
-  --blue-800: #45360a;
-  --blue-700: #6b5410;
-  --blue-600: #8a6d12;
-  --blue-500: #a67f18;
-  --blue-400: #c9a227;
-  --blue-100: #f3e8cc;
-  --blue-50: #faf6ea;
+  --blue-900: #2a0606;
+  --blue-800: #4d0d0d;
+  --blue-700: #6e1414;
+  --blue-600: #8f1c1c;
+  --blue-500: #b02525;
+  --blue-400: #c93434;
+  --blue-100: #f7d9d9;
+  --blue-50: #fdf0f0;
   --gray-50: #ffffff;
   --gray-100: #f7f6f3;
   --gray-200: #e8e6e1;
@@ -51,12 +53,12 @@
   --header-bg: rgba(255, 255, 255, 0.86);
   --overlay-bg: rgba(24, 20, 12, 0.55);
   --on-accent: #ffffff;
-  --focus-ring: rgba(201, 162, 39, 0.35);
+  --focus-ring: rgba(201, 52, 52, 0.3);
 
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.12), 0 4px 6px -4px rgba(0,0,0,0.1);
-  --shadow-gold: 0 4px 14px rgba(201, 162, 39, 0.22);
+  --shadow-accent: 0 4px 14px rgba(201, 52, 52, 0.22);
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -94,8 +96,8 @@
   transition: background .15s, color .15s, border-color .15s;
 }
 .theme-toggle:hover {
-  color: var(--gold-600);
-  border-color: var(--gold-400);
+  color: var(--blue-600);
+  border-color: var(--blue-400);
   background: var(--surface-2);
 }
 
@@ -118,14 +120,14 @@
   --red-500: #ff6b6b;
   --green-600: #40c057;
   --green-500: #51cf66;
-  --blue-900: #0d0a02;
-  --blue-800: #3a2d0b;
-  --blue-700: #7a6015;
-  --blue-600: #a8842a;
-  --blue-500: #d9b64a;
-  --blue-400: #e8cd7d;
-  --blue-100: #2b230d;
-  --blue-50: #171205;
+  --blue-900: #0a0202;
+  --blue-800: #2a0808;
+  --blue-700: #6b1616;
+  --blue-600: #d63a3a;
+  --blue-500: #e05555;
+  --blue-400: #ef6f6f;
+  --blue-100: #3d1212;
+  --blue-50: #210808;
   --gray-50: #0a0a0b;
   --gray-100: #131315;
   --gray-200: #1e1e21;
@@ -151,11 +153,11 @@
   --header-bg: rgba(12, 12, 14, 0.88);
   --overlay-bg: rgba(0, 0, 0, 0.72);
   --on-accent: #0d0c0b;
-  --focus-ring: rgba(232, 205, 125, 0.4);
+  --focus-ring: rgba(239, 111, 111, 0.35);
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.6), 0 2px 4px -2px rgba(0,0,0,0.5);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.7), 0 4px 6px -4px rgba(0,0,0,0.6);
-  --shadow-gold: 0 4px 16px rgba(217, 182, 74, 0.18);
+  --shadow-accent: 0 4px 16px rgba(214, 58, 58, 0.24);
 }
 
 /* Плавная смена темы (без неё — только фон/текст, без transition) */
@@ -240,8 +242,8 @@ body {
 }
 .login-theme-toggle:hover {
   background: rgba(255, 255, 255, 0.18);
-  color: var(--gold-300);
-  border-color: var(--gold-500);
+  color: var(--blue-400);
+  border-color: var(--blue-500);
 }
 
 .login-card {
@@ -252,7 +254,7 @@ body {
   padding: 40px 36px;
   width: 100%;
   max-width: 400px;
-  border: 1px solid var(--gold-400);
+  border: 1px solid var(--blue-400);
 }
 
 /* Логотип на странице входа: белый в тёмной теме, чёрный в светлой */
@@ -3951,7 +3953,7 @@ body {
 
 /* ============================================================================
    Теги даты на карточке задачи (Фаза 2)
-   Цвет зависит от срочности: просрочено — красный, сегодня — золото.
+   Цвет зависит от срочности: просрочено — красный, не просрочено — золото.
    ========================================================================== */
 
 /* Компактная плашка с датой в шапке карточки */
@@ -3968,6 +3970,8 @@ body {
   border: 1px solid transparent;
   flex-shrink: 0;
 }
+/* Плашка даты: просрочено — красный, НЕ просрочено — золотой.
+   Золото здесь работает как сигнал «всё под контролем». */
 .track-due-overdue {
   background: rgba(224, 49, 49, .14);
   color: var(--red-600);
@@ -3979,14 +3983,14 @@ body {
   border-color: var(--gold-400);
 }
 .track-due-soon {
-  background: var(--surface-inset);
-  color: var(--gray-600);
-  border-color: var(--gray-300);
+  background: var(--gold-50);
+  color: var(--gold-600);
+  border-color: var(--gold-300);
 }
 .track-due-far {
   background: transparent;
-  color: var(--gray-500);
-  border-color: var(--gray-300);
+  color: var(--gold-600);
+  border-color: var(--gold-400);
 }
 
 /* Текстовая метка в подвале карточки: «сегодня», «через 2 д.» */
@@ -3996,9 +4000,9 @@ body {
   white-space: nowrap;
 }
 .track-due-label.track-due-overdue { color: var(--red-600); background: none; border-color: transparent; }
-.track-due-label.track-due-today { color: var(--gold-600); background: none; border-color: transparent; }
-.track-due-label.track-due-soon { color: var(--gray-600); background: none; border-color: transparent; }
-.track-due-label.track-due-far { color: var(--gray-500); background: none; border-color: transparent; }
+.track-due-label.track-due-today { color: var(--gold-700); background: none; border-color: transparent; }
+.track-due-label.track-due-soon { color: var(--gold-600); background: none; border-color: transparent; }
+.track-due-label.track-due-far { color: var(--gold-600); background: none; border-color: transparent; }
 
 /* Чекбоксы выбора напоминаний о сроке (Фаза 2) */
 .remind-checks {
@@ -4021,10 +4025,10 @@ body {
   user-select: none;
   transition: border-color .15s, background .15s, color .15s;
 }
-.remind-check:hover { border-color: var(--gold-400); }
+.remind-check:hover { border-color: var(--blue-400); }
 .remind-check.on {
-  border-color: var(--gold-500);
-  background: var(--gold-50);
+  border-color: var(--blue-500);
+  background: var(--blue-50);
   color: var(--gray-900);
 }
 .remind-check input {
@@ -4063,10 +4067,10 @@ textarea {
   background: var(--surface);
   color: var(--gray-900);
 }
-/* Чекбоксы/радио — золотой акцент вместо синего */
+/* Чекбоксы/радио — красный акцент */
 input[type='checkbox'],
 input[type='radio'] {
-  accent-color: var(--gold-600);
+  accent-color: var(--blue-600);
 }
 /* Скроллбары в тёмной теме */
 [data-theme='dark'] ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -4078,11 +4082,11 @@ input[type='radio'] {
 [data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
 /* Выделение текста */
 ::selection {
-  background: var(--gold-200);
+  background: var(--blue-100);
   color: var(--gray-900);
 }
 [data-theme='dark'] ::selection {
-  background: var(--gold-600);
+  background: var(--blue-600);
   color: var(--on-accent);
 }
 

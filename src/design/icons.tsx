@@ -14,38 +14,6 @@ const base = (size: number) => ({
   strokeLinejoin: 'round' as const,
 });
 
-/** Логотип: щит-монограмма VTG. Золото на чёрном. */
-export function LogoMark({ size = 34, ...rest }: P) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" {...rest}>
-      <path
-        d="M24 2.5 41 8.5v14.6c0 9.9-6.6 19.2-17 22.4C13.6 42.3 7 33 7 23.1V8.5L24 2.5Z"
-        fill="url(#vtgGold)"
-        stroke="url(#vtgGoldLine)"
-        strokeWidth="2"
-      />
-      <path
-        d="M14.5 15.5 20.4 31l3.6-8.6L27.6 31l5.9-15.5"
-        stroke="#0d0c0b"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <defs>
-        <linearGradient id="vtgGold" x1="7" y1="3" x2="41" y2="45" gradientUnits="userSpaceOnUse">
-          <stop stopColor="var(--gold-300)" />
-          <stop offset="0.5" stopColor="var(--gold-500)" />
-          <stop offset="1" stopColor="var(--gold-700)" />
-        </linearGradient>
-        <linearGradient id="vtgGoldLine" x1="7" y1="3" x2="41" y2="45" gradientUnits="userSpaceOnUse">
-          <stop stopColor="var(--gold-200)" />
-          <stop offset="1" stopColor="var(--gold-600)" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
-
 /** Колокольчик. Форма стилизована под «колокол» с заклёнными краями. */
 export function BellIcon({ size = 20, ...rest }: P) {
   return (

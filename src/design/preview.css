@@ -1,6 +1,6 @@
-/* ============================================================================
-   Превью-компоненты. Все имена с префиксом dv-, чтобы не пересекаться
-   с классами основного приложения.
+﻿/* ============================================================================
+   РџСЂРµРІСЊСЋ-РєРѕРјРїРѕРЅРµРЅС‚С‹. Р’СЃРµ РёРјРµРЅР° СЃ РїСЂРµС„РёРєСЃРѕРј dv-, С‡С‚РѕР±С‹ РЅРµ РїРµСЂРµСЃРµРєР°С‚СЊСЃСЏ
+   СЃ РєР»Р°СЃСЃР°РјРё РѕСЃРЅРѕРІРЅРѕРіРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ.
    ========================================================================== */
 
 * { box-sizing: border-box; }
@@ -38,7 +38,7 @@ body {
 
 .dv-wrap { max-width: 1400px; margin: 0 auto; padding: 24px; }
 
-/* ---- Секции превью ---- */
+/* ---- РЎРµРєС†РёРё РїСЂРµРІСЊСЋ ---- */
 .dv-section { margin-bottom: 48px; }
 .dv-section-title {
   font-size: 20px;
@@ -73,7 +73,7 @@ body {
   margin-bottom: 10px;
 }
 
-/* ---- Логотип ---- */
+/* ---- Р›РѕРіРѕС‚РёРї ---- */
 .dv-logo { display: flex; align-items: center; gap: 12px; }
 .dv-logo-text {
   font-size: 20px;
@@ -81,7 +81,7 @@ body {
   letter-spacing: 3px;
   color: var(--gray-900);
 }
-.dv-logo-text span { color: var(--gold-500); }
+.dv-logo-text span { color: var(--blue-500); }
 .dv-logo-sub {
   font-size: 11px;
   color: var(--gray-500);
@@ -90,7 +90,7 @@ body {
   margin-top: -3px;
 }
 
-/* ---- Шапка (имитация Header) ---- */
+/* ---- РЁР°РїРєР° (РёРјРёС‚Р°С†РёСЏ Header) ---- */
 .dv-header {
   display: flex;
   align-items: center;
@@ -123,7 +123,7 @@ body {
   position: absolute;
   left: 14px; right: 14px; bottom: 2px;
   height: 2px;
-  background: var(--gold-500);
+  background: var(--blue-500);
   border-radius: 2px;
 }
 .dv-header-right { display: flex; align-items: center; gap: 10px; }
@@ -153,7 +153,7 @@ body {
   width: 30px; height: 30px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--gold-400), var(--gold-700));
+  background: linear-gradient(135deg, var(--blue-400), var(--blue-700));
   color: #0d0c0b;
   font-weight: 800;
   font-size: 13px;
@@ -161,7 +161,7 @@ body {
 .dv-user-name { font-size: 13px; font-weight: 600; color: var(--gray-800); }
 
 /* ============================================================================
-   НОВОСТНАЯ ПЛАШКА (задача 1) — ниже плеера, выше «Фильтр»
+   РќРћР’РћРЎРўРќРђРЇ РџР›РђРЁРљРђ (Р·Р°РґР°С‡Р° 1) вЂ” РЅРёР¶Рµ РїР»РµРµСЂР°, РІС‹С€Рµ В«Р¤РёР»СЊС‚СЂВ»
    ========================================================================== */
 .dv-news {
   display: flex;
@@ -169,8 +169,8 @@ body {
   gap: 14px;
   padding: 14px 18px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--gold-400);
-  background: linear-gradient(135deg, var(--gold-50), var(--surface));
+  border: 1px solid var(--blue-400);
+  background: linear-gradient(135deg, var(--blue-50), var(--surface));
   box-shadow: var(--shadow-sm);
   margin-bottom: 16px;
 }
@@ -183,13 +183,13 @@ body {
   width: 38px; height: 38px;
   border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--gold-500), var(--gold-700));
+  background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
   color: #0d0c0b;
 }
 .dv-news.is-current .dv-news-icon { background: var(--surface-inset); color: var(--gray-600); }
 .dv-news-body { flex: 1; min-width: 0; }
 .dv-news-title { font-size: 14px; font-weight: 800; color: var(--gray-900); margin-bottom: 2px; }
-.dv-news-version { font-size: 12px; font-weight: 700; color: var(--gold-600); margin-left: 8px; }
+.dv-news-version { font-size: 12px; font-weight: 700; color: var(--blue-600); margin-left: 8px; }
 .dv-news-text { font-size: 13px; color: var(--gray-600); margin-bottom: 10px; }
 .dv-news-list { margin: 0 0 10px; padding-left: 18px; }
 .dv-news-list li { font-size: 13px; color: var(--gray-600); margin-bottom: 3px; }
@@ -201,7 +201,7 @@ body {
 .dv-news-dismiss:hover { color: var(--gray-700); background: var(--surface-2); }
 
 /* ============================================================================
-   ТЕГ ДАТЫ (задача 2) — на карточке задачи
+   РўР•Р“ Р”РђРўР« (Р·Р°РґР°С‡Р° 2) вЂ” РЅР° РєР°СЂС‚РѕС‡РєРµ Р·Р°РґР°С‡Рё
    ========================================================================== */
 .dv-date {
   display: inline-flex;
@@ -216,34 +216,34 @@ body {
 }
 .dv-date-overdue { background: rgba(224,49,49,.12); color: var(--red-600); border-color: rgba(224,49,49,.3); }
 .dv-date-today   { background: var(--gold-100); color: var(--gold-700); border-color: var(--gold-400); }
-.dv-date-soon    { background: var(--surface-inset); color: var(--gray-600); border-color: var(--gray-300); }
-.dv-date-far     { background: transparent; color: var(--gray-500); border-color: var(--gray-300); }
+.dv-date-soon    { background: var(--gold-50); color: var(--gold-600); border-color: var(--gold-300); }
+.dv-date-far     { background: transparent; color: var(--gold-600); border-color: var(--gold-400); }
 
 .dv-datelist { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* ---- Карточка задачи ---- */
+/* ---- РљР°СЂС‚РѕС‡РєР° Р·Р°РґР°С‡Рё ---- */
 .dv-card-track {
   background: var(--surface);
   border: 1px solid var(--gray-200);
-  border-left: 4px solid var(--gold-500);
+  border-left: 4px solid var(--blue-500);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   box-shadow: var(--shadow-sm);
 }
 .dv-card-track.is-overdue { border-left-color: var(--red-500); }
 .dv-ct-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.dv-ct-project { font-size: 11px; font-weight: 700; color: var(--gold-600); letter-spacing: .3px; }
+.dv-ct-project { font-size: 11px; font-weight: 700; color: var(--blue-600); letter-spacing: .3px; }
 .dv-ct-title { font-size: 15px; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
 .dv-ct-meta { font-size: 12px; color: var(--gray-500); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .dv-ct-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .dv-ct-status { font-size: 11px; font-weight: 700; color: var(--gray-500); }
 .dv-progress { height: 5px; background: var(--surface-inset); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
-.dv-progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold-500), var(--gold-400)); border-radius: 3px; }
+.dv-progress-fill { height: 100%; background: linear-gradient(90deg, var(--blue-500), var(--blue-400)); border-radius: 3px; }
 
-/* ---- Логотип (PNG-маска) ----
-   Файл logo_vtg.png белый на прозрачном фоне. Показываем его как маску:
-   цвет берётся из background-color, поэтому один и тот же файл даёт
-   белый логотип в тёмной теме и чёрный в светлой. */
+/* ---- Р›РѕРіРѕС‚РёРї (PNG-РјР°СЃРєР°) ----
+   Р¤Р°Р№Р» logo_vtg.png Р±РµР»С‹Р№ РЅР° РїСЂРѕР·СЂР°С‡РЅРѕРј С„РѕРЅРµ. РџРѕРєР°Р·С‹РІР°РµРј РµРіРѕ РєР°Рє РјР°СЃРєСѓ:
+   С†РІРµС‚ Р±РµСЂС‘С‚СЃСЏ РёР· background-color, РїРѕСЌС‚РѕРјСѓ РѕРґРёРЅ Рё С‚РѕС‚ Р¶Рµ С„Р°Р№Р» РґР°С‘С‚
+   Р±РµР»С‹Р№ Р»РѕРіРѕС‚РёРї РІ С‚С‘РјРЅРѕР№ С‚РµРјРµ Рё С‡С‘СЂРЅС‹Р№ РІ СЃРІРµС‚Р»РѕР№. */
 .dv-logo-img {
   width: 118px;
   height: auto;
@@ -254,21 +254,21 @@ body {
 }
 [data-theme='dark'] .dv-logo-img { background-color: #ffffff; }
 
-/* Подложка-образец: показать, как логотип выглядит в тёмной теме,
-   пока сама страница ещё в светлой. */
+/* РџРѕРґР»РѕР¶РєР°-РѕР±СЂР°Р·РµС†: РїРѕРєР°Р·Р°С‚СЊ, РєР°Рє Р»РѕРіРѕС‚РёРї РІС‹РіР»СЏРґРёС‚ РІ С‚С‘РјРЅРѕР№ С‚РµРјРµ,
+   РїРѕРєР° СЃР°РјР° СЃС‚СЂР°РЅРёС†Р° РµС‰С‘ РІ СЃРІРµС‚Р»РѕР№. */
 .dv-logo-dark {
   padding: 16px 20px;
   border-radius: var(--radius-sm);
   background: var(--gray-900);
 }
 
-/* Компактный вариант для шапки приложения */
+/* РљРѕРјРїР°РєС‚РЅС‹Р№ РІР°СЂРёР°РЅС‚ РґР»СЏ С€Р°РїРєРё РїСЂРёР»РѕР¶РµРЅРёСЏ */
 .dv-logo-img-sm { width: 92px; }
 
-/* Крупный, для страницы входа */
+/* РљСЂСѓРїРЅС‹Р№, РґР»СЏ СЃС‚СЂР°РЅРёС†С‹ РІС…РѕРґР° */
 .dv-logo-img-lg { width: 142px; }
 
-/* ---- Кнопки ---- */
+/* ---- РљРЅРѕРїРєРё ---- */
 .dv-btn {
   display: inline-flex;
   align-items: center;
@@ -285,7 +285,7 @@ body {
 }
 .dv-btn:active { transform: translateY(1px); }
 
-/* Основная — чёрная (светлая) / золотая (тёмная) */
+/* РћСЃРЅРѕРІРЅР°СЏ вЂ” С‡С‘СЂРЅР°СЏ (СЃРІРµС‚Р»Р°СЏ) / Р·РѕР»РѕС‚Р°СЏ (С‚С‘РјРЅР°СЏ) */
 .dv-btn-primary {
   background: var(--gray-900);
   color: var(--surface);
@@ -294,7 +294,7 @@ body {
 .dv-btn-primary:hover { box-shadow: var(--shadow-md); }
 
 .dv-btn-gold {
-  background: linear-gradient(135deg, var(--gold-500), var(--gold-700));
+  background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
   color: #0d0c0b;
   box-shadow: var(--shadow-gold);
 }
@@ -315,7 +315,7 @@ body {
 .dv-btn-ghost { background: transparent; color: var(--gray-600); }
 .dv-btn-ghost:hover { background: var(--surface-2); color: var(--gray-900); }
 
-/* ---- Иконочная кнопка (колокольчик) ---- */
+/* ---- РРєРѕРЅРѕС‡РЅР°СЏ РєРЅРѕРїРєР° (РєРѕР»РѕРєРѕР»СЊС‡РёРє) ---- */
 .dv-iconbtn {
   position: relative;
   display: inline-flex;
@@ -330,8 +330,8 @@ body {
   cursor: pointer;
   transition: background .15s, color .15s, border-color .15s;
 }
-.dv-iconbtn:hover { color: var(--gold-600); border-color: var(--gold-400); }
-.dv-iconbtn.active { color: var(--gold-600); background: var(--gold-50); border-color: var(--gold-400); }
+.dv-iconbtn:hover { color: var(--blue-600); border-color: var(--blue-400); }
+.dv-iconbtn.active { color: var(--blue-600); background: var(--blue-50); border-color: var(--blue-400); }
 
 .dv-badge {
   position: absolute;
@@ -351,7 +351,7 @@ body {
   border: 2px solid var(--surface);
 }
 
-/* ---- Переключатель темы ---- */
+/* ---- РџРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ С‚РµРјС‹ ---- */
 .dv-theme-switch {
   display: inline-flex;
   align-items: center;
@@ -381,9 +381,9 @@ body {
   color: var(--gray-900);
   box-shadow: var(--shadow-sm);
 }
-.dv-theme-switch button.active.is-dark { color: var(--gold-500); }
+.dv-theme-switch button.active.is-dark { color: var(--blue-500); }
 
-/* ---- Поля ввода ---- */
+/* ---- РџРѕР»СЏ РІРІРѕРґР° ---- */
 .dv-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .dv-label { font-size: 13px; font-weight: 700; color: var(--gray-700); }
 .dv-input, .dv-select {
@@ -398,7 +398,7 @@ body {
   transition: border-color .2s, box-shadow .2s;
 }
 .dv-input:focus, .dv-select:focus {
-  border-color: var(--gold-500);
+  border-color: var(--blue-500);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 .dv-input::placeholder { color: var(--gray-400); }
@@ -412,7 +412,7 @@ body {
   font-size: 13px;
 }
 
-/* ---- Чекбоксы настройки уведомлений (задача 2) ---- */
+/* ---- Р§РµРєР±РѕРєСЃС‹ РЅР°СЃС‚СЂРѕР№РєРё СѓРІРµРґРѕРјР»РµРЅРёР№ (Р·Р°РґР°С‡Р° 2) ---- */
 .dv-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .dv-check {
   display: flex; align-items: center; gap: 9px;
@@ -426,16 +426,16 @@ body {
   color: var(--gray-800);
   transition: border-color .15s, background .15s;
 }
-.dv-check:hover { border-color: var(--gold-400); }
-.dv-check.on { border-color: var(--gold-500); background: var(--gold-50); color: var(--gray-900); }
-.dv-check input { accent-color: var(--gold-600); width: 16px; height: 16px; cursor: pointer; }
+.dv-check:hover { border-color: var(--blue-400); }
+.dv-check.on { border-color: var(--blue-500); background: var(--blue-50); color: var(--gray-900); }
+.dv-check input { accent-color: var(--blue-600); width: 16px; height: 16px; cursor: pointer; }
 
-/* ---- Страница входа (превью) ---- */
+/* ---- РЎС‚СЂР°РЅРёС†Р° РІС…РѕРґР° (РїСЂРµРІСЊСЋ) ---- */
 .dv-login {
   min-height: 520px;
   display: flex; align-items: center; justify-content: center;
   background:
-    radial-gradient(1000px 380px at 50% -10%, var(--gold-50), transparent 70%),
+    radial-gradient(1000px 380px at 50% -10%, var(--blue-50), transparent 70%),
     linear-gradient(160deg, var(--gray-900) 0%, var(--gray-800) 55%, var(--gray-900) 100%);
   border-radius: var(--radius-lg);
   padding: 32px 20px;
@@ -443,7 +443,7 @@ body {
 .dv-login-card {
   width: 100%; max-width: 400px;
   background: var(--surface);
-  border: 1px solid var(--gold-400);
+  border: 1px solid var(--blue-400);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 36px 32px;
@@ -457,13 +457,13 @@ body {
 .dv-login-toggle {
   margin-top: 18px; width: 100%;
   background: none; border: none;
-  color: var(--gold-600);
+  color: var(--blue-600);
   font-family: inherit; font-size: 13px; font-weight: 700;
   cursor: pointer; text-align: center; padding: 6px;
 }
 .dv-login-toggle:hover { text-decoration: underline; }
 
-/* ---- Уведомления (список) ---- */
+/* ---- РЈРІРµРґРѕРјР»РµРЅРёСЏ (СЃРїРёСЃРѕРє) ---- */
 .dv-notif {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 11px 13px;
@@ -472,19 +472,19 @@ body {
   background: var(--surface);
   margin-bottom: 8px;
 }
-.dv-notif.unread { border-color: var(--gold-400); background: var(--gold-50); }
+.dv-notif.unread { border-color: var(--blue-400); background: var(--blue-50); }
 .dv-notif-icon {
   width: 30px; height: 30px; flex-shrink: 0;
   border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
   background: var(--surface-inset); color: var(--gray-600);
 }
-.dv-notif.unread .dv-notif-icon { background: var(--gold-100); color: var(--gold-700); }
+.dv-notif.unread .dv-notif-icon { background: var(--blue-100); color: var(--blue-700); }
 .dv-notif-body { flex: 1; min-width: 0; }
 .dv-notif-text { font-size: 13px; color: var(--gray-800); }
 .dv-notif-time { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
 
-/* ---- Чат (превью) ---- */
+/* ---- Р§Р°С‚ (РїСЂРµРІСЊСЋ) ---- */
 .dv-chat {
   display: flex; flex-direction: column; height: 400px;
   border: 1px solid var(--gray-200); border-radius: var(--radius-md);
@@ -510,20 +510,20 @@ body {
 }
 .dv-msg-out {
   align-self: flex-end;
-  background: linear-gradient(135deg, var(--gold-500), var(--gold-700));
+  background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
   color: #0d0c0b; border-bottom-right-radius: 4px; font-weight: 500;
 }
 .dv-msg-time { font-size: 10px; opacity: .65; margin-top: 3px; display: block; }
 .dv-chat-input { display: flex; gap: 8px; padding: 11px; border-top: 1px solid var(--gray-200); background: var(--surface-2); }
 .dv-chat-input input { flex: 1; }
 
-/* ---- Палитра (справочник) ---- */
+/* ---- РџР°Р»РёС‚СЂР° (СЃРїСЂР°РІРѕС‡РЅРёРє) ---- */
 .dv-swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; }
 .dv-sw { border: 1px solid var(--gray-200); border-radius: var(--radius-sm); overflow: hidden; }
 .dv-sw-chip { height: 46px; }
 .dv-sw-label { padding: 6px 8px; font-size: 11px; font-weight: 700; color: var(--gray-600); background: var(--surface-2); }
 
-/* ---- Прочее ---- */
+/* ---- РџСЂРѕС‡РµРµ ---- */
 .dv-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .dv-mt { margin-top: 14px; }
 .dv-muted { color: var(--gray-500); font-size: 13px; }
@@ -535,3 +535,4 @@ body {
   .dv-nav { overflow-x: auto; }
   .dv-news { flex-wrap: wrap; }
 }
+
