@@ -5878,6 +5878,24 @@ input[type='radio'] {
   text-decoration: none;
 }
 
+/* Пока качается обновление, кнопка показывает, что идёт работа, а не
+   приглашает нажать — поэтому гасим наведение и курсор «нажми меня».
+   opacity выше, чем у .btn-primary:disabled, — плашка не должна терять
+   читаемость надписи на красной кнопке. */
+.news-banner-download:disabled {
+  opacity: 0.7;
+  cursor: progress;
+  transform: none;
+  box-shadow: none;
+}
+
+.news-banner-install-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--crimson-red);
+}
+
 .news-banner-close {
   flex-shrink: 0;
   display: inline-flex;

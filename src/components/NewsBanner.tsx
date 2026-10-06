@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import type { AppNewsItem } from '../services/appNewsService';
 import { getReadNewsIds, markNewsRead } from '../services/appNewsService';
 import type { AppVersionInfo } from '../services/appVersionService';
+import type { ApkUpdateStatus } from '../services/apkUpdateService';
+import { downloadAndInstallApk } from '../services/apkUpdateService';
 import { CheckIcon, ChevronIcon, CloseIcon, DownloadIcon, SparkIcon } from '../design/icons';
 
 /**
@@ -16,6 +18,10 @@ import { CheckIcon, ChevronIcon, CloseIcon, DownloadIcon, SparkIcon } from '../d
  * место, пока их не попросили. Закрытие запоминает, для чего именно плашка
  * закрыта (новость или версия), поэтому новая новость или новая сборка
  * покажут её снова, а повторного закрытия на месте не будет.
+ *
+ * На Android раскрытие показывает кнопку обновления: файл качается во
+ * внутренний кэш и системный установщик открывается сам (см.
+ * `apkUpdateService`), выходить в браузер не нужно.
  */
 export default function NewsBanner({
   news,
@@ -26,6 +32,9 @@ export default function NewsBanner({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  // null — обновление не запущено; иначе какая фаза идут и сколько процентов.
+  const [apkStatus, setApkStatus] = useState<ApkUpdateStatus | null>(null);
+  const [apkError, setApkError] = useState<string | null>(null);
 
   const unread = useMemo(() => {
     const read = new Set(getReadNewsIds());
@@ -36,6 +45,24 @@ export default function NewsBanner({
   const installed = version?.installed ?? null;
   const latest = version?.latest ?? null;
   const notes = version?.notes ?? [];
+
+  // apkUrl сервис отдаёт только на Android (см. appVersionService) — в
+  // браузере и на iOS кнопка установки не показывается в принципе.
+  const apkUrl = version?.apkUrl ?? null;
+  const canInstall = updateAvailable && !!apkUrl;
+
+  const runUpdate = () => {
+    if (!apkUrl || apkStatus) return;
+    setApkError(null);
+    setApkStatus({ phase: 'downloading', percent: 0 });
+    void downloadAndInstallApk(apkUrl, (s) => setApkStatus(s))
+      .catch((e: unknown) => {
+        // Техническая причина уже записана в консоль сервисом — сюда
+        // приходит только фраза, пригодная для показа человеку.
+        setApkError(e instanceof Error ? e.message : 'Не удалось обновить приложение.');
+      })
+      .finally(() => setApkStatus(null));
+  };
 
   // Непрочитанная новость приоритетнее версии; без неё ключ = версия.
   const key = unread ? `news:${unread.id}` : latest ? `version:${latest}` : null;
@@ -56,7 +83,17 @@ export default function NewsBanner({
       : 'См. подробности';
 
   const details = unread ? unread.text : notes.join('\n');
-  const hasDetails = !!details.trim();
+  // Кнопка обновления — тоже «подробности». Иначе раскрытие было бы
+  // заблокировано, когда в новой версии не описано ни одного изменения,
+  // и кнопки качать было бы нечего.
+  const hasDetails = !!details.trim() || canInstall;
+
+  const apkLabel =
+    apkStatus?.phase === 'downloading'
+      ? `Загрузка… ${apkStatus.percent}%`
+      : apkStatus?.phase === 'installing'
+        ? 'Запуск установщика…'
+        : 'Скачать обновление';
 
   const close = () => {
     if (unread) markNewsRead(unread.id);
@@ -95,16 +132,19 @@ export default function NewsBanner({
 
         {expanded && hasDetails && (
           <div className="news-banner-details">
-            <div className="news-banner-text">{details}</div>
-            {state === 'update' && version?.isNative && version.apkUrl && (
-              <a
-                className="btn-create news-banner-download"
-                href={version.apkUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <DownloadIcon size={16} /> Скачать APK
-              </a>
+            {details.trim() && <div className="news-banner-text">{details}</div>}
+            {canInstall && (
+              <div className="news-banner-install">
+                <button
+                  type="button"
+                  className="btn-create news-banner-download"
+                  disabled={apkStatus !== null}
+                  onClick={runUpdate}
+                >
+                  <DownloadIcon size={16} /> {apkLabel}
+                </button>
+                {apkError && <p className="news-banner-install-error">{apkError}</p>}
+              </div>
             )}
           </div>
         )}

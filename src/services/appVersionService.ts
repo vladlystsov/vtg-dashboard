@@ -1,4 +1,4 @@
-import { isNativeApp } from './platform';
+import { isNativeApp, platformName } from './platform';
 
 /**
  * Проверка версии приложения.
@@ -34,7 +34,7 @@ export interface AppVersionInfo {
   isNative: boolean;
   /** Что нового в последней версии. */
   notes: string[];
-  /** Ссылка на APK для скачивания, если опубликована. */
+  /** Ссылка на APK для скачивания: только на Android, там где она опубликована. */
   apkUrl: string | null;
 }
 
@@ -146,6 +146,10 @@ export async function loadAppVersion(): Promise<AppVersionInfo> {
     updateAvailable: !!(installed && latestMeta && compareVersions(latestMeta.version, installed) > 0),
     isNative,
     notes: latestMeta?.notes ?? [],
-    apkUrl: latestMeta?.apkUrl ?? null,
+    // APK имеет смысл качать только на Android: в браузере установить его
+    // нечем, а на iOS обновление в обход App Store невозможно. Поэтому
+    // адрес здесь же и отбрасывается — плашка не покажет кнопку
+    // «Скачать» там, где она всё равно ничего не сделает.
+    apkUrl: platformName() === 'android' ? (latestMeta?.apkUrl ?? null) : null,
   };
 }

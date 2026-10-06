@@ -43,4 +43,8 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- FCM требует доступа к сети состояния, чтобы принять push -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Установка APK, скачанного внутри приложения (обновление без Play Store).
+         С Android 8.0 система дополнительно спросит разрешение в настройках —
+         это штатный для такого сценария запрос, а не ошибка. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>
