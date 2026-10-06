@@ -15,10 +15,20 @@ Capacitor 7 (Android + iOS), GitHub Pages (фронтенд), Vercel (serverless
 
 **Репозиторий:** `vladlystsov/vtg-dashboard`, ветка `main`, публичный.
 
-**HEAD:** `762596d` — `fix(news): native version check via Capacitor, tappable banner details, dark-theme toast`
-*(далее — незакоммиченные изменения, см. п. 4)*
+**HEAD:** `85fa1c9` — четыре коммита этой сессии, рабочее дерево чистое:
+
+```
+85fa1c9 docs: handoff notes on project state and the Android release plan
+3c40532 ci(release): build and publish a signed APK on version tags
+dd98740 feat(android): in-app APK updates via a custom installer plugin
+91350b5 feat(android): signed release build backed by a long-lived keystore
+(до этого — 762596d fix(news): плашка и проверка версии)
+```
 
 **Версия сейчас:** `2.4.0` / `versionCode 1` (Android), `MARKETING_VERSION 2.4.0` (iOS), `public/app-meta.json` → `2.4.0`.
+
+**Важно:** коммиты **ещё не запушены** — ветка `main` локальная, пуш
+(`git push origin main`) не делался.
 
 ---
 
@@ -30,19 +40,59 @@ Capacitor 7 (Android + iOS), GitHub Pages (фронтенд), Vercel (serverless
 | 1 | Ключ подписи Android | **Готово**, APK собран и подписан, проверено `apksigner` |
 | 2 | Нативная установка APK (свой плагин) | **Готово**, скомпилировано и собрано в APK |
 | 3 | Кнопка обновления в плашке | **Готово**, проверено `tsc` / `lint` / `test` / `build` |
-| 4 | CI-релиз по тегу | Workflow **написан и провалидирован**; не хватает 4 секретов в GitHub |
+| 4 | CI-релиз по тегу | **Готово**: workflow написан, 4 секрета добавлены в GitHub |
 | 5 | `apkUrl` в `app-meta.json` | **Готово** — записана вечная ссылка |
 | 6 | Документация README + сквозная проверка на устройстве | **Не начато** (нужно устройство/эмулятор) |
 
-**Блокеры, требующие решения человека:** секреты ключа в GitHub и место
-для резервной копии `release.keystore` (п. 6, риск 1).
+**Открытых блокеров нет.** Ключ задублирован: локально, в приватном
+репозитории и в секретах GitHub (см. риск 1 в п. 6).
 
-**Незакоммичено** (`git status`): `.gitignore`, `android/app/build.gradle`,
-`android/app/capacitor.build.gradle`, `android/capacitor.settings.gradle`,
-`AndroidManifest.xml`, `MainActivity.java`, `package.json` + lock,
-`NewsBanner.tsx`, `index.css`, `appVersionService.ts`, `public/app-meta.json`,
-новые: `ApkInstallerPlugin.java`, `src/services/apkUpdateService.ts`,
-`.github/workflows/release-android.yml`, `PROJECT_STATE.md`.
+---
+
+## 2.1. Сделано 06.10.2026 (коммиты 91350b5…85fa1c9)
+
+**Фаза 1 — ключ.** `android/app/release.keystore` (alias `vtg`, RSA 4096,
+PKCS12, до 2056) + `android/keystore.properties` (пароли), оба в `.gitignore`.
+`build.gradle`: чтение свойств, `signingConfigs.release`, привязка к release-сборке
+и guard в `gradle.taskGraph.whenReady`, который падает только если в графе есть
+release-задачи — `assembleDebug` и `cap sync` без ключа работают.
+АПК подписан: `apksigner verify` exit 0, v1+v2, `CN=VTG Dashboard`.
+
+**Фаза 2 — свой плагин.** Готовых npm-плагинов под Intent нет
+(`@capacitor/intent` и `@capacitor-community/intent-launcher` → 404,
+`file-transfer` без стабильной версии под Cap 7). Написан
+`ApkInstallerPlugin.java` (FileProvider → `ACTION_VIEW` +
+`application/vnd.android.package-archive` + `FLAG_GRANT_READ_URI_PERMISSION`
++ `FLAG_ACTIVITY_NEW_TASK`). `MainActivity.registerPlugin(...)` вызывается
+**до** `super.onCreate()` — иначе плагин не попадает в мост. Добавлен
+`REQUEST_INSTALL_PACKAGES`; provider FileProvider и `file_paths.xml` уже были.
+
+**Фаза 3 — кнопка.** `src/services/apkUpdateService.ts`: `downloadFile` в
+`Directory.Cache` → нативный `install`, прогресс через `addListener('progress')`,
+слушатель снимается в `finally`, плагины грузятся динамически. В `NewsBanner`
+вместо ссылки в браузер — кнопка с процентами и текстом ошибки. Попутно
+исправлен баг: при пустом `notes` плашка не раскрывалась, и кнопки не было бы
+вовсе (`hasDetails` теперь учитывает её). `apkUrl` отдаётся только на Android.
+
+**Фаза 4 — CI.** `.github/workflows/release-android.yml` (валиден `js-yaml`,
+guard протестирован на нашем `build.gradle`): проверка версий → тесты → сборка →
+восстановление ключа → `assembleRelease` → `apksigner verify` →
+`gh release create` с ассетом `vtg-dashboard.apk`.
+
+**Фаза 5 — `apkUrl`.** В `public/app-meta.json` записана вечная ссылка
+`…/releases/latest/download/vtg-dashboard.apk`.
+
+**Секреты добавлены** (`gh secret list` подтверждает): `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+Значения передавались через stdin и ни разу не выводились. Firebase- и
+прокси-секреты для workflow уже существовали.
+
+**Резервная копия ключа** — приватный репозиторий
+`https://github.com/vladlystsov/vtg-android-signing` (`visibility: PRIVATE`,
+3 файла: `README.md`, `release.keystore`, `keystore.properties`).
+Восстановимость проверена: `keytool -list` читает ключ **из этой копии** по
+паролю из **этой же копии**, exit 0, SHA256 совпадает с сертификатом в APK.
+Временная рабочая копия удалена.
 
 ---
 
@@ -209,7 +259,7 @@ apksigner verify -v            →  EXIT=0, «Verifies», v1=true, v2=true, v3/v
 - Стили: `.news-banner-download:disabled` (cursor: progress, гасится hover-эффект),
   `.news-banner-install-error` (цвет `--crimson-red`, работает в обеих темах).
 
-### Фаза 4 — CI-релиз: WORKFLOW ГОТОВ, НЕ ХВАТАЕТ СЕКРЕТОВ
+### Фаза 4 — CI-релиз: СДЕЛАНО (workflow + секреты)
 
 `.github/workflows/release-android.yml` написан, YAML провалидирован (`js-yaml`, exit=0).
 Триггер — тег `v*`. Шаги:
@@ -228,7 +278,9 @@ apksigner verify -v            →  EXIT=0, «Verifies», v1=true, v2=true, v3/v
 **Имя ассета `vtg-dashboard.apk` — контракт** с `apkUrl` в `app-meta.json`,
 переименовывать нельзя.
 
-Что осталось — добавить 4 секрета репозитория:
+**Секреты добавлены 06.10.2026** (`gh secret list` показывает все четыре).
+Как передавались — значения шли через stdin и ни разу не печатались; приходится
+в ротации секретов или на новом репозитории:
 
 ```powershell
 # Значения НЕ печатать: ключ и пароли уходят в stdin gh.
@@ -269,8 +321,12 @@ $p['keyPassword']  | gh secret set ANDROID_KEY_PASSWORD
 
 1. **Потеря `release.keystore` = обновлять приложение больше нельзя навсегда.** Android
    требует прежний ключ подписи; без него придётся менять `applicationId`, то есть
-   выпускать новое приложение. Бэкап пока не придумал — **это открытый вопрос.**
-   Минимум: копия `.keystore` в менеджере паролей + base64 в GitHub Secret для CI.
+   выпускать новое приложение. **Решено 06.10.2026:** копия лежит в приватном
+   репозитории `vladlystsov/vtg-android-signing` (восстановимость проверена —
+   `keytool -list` читает из неё ключ), плюс base64 в секрете
+   `ANDROID_KEYSTORE_BASE64` публичного репозитория. **Остаточный риск:** обе
+   копии hosted на GitHub — при компрометации аккаунта исчезнут обе. Для полной
+   страховки стоит положить третью копию вне GitHub (менеджер паролей / носитель).
 2. **Android Developer Verification** — Google с 2026 года требует верификации
    разработчиков для приложений, ставящихся в обход Play (первая волна: Бразилия,
    Индонезия, Сингапур, Таиланд; далее глобально). Регистрация бесплатна.
@@ -293,8 +349,9 @@ $p['keyPassword']  | gh secret set ANDROID_KEY_PASSWORD
    из трёх (build.gradle и app-meta.json) с тегом, но **`versionCode` и
    `MARKETING_VERSION` в iOS он не проверяет** — `versionCode` обязан расти
    при каждом релизе, иначе Android откажется ставить обновление поверх.
-9. Ключ локально **один**: копии вышеуказанного файла нигде нет, кроме него самого,
-   и GitHub Secret ещё не задан. См. риск 1.
+9. **Коммиты не запушены.** Ветка `main` локальная; `git push origin main` в этой
+   сессии не выполнялся. Пуш запустит `deploy.yml` (Pages) — это отдельное
+   действие и требует вашего согласия.
 
 ---
 
