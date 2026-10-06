@@ -1,0 +1,149 @@
+name: Release Android APK
+
+# Релиз выпускается вручную тегом:
+#
+#   git tag v2.5.0 && git push origin v2.5.0
+#
+# Перед тегом версию нужно поднять одновременно в трёх местах — guard ниже
+# остановит сборку, если забыли (это и есть та самая автопроверка равенства,
+# которой раньше не было):
+#
+#   android/app/build.gradle          versionName + versionCode (versionCode обязан расти!)
+#   public/app-meta.json              version + notes (это видят пользователи в плашке)
+#   ios/App/App.xcodeproj/project.pbxproj   MARKETING_VERSION
+#
+# APK попадает в Release под фиксированным именем vtg-dashboard.apk. Ровно
+# этот адрес однажды записан в app-meta.json как apkUrl:
+#
+#   https://github.com/vladlystsov/vtg-dashboard/releases/latest/download/vtg-dashboard.apk
+#
+# поэтому при каждом релизе его менять не нужно.
+#
+# Секреты репозитория, без которых workflow не запустится:
+#   ANDROID_KEYSTORE_BASE64    base64 от android/app/release.keystore
+#   ANDROID_KEYSTORE_PASSWORD  пароль контейнера (у PKCS12 он же пароль ключа)
+#   ANDROID_KEY_ALIAS          vtg
+#   ANDROID_KEY_PASSWORD       пароль ключа
+# Как их получить — в PROJECT_STATE.md, раздел «Фаза 1».
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check that versions match the tag
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          GRADLE_VERSION="$(sed -n 's/^ *versionName *"\([^"]*\)".*/\1/p' android/app/build.gradle | head -n1)"
+          META_VERSION="$(jq -r '.version' public/app-meta.json)"
+
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          [ -n "$GRADLE_VERSION" ] || fail "Не нашёл versionName в android/app/build.gradle"
+          if [ "$GRADLE_VERSION" != "$VERSION" ]; then
+            fail "versionName в build.gradle = '$GRADLE_VERSION', а тег = '$VERSION'. Обновите build.gradle, public/app-meta.json и MARKETING_VERSION в Xcode до $VERSION."
+          fi
+          if [ "$META_VERSION" != "$VERSION" ]; then
+            fail "version в public/app-meta.json = '$META_VERSION', а тег = '$VERSION'. Эту версию увидят в плашке пользователи — поправьте её вместе с notes."
+          fi
+          echo "Версии совпадают: $VERSION"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_APP_LATEST_URL: ${{ vars.VITE_APP_LATEST_URL }}
+          VITE_SOUNDCLOUD_PROXY_URL: ${{ secrets.VITE_SOUNDCLOUD_PROXY_URL }}
+          VITE_B2_PROXY_URL: ${{ secrets.VITE_B2_PROXY_URL }}
+          VITE_YOUTUBE_PROXY_URL: ${{ secrets.VITE_YOUTUBE_PROXY_URL }}
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Restore signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::Секрет ANDROID_KEYSTORE_BASE64 не задан. Релиз без подписи не выпускаем — обновление поверх него не встанет."
+            exit 1
+          fi
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::Не заданы секреты паролей ключа (ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD)."
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          printf '%s\n' \
+            "storeFile=app/release.keystore" \
+            "storePassword=$ANDROID_KEYSTORE_PASSWORD" \
+            "keyAlias=$ANDROID_KEY_ALIAS" \
+            "keyPassword=$ANDROID_KEY_PASSWORD" > android/keystore.properties
+          chmod 600 android/keystore.properties
+
+      - name: Build signed APK
+        run: ./gradlew assembleRelease
+        working-directory: android
+
+      - name: Verify signature
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          # Версия build-tools зависит от того, что скачал Gradle, — ищем не жёстко 35.0.0.
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner не найден в $ANDROID_HOME/build-tools"
+            exit 1
+          fi
+          "$APKSIGNER" verify --print-certs "$APK"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Имя ассета — это контракт с app-meta.json (поле apkUrl), его
+          # нельзя переименовать: вечная ссылка на него разойдётся по сети.
+          cp android/app/build/outputs/apk/release/app-release.apk vtg-dashboard.apk
+          gh release create "$GITHUB_REF_NAME" vtg-dashboard.apk \
+            --title "VTG Dashboard $GITHUB_REF_NAME" \
+            --generate-notes
