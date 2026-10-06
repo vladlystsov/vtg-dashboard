@@ -121,7 +121,11 @@ jobs:
           chmod 600 android/keystore.properties
 
       - name: Build signed APK
-        run: ./gradlew assembleRelease
+        run: |
+          # Репозиторий заводили на Windows, где git не ставит бит
+          # исполнения — без этого ./gradlew падает с exit 126.
+          chmod +x gradlew
+          ./gradlew assembleRelease
         working-directory: android
 
       - name: Verify signature
