@@ -1,5 +1,31 @@
 apply plugin: 'com.android.application'
 
+// Ключ подписи release-сборок: android/keystore.properties + app/release.keystore.
+// Оба файла не коммитятся. Ключ единственный и невосстановимый — потеряв его,
+// приложение нельзя будет обновить (Android требует прежний ключ подписи),
+// придётся менять applicationId, то есть выпускать новое приложение.
+// Сгенерировать заново: keytool -genkeypair -keystore app/release.keystore \
+//   -alias vtg -keyalg RSA -keysize 4096 -validity 10950 -storetype PKCS12
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+def hasReleaseKeystore = keystorePropsFile.exists()
+if (hasReleaseKeystore) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+// Ошибку даём только если реально собирается release: иначе сломали бы
+// и debug-сборку, и `cap sync`, которому android-проект вообще не нужен.
+gradle.taskGraph.whenReady { graph ->
+    def wantsRelease = graph.allTasks.any { it.name.toLowerCase().contains('release') }
+    if (wantsRelease && !hasReleaseKeystore) {
+        throw new GradleException(
+            "Собрать release нечем: нет ${keystorePropsFile}\n" +
+            "Release-сборка должна быть подписана ключом vtg. Сгенерируйте его " +
+            "по инструкции в README (раздел «Релиз Android-приложения»)."
+        )
+    }
+}
+
 android {
     namespace "ru.vtg.dashboard"
     compileSdk rootProject.ext.compileSdkVersion
@@ -18,10 +44,26 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseKeystore) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
+            // v1 (JAR) и v2 подпись включаются AGP по умолчанию — этого достаточно.
+            // v1 для minSdk 23 обязателен, и у неё значим срок действия ключа: при
+            // релизе проверяем, что до конца действия ещё больше года.
         }
     }
 }

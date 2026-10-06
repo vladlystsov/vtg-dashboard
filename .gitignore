@@ -44,3 +44,11 @@ android/capacitor-cordova-android-plugins/build/
 android/local.properties
 # Секрет Firebase для push — кладём локально, в git не коммитим.
 android/app/google-services.json
+
+# ===== Android / подпись релизов =====
+# Ключ подписи release-сборок и пароли к нему. Потеря ключа = приложение
+# больше нельзя будет обновить (Android требует тот же ключ подписи), поэтому
+# резервную копию держим отдельно, в git эти файлы попасть не должны.
+*.keystore
+*.jks
+keystore.properties
