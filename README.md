@@ -118,6 +118,31 @@ done
 
 Если живых адресов нет или они меняются — лечится на стороне Vercel (свой домен проекта) или переносом функций на другой хостинг.
 
+### 5. Прокси на Cloudflare Workers (замена недоступных адресов Vercel)
+
+`worker/b2-storage.mjs` — та же логика хранилища, но под Workers. Логика проверена локально без сети: `node _worker-b2-test.mjs` (13 проверок).
+
+```bash
+cd worker
+npx wrangler login                       # бесплатный аккаунт Cloudflare
+npx wrangler secret put B2_KEY_ID        # значения из Vercel → Environment Variables
+npx wrangler secret put B2_APP_KEY
+npx wrangler secret put FIREBASE_API_KEY   # публичный ключ Firebase из .env
+npx wrangler secret put FIREBASE_PROJECT_ID
+npx wrangler deploy
+```
+
+После деплоя wrangler напечатает адрес вида `https://vtg-b2-storage.<поддомен>.workers.dev`. Проверьте его без токена:
+
+```bash
+curl -s https://vtg-b2-storage.<поддомен>.workers.dev/health
+# {"ok":true,"missing":[],"uid":null}
+```
+
+Дальше адрес подставляется в сборку: положите его GitHub-секретом `VITE_B2_PROXY_URL` (он имеет приоритет над значением по умолчанию в коде) либо попросите заменить дефолт в `src/services/b2StorageService.ts` — тогда адрес будет зашит и в сайт, и в APK.
+
+**Лимит 100 МБ на запрос Worker не мешает:** браузер льёт файл напрямую в B2 по presigned-ссылке, через прокси проходит только подпись. Гигабайтный zip идёт мимо Worker целиком.
+
 ## Структура проекта
 
 ```

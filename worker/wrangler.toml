@@ -1,0 +1,24 @@
+# Cloudflare Workers: прокси хранилища Backblaze B2.
+#
+# Публикуется отдельно от Vercel: адреса *.vercel.app из части сетей
+# недоступны (диапазоны 64.29.17.0/24 и 216.198.79.0/24 не отвечают),
+# а workers.dev живёт в сети Cloudflare и отвечает.
+#
+# nodejs_compat нужен AWS SDK: подпись presigned-ссылок считается через
+# @smithy/signature-v4, которому требуются node-модули хеширования.
+#
+# Секреты НЕ в этом файле — задаются командой:
+#   npx wrangler secret put B2_KEY_ID
+#   npx wrangler secret put B2_APP_KEY
+#   npx wrangler secret put FIREBASE_API_KEY
+#   npx wrangler secret put FIREBASE_PROJECT_ID
+
+name = "vtg-b2-storage"
+main = "b2-storage.mjs"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Не включаем observers: деплой должен работать на бесплатном тарифе
+# (он требует платную подписку Workers Paid).
+[observers]
+enabled = false
