@@ -5947,6 +5947,16 @@ input[type='radio'] {
   color: var(--crimson-red);
 }
 
+/* Кнопка перехода в настройки разрешений — рядом с «Скачать обновление»,
+   но вторичная: сначала пробуем обычное обновление. */
+.news-banner-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0 8px;
+  text-decoration: none;
+}
+
 .news-banner-close {
   flex-shrink: 0;
   display: inline-flex;

@@ -36,7 +36,9 @@ export interface ApkUpdateStatus {
  * типы описываем сами — это типичный способ подключить самописный плагин.
  */
 interface ApkInstallerApi {
-  install(options: { path: string }): Promise<{ path: string }>;
+  install(options: { path: string }): Promise<{ path: string; launched?: boolean }>;
+  canInstall(): Promise<{ allowed: boolean }>;
+  openInstallSettings(): Promise<void>;
 }
 
 // `registerPlugin` должен вызываться один раз: результат кэшируем, иначе
@@ -59,11 +61,53 @@ function fail(userMessage: string, cause: unknown, logLabel: string): never {
 }
 
 /**
+ * Отличаем «нужно разрешение на установку» от прочих ошибок: этот случай
+ * лечится кнопкой в плашке (см. NewsBanner), а не повторной попыткой.
+ */
+function isUnknownSourcesError(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code;
+  if (code === 'NEEDS_UNKNOWN_SOURCES') return true;
+  const msg = e instanceof Error ? e.message : String(e ?? '');
+  return /unknown|неизвестн|разрешени.*источник/i.test(msg);
+}
+
+/** Открывает экран настроек, где разрешают установку из этого источника. */
+export async function openInstallSettings(): Promise<void> {
+  await getInstaller().then((plugin) => plugin.openInstallSettings());
+}
+
+/**
+ * Разрешено ли приложению запускать установщик (на Android 8+ без этого
+ * разрешения установщик может не открыться вовсе).
+ *
+ * На вебе и на старых APK без метода `canInstall` считаем, что разрешено:
+ * проверка не должна мешать обновлению там, где её не о чем делать.
+ */
+export async function isInstallAllowed(): Promise<boolean> {
+  try {
+    const { allowed } = await getInstaller().then((plugin) => plugin.canInstall());
+    return allowed !== false;
+  } catch {
+    return true;
+  }
+}
+
+// Сколько ждём ответа нативного install(), пока не решим, что установщик
+// уже открыт. Раньше такого ожидания не было: при уходе приложения в фон
+// ответ моста мог не дойти, и плашка навсегда зависала на «Запуск
+// установщика…».
+const INSTALL_ACK_TIMEOUT_MS = 10000;
+
+/**
  * Качает APK и открывает системный установщик.
  *
  * Бросает `Error` с сообщением, пригодным для показа в плашке. Прогресс и
  * смена фазы приходят в `onStatus` — без него функция работает так же,
  * просто плашка не показывает проценты.
+ *
+ * Возвращает `installerLaunched`: `false` означает, что нативный плагин не
+ * подтвердил запуск установщика за INSTALL_ACK_TIMEOUT_MS (он мог и не
+ * открыться) — вызывающий код должен сказать об этом пользователю.
  *
  * @param apkUrl прямая ссылка на APK (app-meta.json)
  * @param onStatus колбэк прогресса, вызывается много раз подряд
@@ -71,12 +115,22 @@ function fail(userMessage: string, cause: unknown, logLabel: string): never {
 export async function downloadAndInstallApk(
   apkUrl: string,
   onStatus?: (status: ApkUpdateStatus) => void,
-): Promise<void> {
+): Promise<{ installerLaunched: boolean }> {
   if (!isNativeApp() || platformName() !== 'android') {
     throw new Error('Обновление доступно только в Android-приложении.');
   }
 
   const [{ Directory, Filesystem }] = await Promise.all([import('@capacitor/filesystem')]);
+
+  // Разрешение на установку проверяем ДО скачивания: без него установщик
+  // не откроется, и незачем качать несколько мегабайт.
+  if (!(await isInstallAllowed())) {
+    fail(
+      'Android не разрешил установку из этого источника. Разрешите его в настройках и повторите.',
+      'canInstall() = false',
+      'проверка разрешения',
+    );
+  }
 
   // Прогресс придёт только если слушатель уже подписан до старта загрузки.
   let listener: PluginListenerHandle | null = null;
@@ -121,8 +175,27 @@ export async function downloadAndInstallApk(
   onStatus?.({ phase: 'installing', percent: 100 });
 
   try {
-    await getInstaller().then((plugin) => plugin.install({ path }));
+    // Ждём ответа плагина, но не бесконечно: если за 10 секунд ответа нет,
+    // считаем, что установщик уже открыт (он же и уводит приложение в фон),
+    // и просто возвращаем управление — иначе плашка зависает навсегда.
+    const acked = await Promise.race([
+      getInstaller().then((plugin) => plugin.install({ path })).then(() => true),
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(false), INSTALL_ACK_TIMEOUT_MS);
+      }),
+    ]);
+    if (!acked) {
+      console.warn('[apkUpdate] установщик не подтвердил запуск за 10 с — возможно, он не открылся');
+    }
+    return { installerLaunched: acked };
   } catch (e) {
+    if (isUnknownSourcesError(e)) {
+      fail(
+        'Android не разрешил установку из этого источника. Разрешите его в настройках и повторите.',
+        e,
+        'установка',
+      );
+    }
     const msg = e instanceof Error ? e.message : '';
     if (/security|permission|unable to start/i.test(msg)) {
       fail(

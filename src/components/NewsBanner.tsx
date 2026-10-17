@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AppNewsItem } from '../services/appNewsService';
 import { getReadNewsIds, markNewsRead } from '../services/appNewsService';
 import type { AppVersionInfo } from '../services/appVersionService';
 import type { ApkUpdateStatus } from '../services/apkUpdateService';
-import { downloadAndInstallApk } from '../services/apkUpdateService';
-import { CheckIcon, ChevronIcon, CloseIcon, DownloadIcon, SparkIcon } from '../design/icons';
+import { downloadAndInstallApk, isInstallAllowed, openInstallSettings } from '../services/apkUpdateService';
+import { CheckIcon, ChevronIcon, CloseIcon, DownloadIcon, SettingsIcon, SparkIcon } from '../design/icons';
 
 /**
  * Плашка новостей (Фаза 5).
@@ -35,6 +35,9 @@ export default function NewsBanner({
   // null — обновление не запущено; иначе какая фаза идут и сколько процентов.
   const [apkStatus, setApkStatus] = useState<ApkUpdateStatus | null>(null);
   const [apkError, setApkError] = useState<string | null>(null);
+  // Android не разрешил установку из этого источника — вместо бесконечной
+  // ошибки показываем кнопку, которая ведёт в нужный экран настроек.
+  const [needPermission, setNeedPermission] = useState(false);
 
   const unread = useMemo(() => {
     const read = new Set(getReadNewsIds());
@@ -51,17 +54,51 @@ export default function NewsBanner({
   const apkUrl = version?.apkUrl ?? null;
   const canInstall = updateAvailable && !!apkUrl;
 
+  // Установка APK на Android 8+ требует отдельного разрешения «установка из
+  // неизвестных источников». Без него установщик просто не открывается, а
+  // раньше это выглядело как вечное «Запуск установщика…». Проверяем заранее,
+  // чтобы кнопка разрешения была на виду до первой попытки.
+  useEffect(() => {
+    if (!canInstall || needPermission) return;
+    let active = true;
+    void isInstallAllowed().then((allowed) => {
+      if (active && !allowed) setNeedPermission(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [canInstall, needPermission]);
+
   const runUpdate = () => {
     if (!apkUrl || apkStatus) return;
     setApkError(null);
+    setNeedPermission(false);
     setApkStatus({ phase: 'downloading', percent: 0 });
     void downloadAndInstallApk(apkUrl, (s) => setApkStatus(s))
+      .then((r) => {
+        // Установщик не подтвердил запуск — скорее всего, Android его не
+        // показал. Говорим прямо и предлагаем разрешить установку.
+        if (!r.installerLaunched) {
+          setApkError('Установщик не открылся. Разрешите установку из этого источника и попробуйте ещё раз.');
+          setNeedPermission(true);
+        }
+      })
       .catch((e: unknown) => {
         // Техническая причина уже записана в консоль сервисом — сюда
         // приходит только фраза, пригодная для показа человеку.
         setApkError(e instanceof Error ? e.message : 'Не удалось обновить приложение.');
+        setNeedPermission(/разрешени|источник|unknown/i.test(e instanceof Error ? e.message : ''));
       })
       .finally(() => setApkStatus(null));
+  };
+
+  // Ведём в системные настройки разрешения на установку из этого источника.
+  const runOpenSettings = () => {
+    setApkError(null);
+    setNeedPermission(false);
+    void openInstallSettings().catch((e: unknown) => {
+      setApkError(e instanceof Error ? e.message : 'Не удалось открыть настройки установки.');
+    });
   };
 
   // Непрочитанная новость приоритетнее версии; без неё ключ = версия.
@@ -143,6 +180,15 @@ export default function NewsBanner({
                 >
                   <DownloadIcon size={16} /> {apkLabel}
                 </button>
+                {needPermission && (
+                  <button
+                    type="button"
+                    className="btn-secondary news-banner-settings"
+                    onClick={runOpenSettings}
+                  >
+                    <SettingsIcon size={16} /> Разрешить установку
+                  </button>
+                )}
                 {apkError && <p className="news-banner-install-error">{apkError}</p>}
               </div>
             )}

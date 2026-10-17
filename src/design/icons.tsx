@@ -132,3 +132,13 @@ export function ChevronIcon({ size = 18, ...rest }: P) {
     </svg>
   );
 }
+
+/** Шестерёнка — кнопка «открыть настройки» (разрешение на установку). */
+export function SettingsIcon({ size = 18, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 3.5v2.1M12 18.4v2.1M20.5 12h-2.1M5.6 12H3.5M18 6l-1.5 1.5M7.5 16.5 6 18M18 18l-1.5-1.5M7.5 7.5 6 6" />
+    </svg>
+  );
+}
