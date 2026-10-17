@@ -17,6 +17,9 @@ import { isNativeApp, platformName } from './platform';
 export interface AppMeta {
   /** Версия, напр. «2.4.0». Должна совпадать с versionName в build.gradle. */
   version: string;
+  /** versionCode Android (поле `build` app-meta.json). Должен совпадать с
+   * versionCode в build.gradle и расти с каждым релизом. */
+  build?: number;
   /** Что изменилось — показывается в раскрытых подробностях плашки. */
   notes?: string[];
   /** Прямая ссылка на APK (необязательно). Пусто — кнопка не рендерится. */
@@ -26,8 +29,12 @@ export interface AppMeta {
 export interface AppVersionInfo {
   /** Что реально работает: versionName из APK или версия веб-бандла. */
   installed: string | null;
+  /** versionCode установленного приложения (на вебе — из app-meta.json бандла). */
+  installedBuild: number | null;
   /** Последняя опубликованная версия (с сервера, null — если не удалось). */
   latest: string | null;
+  /** versionCode последней опубликованной сборки (если опубликован). */
+  latestBuild: number | null;
   /** Установленная версия отстаёт от опубликованной. */
   updateAvailable: boolean;
   /** Нативное приложение (Android/iOS), а не браузер. */
@@ -57,8 +64,12 @@ function parseMeta(raw: unknown): AppMeta | null {
   if (!raw || typeof raw !== 'object') return null;
   const m = raw as Partial<AppMeta>;
   if (typeof m.version !== 'string' || !m.version) return null;
+  // build (versionCode) может прийти числом или строкой — приводим к числу.
+  const rawBuild = (m as { build?: unknown }).build;
+  const parsedBuild = typeof rawBuild === 'number' ? rawBuild : typeof rawBuild === 'string' ? Number.parseInt(rawBuild, 10) : NaN;
   return {
     version: m.version,
+    build: Number.isFinite(parsedBuild) && parsedBuild > 0 ? parsedBuild : undefined,
     notes: Array.isArray(m.notes) ? m.notes.filter((n): n is string => typeof n === 'string') : [],
     apkUrl: typeof m.apkUrl === 'string' && m.apkUrl.trim() ? m.apkUrl.trim() : undefined,
   };
@@ -83,14 +94,19 @@ async function fetchMeta(url: string): Promise<AppMeta | null> {
   }
 }
 
-/** Реальная версия нативного приложения (versionName / CFBundleShortVersionString). */
-async function nativeVersion(): Promise<string | null> {
+/** Реальная версия нативного приложения: versionName + versionCode.
+ * На Android `build` из `App.getInfo()` — это versionCode (см. AppPlugin.java:
+ * `PackageInfoCompat.getLongVersionCode`), на iOS — CFBundleVersion. */
+async function nativeVersion(): Promise<{ version: string | null; build: number | null }> {
   try {
     const { App } = await import('@capacitor/app');
     const info = await App.getInfo();
-    return typeof info.version === 'string' && info.version ? info.version : null;
+    const version = typeof info.version === 'string' && info.version ? info.version : null;
+    const parsedBuild = Number.parseInt(String((info as { build?: unknown }).build ?? ''), 10);
+    const build = Number.isFinite(parsedBuild) && parsedBuild > 0 ? parsedBuild : null;
+    return { version, build };
   } catch {
-    return null;
+    return { version: null, build: null };
   }
 }
 
@@ -123,12 +139,33 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
+ * Есть ли обновление.
+ *
+ * На Android главным считается **versionCode** (`build` в app-meta.json): он
+ * обязан расти с каждым релизом, и именно по нему система понимает, что APK
+ * старее установленного (versionName можно забыть поднять — тогда сравнение
+ * версий молчало бы). Если хотя бы одной из build-версий нет (старый APK без
+ * поля, iOS, веб), откатываемся к сравнению versionName/semver.
+ */
+export function isUpdateAvailable(info: {
+  installedVersion: string | null;
+  installedBuild: number | null;
+  latestVersion: string | null;
+  latestBuild: number | null;
+}): boolean {
+  const { installedVersion, installedBuild, latestVersion, latestBuild } = info;
+  if (!installedVersion || !latestVersion) return false;
+  if (installedBuild != null && latestBuild != null) return latestBuild > installedBuild;
+  return compareVersions(latestVersion, installedVersion) > 0;
+}
+
+/**
  * Собирает состояние версии для плашки новостей.
  *
  * «Последняя версия» всегда читается из сети с `cache: 'no-store'`, иначе
  * service worker вернул бы из своего кэша ту же оболочку, что уже загружена,
- * и проверка ничего не сказала бы. «Установленная» — это versionName из APK
- * в нативе и версия загруженного бандра в браузере.
+ * и проверка ничего не сказала бы. «Установленная» — versionName и versionCode
+ * из APK в нативе и версия загруженного бандра в браузере.
  */
 export async function loadAppVersion(): Promise<AppVersionInfo> {
   const isNative = isNativeApp();
@@ -137,13 +174,23 @@ export async function loadAppVersion(): Promise<AppVersionInfo> {
     fetchMeta(LATEST_URL),
   ]);
 
-  const installed = isNative ? await nativeVersion() : bundled?.version ?? null;
+  const native = isNative ? await nativeVersion() : null;
+  const installed = isNative ? native?.version ?? null : bundled?.version ?? null;
+  const installedBuild = isNative ? native?.build ?? null : bundled?.build ?? null;
   const latestMeta = remote ?? bundled;
+  const latestBuild = latestMeta?.build ?? null;
 
   return {
     installed,
+    installedBuild,
     latest: latestMeta?.version ?? installed,
-    updateAvailable: !!(installed && latestMeta && compareVersions(latestMeta.version, installed) > 0),
+    latestBuild,
+    updateAvailable: isUpdateAvailable({
+      installedVersion: installed,
+      installedBuild,
+      latestVersion: latestMeta?.version ?? null,
+      latestBuild,
+    }),
     isNative,
     notes: latestMeta?.notes ?? [],
     // APK имеет смысл качать только на Android: в браузере установить его

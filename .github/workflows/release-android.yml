@@ -45,7 +45,9 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           GRADLE_VERSION="$(sed -n 's/^ *versionName *"\([^"]*\)".*/\1/p' android/app/build.gradle | head -n1)"
+          GRADLE_CODE="$(sed -n 's/^ *versionCode *\([0-9][0-9]*\).*/\1/p' android/app/build.gradle | head -n1)"
           META_VERSION="$(jq -r '.version' public/app-meta.json)"
+          META_CODE="$(jq -r '.build // empty' public/app-meta.json)"
 
           fail() {
             echo "::error::$1"
@@ -59,7 +61,15 @@ jobs:
           if [ "$META_VERSION" != "$VERSION" ]; then
             fail "version в public/app-meta.json = '$META_VERSION', а тег = '$VERSION'. Эту версию увидят в плашке пользователи — поправьте её вместе с notes."
           fi
-          echo "Версии совпадают: $VERSION"
+          # versionCode — то, по чему Android понимает, что APK старее установленного.
+          # Он обязан расти при каждом релизе и совпадать в build.gradle и app-meta.json,
+          # иначе плашка обновления на уже стоящих устройствах не сработает.
+          [ -n "$GRADLE_CODE" ] || fail "Не нашёл versionCode в android/app/build.gradle"
+          [ -n "$META_CODE" ] || fail "В public/app-meta.json нет поля build (versionCode) — без него приложение не отличит старую сборку от новой."
+          if [ "$GRADLE_CODE" != "$META_CODE" ]; then
+            fail "versionCode в build.gradle = '$GRADLE_CODE', а build в public/app-meta.json = '$META_CODE'. Поля должны совпадать."
+          fi
+          echo "Версии совпадают: $VERSION (versionCode $GRADLE_CODE)"
 
       - name: Setup Node
         uses: actions/setup-node@v4

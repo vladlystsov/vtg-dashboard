@@ -664,7 +664,7 @@ export default function BeatsView({
                           </div>
                           {playable && b.platformUrl && (
                             <div className="beat-row-player" onClick={(e) => e.stopPropagation()}>
-                              {beatPlatform(b) === 'audio' ? (
+                              {beatPlatform(b) === 'audio' || beatPlatform(b) === 'youtube' ? (
                                 <ShippedMini item={shippedFromUrl(b.id, b.title, b.platformUrl, b.coverUrl, b.status === 'published', 'beat')} />
                               ) : (
                                 <PlatformPlayer url={b.platformUrl} compact />
@@ -799,7 +799,7 @@ export default function BeatsView({
                   )}
                   {playable && b.platformUrl && (
                     <div className="beat-card-player" onClick={(e) => e.stopPropagation()}>
-                      {beatPlatform(b) === 'audio' ? (
+                      {beatPlatform(b) === 'audio' || beatPlatform(b) === 'youtube' ? (
                         <ShippedMini item={shippedFromUrl(b.id, b.title, b.platformUrl, b.coverUrl, b.status === 'published', 'beat')} />
                       ) : (
                         <PlatformPlayer url={b.platformUrl} compact />

@@ -4,7 +4,7 @@ import type { DropResult } from '@hello-pangea/dnd';
 import type { Track, UserProfile, ReleaseType } from '../types/track';
 import { STATUS_LABELS, RELEASE_TYPE_LABELS, autoDetectReleaseType, asArray, resolveNames, detectPlatform, soundCloudEmbedSrc, youtubeVideoId } from '../types/track';
 import { useAuth } from '../contexts/AuthContext';
-import { ShippedMini, toShippedItem, useShippedPlayerManager } from './ShippedPlayer';
+import { ShippedMini, toShippedItem, useShippedPlayerManager, type ShippedTrackItem } from './ShippedPlayer';
 import { uploadCover } from '../services/fileService';
 import { listCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
 
@@ -292,7 +292,7 @@ function splitNames(input: string): string[] {
 
 const FALLBACK_COVER = `${import.meta.env.BASE_URL}logo_vtg_default.jpg`;
 
-export function PlatformPlayer({ url, compact = false, hideEmbed = false, track }: { url?: string; compact?: boolean; hideEmbed?: boolean; track?: Track }) {
+export function PlatformPlayer({ url, compact = false, hideEmbed = false, track, item }: { url?: string; compact?: boolean; hideEmbed?: boolean; track?: Track; item?: ShippedTrackItem }) {
   if (!url) return null;
   const trimmed = url.trim();
   const kind = detectPlatform(trimmed);
@@ -310,6 +310,18 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false, track 
             scrolling="no"
             src={soundCloudEmbedSrc(trimmed)}
           />
+        </div>
+      );
+    }
+    // YouTube: тот же сайтовый плеер, что и у остальных треков, — без видео-iframe.
+    // Звук идёт из скрытого движка YouTube (см. ShippedPlayer), в интерфейсе —
+    // привычный мини-плеер с ползунком. Эмбед остаётся только там, где объекта
+    // ещё нет (превью ссылки в форме создания трека).
+    const playerItem = item ?? (track ? toShippedItem(track) : null);
+    if (playerItem) {
+      return (
+        <div className={`platform-player ${compact ? 'platform-player-compact' : ''}`} onClick={(e) => e.stopPropagation()}>
+          <ShippedMini item={playerItem} />
         </div>
       );
     }

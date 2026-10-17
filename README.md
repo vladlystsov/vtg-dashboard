@@ -81,7 +81,7 @@ npm run deploy         # публикация через gh-pages
    `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET_NAME`, `B2_REGION` (для клиента — `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`);
    `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID` — runtime-переменные **для serverless-функции** (без префикса `VITE_`, иначе Vercel не отдаёт их в функцию);
    `B2_LINK_BASE` — постоянная база ссылок на файлы, полный URL функции (напр. `https://<project>.vercel.app/api/b2-storage`);
-   опционально `VITE_B2_PROXY_URL` (если SPA на GitHub Pages — полный URL функции).
+   опционально `VITE_B2_PROXY_URL` — только если прокси живёт на своём домене: боевой адрес `https://vtg-dashboard.vercel.app/api/b2-storage` зашит в бандл по умолчанию, поэтому хранилище работает и без этой переменной.
 
 ### 2. Ограничения
 

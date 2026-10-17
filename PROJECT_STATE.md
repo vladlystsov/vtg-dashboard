@@ -344,11 +344,13 @@ $p['keyPassword']  | gh secret set ANDROID_KEY_PASSWORD
    стратегии. В нативе SW не регистрируется, а в вебе fetch идёт с `cache: 'no-store'`,
    поэтому не блокирует, но устаревшая оболочка в кэше возможна.
 8. **Синхронизация версий вручную** в трёх местах: `versionCode`/`versionName` в
-   `android/app/build.gradle`, `version` в `public/app-meta.json`, `MARKETING_VERSION`
-   в `ios/App/App.xcodeproj/project.pbxproj`. Guard в CI теперь сверяет **две**
-   из трёх (build.gradle и app-meta.json) с тегом, но **`versionCode` и
-   `MARKETING_VERSION` в iOS он не проверяет** — `versionCode` обязан расти
-   при каждом релизе, иначе Android откажется ставить обновление поверх.
+   `android/app/build.gradle`, `version`/`build` в `public/app-meta.json`,
+   `MARKETING_VERSION` в `ios/App/App.xcodeproj/project.pbxproj`. Guard в CI сверяет
+   с тегом `versionName` и `version`, а также **`versionCode` (build.gradle) ↔ `build`
+   (app-meta.json)** — проверка добавлена 17.10.2026, раньше её не было. `MARKETING_VERSION`
+   в iOS он по-прежнему не проверяет. `versionCode`/`build` обязаны расти при каждом
+   релизе: по ним приложение отличает старую сборку от новой (см. `isUpdateAvailable`
+   в `appVersionService.ts`).
 9. **Коммиты не запушены.** Ветка `main` локальная; `git push origin main` в этой
    сессии не выполнялся. Пуш запустит `deploy.yml` (Pages) — это отдельное
    действие и требует вашего согласия.

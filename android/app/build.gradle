@@ -34,7 +34,10 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Версия приложения: показывается в плашке новостей (Фаза 5).
-        // При релизе APK здесь и в public/app-meta.json ставим одно и то же.
+        // При релизе APK здесь и в public/app-meta.json ставим одно и то же:
+        // versionName → поле version, versionCode → поле build. По build
+        // приложение отличает старую сборку от новой (guard в CI сверяет
+        // оба поля с тегом).
         versionCode 1
         versionName "2.4.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

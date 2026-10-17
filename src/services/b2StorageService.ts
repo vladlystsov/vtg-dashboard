@@ -16,9 +16,22 @@ import { auth } from '../config/firebase';
 import { checkBeatAudioFile, checkProjectZipFile } from './fileValidation';
 export { checkBeatAudioFile, checkProjectZipFile };
 
-// Прокси-функция хранилища: по умолчанию тот же origin (SPA на Vercel),
-// для GitHub Pages задайте VITE_B2_PROXY_URL — полный URL api/b2-storage.
-const API_URL = (import.meta.env.VITE_B2_PROXY_URL as string | undefined)?.trim() || '/api/b2-storage';
+// Прокси-функция хранилища. По умолчанию — её боевой адрес на Vercel: так
+// хранилище работает везде, даже когда переменная не попала в сборку
+// (локальная сборка, `npm run cap:apk` без .env, веб под GitHub Pages без
+// секрета CI). Относительный '/api/b2-storage' вне Vercel-хостинга нигде не
+// существует: в нативном приложении это capacitor://localhost/api/..., который
+// всегда падает с «Хранилище недоступно». Заданное вручную
+// VITE_B2_PROXY_URL по-прежнему имеет приоритет.
+const API_URL =
+  (import.meta.env.VITE_B2_PROXY_URL as string | undefined)?.trim() ||
+  'https://vtg-dashboard.vercel.app/api/b2-storage';
+
+// Таймаут одного вызова функции: без него зависший запрос к недоступному
+// хосту держит «Загрузку файлов хранилища» вечно и выглядит как вечная
+// недоступность. Плюс одна повторная попытка — сеть до Vercel нестабильна.
+const API_TIMEOUT_MS = 20000;
+const API_RETRIES = 1;
 
 const FOLDER_TRACKS = 'tracks';
 const FOLDER_BEATS = 'beats';
@@ -33,15 +46,31 @@ async function callApi(op: string, extra: Record<string, unknown> = {}): Promise
   const user = auth.currentUser;
   if (!user) throw new Error('Требуется вход в аккаунт');
   const idToken = await user.getIdToken();
-  let res: Response;
-  try {
-    res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({ op, ...extra }),
-    });
-  } catch {
-    throw new Error('Хранилище недоступно (сеть или прокси-функция)');
+  let res: Response | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= API_RETRIES; attempt++) {
+    try {
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ op, ...extra }),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      });
+      break;
+    } catch (e) {
+      lastError = e;
+      // Явная отмена (AbortError) повтору не подлежит; таймаут и обрыв сети
+      // пробуем ещё раз — ниже сообщение говорит, что именно произошло.
+      if ((e as Error)?.name === 'AbortError') throw new Error('Запрос к хранилищу отменён');
+    }
+  }
+  if (!res) {
+    const timedOut = (lastError as Error)?.name === 'TimeoutError';
+    throw new Error(
+      timedOut
+        ? `Хранилище не отвечает (таймаут ${API_TIMEOUT_MS / 1000} с): ${API_URL}`
+        : `Хранилище недоступно (сеть или прокси-функция): ${API_URL}`
+    );
   }
   const j = await res.json().catch(() => null);
   if (!res.ok) throw new Error((j && (j.error as string)) || `Ошибка хранилища (${res.status})`);

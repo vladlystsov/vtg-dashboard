@@ -174,11 +174,13 @@ const SOUNDCLOUD_PROFILE_PROXY =
  * Адрес serverless-прокси импорта каналов YouTube (api/youtube-rss.mjs).
  * RSS youtube.com и страницы каналов не отдают CORS браузеру, публичные
  * CORS-прокси нестабильны — поэтому канал читает наша Vercel-функция.
- * По умолчанию — тот же origin (SPA на Vercel); для GitHub Pages задайте
- * VITE_YOUTUBE_PROXY_URL — полный URL функции.
+ * Боевой адрес зашит по умолчанию (как у хранилища), чтобы импорт работал
+ * и в локальной сборке, и в APK без .env; свой URL — через
+ * VITE_YOUTUBE_PROXY_URL.
  */
 const YOUTUBE_RSS_PROXY =
-  (import.meta.env.VITE_YOUTUBE_PROXY_URL as string | undefined)?.trim() || '/api/youtube-rss';
+  (import.meta.env.VITE_YOUTUBE_PROXY_URL as string | undefined)?.trim() ||
+  'https://vtg-dashboard.vercel.app/api/youtube-rss';
 
 async function fetchJson(url: string, timeoutMs = 15000): Promise<any> {
   const text = await fetchTextWithCorsFallback(url, timeoutMs);
