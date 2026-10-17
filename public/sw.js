@@ -1,5 +1,5 @@
 /**
- * Service Worker для PWA (офлайн-доступ к оболочке приложения).
+ * Service Worker для PWA (офлайн-доступ к оболочке + push-уведомления).
  *
  * Стратегия:
  *  - index.html (навигация) — network-first с фолбэком в кэш: при наличии
@@ -13,9 +13,14 @@
  * Precache оболочки: при install вытягиваем свежий index.html и кладём
  * в кэш все ссылки, которые он содержит (чанки main-бандла), чтобы первая
  * же офлайн-перезагрузка была полной.
+ *
+ * Push: приложение регистрирует web-токен именно на ЭТОМ регистрационном
+ * worker'е (getToken({ serviceWorkerRegistration })), поэтому показать
+ * уведомление обязан он сам — обработчика `push` в воркере Firebase здесь
+ * нет, и без него FCM молча доставляет сообщение в пустоту.
  */
 
-const VERSION = 'vtg-v1';
+const VERSION = 'vtg-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
@@ -88,6 +93,71 @@ self.addEventListener('activate', (event) => {
         keys.filter((key) => !key.startsWith(VERSION)).map((key) => caches.delete(key))
       );
       await self.clients.claim();
+    })()
+  );
+});
+
+// === PUSH-УВЕДОМЛЕНИЯ (веб) ===
+
+/** Корень приложения: sw.js лежит рядом с index.html, scope — папка приложения. */
+function appUrl() {
+  return self.registration.scope || './';
+}
+
+// Приложение регистрирует web-токен именно на ЭТОМ worker'е
+// (getToken({ serviceWorkerRegistration })), поэтому показать уведомление
+// обязан он сам: обработчика push в воркере Firebase здесь нет, и без него
+// FCM доставляет сообщение в пустоту — уведомления просто не появляются.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { notification: { body: event.data ? event.data.text() : '' } };
+  }
+  const notification = payload.notification || {};
+  const data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+
+  event.waitUntil(
+    self.registration.showNotification(notification.title || payload.title || 'VTG Dashboard', {
+      body: notification.body || payload.body || '',
+      icon: './icon-192.png',
+      // Один тег на трек: новое уведомление заменяет прошлое по этому треку,
+      // а без тега ОС складывает их стопкой.
+      tag: data.trackId ? `vtg-track-${data.trackId}` : 'vtg',
+      renotify: false,
+      vibrate: [60, 40, 60],
+      timestamp: Date.now(),
+      data: { url: appUrl(), ...data },
+    })
+  );
+});
+
+// Клик по уведомлению: открываем приложение (существующее окно — в фокус,
+// иначе новое). Показывать текст из body не нужно: внутри приложения ту же
+// новость выводит плашка новостей.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const target = appUrl();
+      const clients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      for (const client of clients) {
+        if ('focus' in client) {
+          if ('navigate' in client && client.url !== target) {
+            try {
+              await client.navigate(target);
+            } catch {
+              /* ignore */
+            }
+          }
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
     })()
   );
 });

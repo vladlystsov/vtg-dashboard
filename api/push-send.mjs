@@ -8,10 +8,16 @@
  * Переменные окружения (Vercel, без префикса VITE_):
  *   FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
  *   либо сервис-аккаунт целиком в FIREBASE_SERVICE_ACCOUNT (JSON-строка).
+ *   FIREBASE_API_KEY (или VITE_FIREBASE_API_KEY) — для проверки ID-токена.
  *
- * POST /api/push-send
+ * POST /api/push-send  (Authorization: Bearer <Firebase ID-токен>)
  *   { uids: string[], title: string, body: string, data?: object }
  * → { sent, failed, total }
+ *
+ * Авторизация обязательна: иначе это открытый релей, которым можно слать
+ * уведомления любому пользователю, зная его uid. Проверка роли здесь не
+ * нужна — отправлять рассылку имеет право любой, кто может создать
+ * уведомление, то есть любой авторизованный участник команды.
  */
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -19,7 +25,33 @@ import { getMessaging } from 'firebase-admin/messaging';
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
+}
+
+function firebaseEnv() {
+  return {
+    apiKey: (process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '').trim(),
+    projectId: (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || '').trim(),
+  };
+}
+
+/** Firebase ID-токен из заголовка Authorization → { uid, email } или null. */
+async function verifyAuth(idToken) {
+  const { apiKey } = firebaseEnv();
+  if (!idToken || !apiKey) return null;
+  try {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+    if (!res.ok) return null;
+    const j = await res.json().catch(() => null);
+    const u = j && j.users && j.users[0];
+    return u ? { uid: u.localId, email: u.email || '' } : null;
+  } catch {
+    return null;
+  }
 }
 
 function getFirebaseApp() {
@@ -75,6 +107,17 @@ export default async function handler(req, res) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Метод не поддерживается' });
+
+  // Только Firebase ID-токен: анонимная рассылка не принимается.
+  if (!firebaseEnv().apiKey) {
+    return res.status(500).json({ error: 'Функция не настроена: нет FIREBASE_API_KEY / VITE_FIREBASE_API_KEY' });
+  }
+  const authHeader = req.headers.authorization || '';
+  const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const user = await verifyAuth(idToken);
+  if (!user) {
+    return res.status(401).json({ error: 'Требуется вход в аккаунт' });
+  }
 
   let body = req.body;
   if (typeof body === 'string') {

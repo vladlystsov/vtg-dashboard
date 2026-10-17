@@ -1,7 +1,7 @@
 import {
   doc, getDoc, setDoc, deleteDoc, collection, getDocs, serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
 import { isNativeApp } from './platform';
 
 /**
@@ -20,8 +20,23 @@ export interface DeviceToken {
 
 const devicesRef = collection(db, 'devices');
 
-/** Адрес serverless-функции отправки push (api/push-send.mjs на Vercel). */
-const PUSH_API = (import.meta.env.VITE_PUSH_PROXY_URL as string | undefined)?.trim() || '/api/push-send';
+/**
+ * Адрес serverless-функции отправки push (api/push-send.mjs на Vercel).
+ *
+ * Боевой адрес зашит по умолчанию — как у хранилища и импорта YouTube.
+ * Относительный '/api/push-send' не существует вне хостинга Vercel: на сайте
+ * под GitHub Pages он даёт 404, а в нативном приложении уходит в
+ * capacitor://localhost/api/push-send и не доходит никуда (из-за этого
+ * напоминания о сроках и пуши о смене статуса не отправлялись). Свой адрес —
+ * через VITE_PUSH_PROXY_URL.
+ */
+const PUSH_API =
+  (import.meta.env.VITE_PUSH_PROXY_URL as string | undefined)?.trim() ||
+  'https://vtg-dashboard.vercel.app/api/push-send';
+
+// Таймаут и одна повторная попытка: недоступный прокси иначе «висит» молча.
+const PUSH_TIMEOUT_MS = 15000;
+const PUSH_RETRIES = 1;
 
 /** Публичный VAPID-ключ для web-push (в Android используется FCM). */
 const VAPID_KEY = (import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined)?.trim();
@@ -136,11 +151,30 @@ export async function sendPushToUsers(
   const targets = Array.from(new Set(uids.filter(Boolean)));
   if (!targets.length) return { sent: 0, failed: 0 };
   try {
-    const res = await fetch(PUSH_API, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ uids: targets, ...payload }),
-    });
+    // Функция требует Firebase ID-токен: без него запрос — анонимная
+    // рассылка по чужим uid, и её отклоняют (401).
+    const user = auth.currentUser;
+    const idToken = user ? await user.getIdToken() : '';
+    if (!idToken) {
+      console.error('sendPushToUsers: нет Firebase ID-токена — функция отклонит запрос');
+      return { sent: 0, failed: targets.length };
+    }
+    const body = JSON.stringify({ uids: targets, ...payload });
+    let res: Response | null = null;
+    for (let attempt = 0; attempt <= PUSH_RETRIES && !res; attempt++) {
+      try {
+        res = await fetch(PUSH_API, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${idToken}` },
+          body,
+          signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
+        });
+      } catch (e) {
+        if ((e as Error)?.name === 'AbortError') throw e;
+        if (attempt === PUSH_RETRIES) throw e;
+      }
+    }
+    if (!res) throw new Error('push-send недоступен');
     if (!res.ok) throw new Error(`push-send ${res.status}`);
     return (await res.json()) as { sent: number; failed: number };
   } catch (e) {

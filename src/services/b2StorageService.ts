@@ -72,8 +72,26 @@ async function callApi(op: string, extra: Record<string, unknown> = {}): Promise
         : `Хранилище недоступно (сеть или прокси-функция): ${API_URL}`
     );
   }
-  const j = await res.json().catch(() => null);
-  if (!res.ok) throw new Error((j && (j.error as string)) || `Ошибка хранилища (${res.status})`);
+  // Тело читаем текстом: res.json() бросает на не-JSON (HTML-заглушка Vercel,
+  // пустой ответ), а .catch(() => null) молча отдавал null наружу — вызывающий
+  // код падал с «Cannot destructure property 'items' … as it is null».
+  const raw = await res.text().catch(() => '');
+  let j: any = null;
+  try {
+    j = raw ? JSON.parse(raw) : null;
+  } catch {
+    j = null;
+  }
+  if (!res.ok) {
+    const serverMsg = j && typeof j.error === 'string' ? j.error : '';
+    throw new Error(serverMsg || `Ошибка хранилища (${res.status})${raw ? `: ${raw.slice(0, 120)}` : ''}`);
+  }
+  if (j === null) {
+    throw new Error(
+      `Прокси-функция хранилища вернула не-JSON (${res.status} ${res.statusText || ''}). ` +
+      `Обычно это HTML-заглушка хостинга вместо ответа функции: ${API_URL}`
+    );
+  }
   return j;
 }
 
@@ -92,7 +110,11 @@ function buildStoragePath(folder: string, title: string, originalName: string): 
 
 /** Presigned PUT: файл льётся из браузера напрямую в B2, минуя serverless. */
 async function uploadFile(path: string, file: File, signal?: AbortSignal): Promise<string> {
-  const { url, publicUrl } = await callApi('upload-url', { path });
+  const resp = await callApi('upload-url', { path });
+  const url = resp && typeof resp.url === 'string' ? resp.url : '';
+  if (!url) {
+    throw new Error('Прокси-функция не вернула ссылку для загрузки (нет поля url)');
+  }
   let res: Response;
   try {
     res = await fetch(url, {
@@ -114,7 +136,7 @@ async function uploadFile(path: string, file: File, signal?: AbortSignal): Promi
     }
     throw new Error(`Ошибка загрузки в хранилище (${res.status})`);
   }
-  return publicUrl;
+  return typeof resp.publicUrl === 'string' && resp.publicUrl ? resp.publicUrl : url;
 }
 
 // === PUBLISH ===
@@ -259,7 +281,14 @@ export async function deleteStorageFileByUrl(url: string): Promise<void> {
 
 /** Список всех файлов бакета (с размерами и публичными ссылками). */
 export async function listStorageFiles(): Promise<StorageItem[]> {
-  const { items } = await callApi('list');
+  const resp = await callApi('list');
+  const items = resp && Array.isArray(resp.items) ? resp.items : null;
+  if (!items) {
+    // Раньше здесь стояла деструктуризация `const { items } = await callApi(...)`:
+    // если функция отвечала не-JSON, приходил null и падало с
+    // «Cannot destructure property 'items' … as it is null» — без понятной причины.
+    throw new Error('Прокси-функция не вернула список файлов (нет поля items)');
+  }
   return (items as Array<{ path: string; name: string; size: number; updated?: string; publicUrl?: string }>).map((it) => ({
     path: it.path,
     name: it.name,

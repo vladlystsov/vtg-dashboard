@@ -38,6 +38,11 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          # Публичный VAPID-ключ для web-push. Без него registerForPush() сразу
+          # выходит (в браузере токены не создаются, уведомления не приходят).
+          # Взять в Firebase Console → Project settings → Cloud Messaging →
+          # Web Push certificates. Секрет, а не переменная репозитория.
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
           # Где нативное приложение ищет последнюю версию (app-meta.json).
           # Не секрет — значение по умолчанию совпадает с адресом сайта,
           # поэтому задавать его нужно только при смене домена.
