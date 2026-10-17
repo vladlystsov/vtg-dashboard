@@ -34,9 +34,12 @@ const PUSH_API =
   (import.meta.env.VITE_PUSH_PROXY_URL as string | undefined)?.trim() ||
   'https://vtg-dashboard.vercel.app/api/push-send';
 
-// Таймаут и одна повторная попытка: недоступный прокси иначе «висит» молча.
-const PUSH_TIMEOUT_MS = 15000;
-const PUSH_RETRIES = 1;
+// Прокси-функция отправки живёт на том же Vercel, где часть DNS-адресов не
+// принимает соединение (см. комментарий в b2StorageService). Поэтому здесь
+// тоже короткие попытки с перебором адресов, а не одно долгое ожидание.
+const PUSH_TIMEOUT_MS = 7000;
+const PUSH_RETRIES = 3;
+const PUSH_RETRY_PAUSE_MS = 400;
 
 /** Публичный VAPID-ключ для web-push (в Android используется FCM). */
 const VAPID_KEY = (import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined)?.trim();
@@ -172,6 +175,8 @@ export async function sendPushToUsers(
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') throw e;
         if (attempt === PUSH_RETRIES) throw e;
+        // Пауза, чтобы успела смениться выбранная DNS-запись.
+        await new Promise((r) => setTimeout(r, PUSH_RETRY_PAUSE_MS));
       }
     }
     if (!res) throw new Error('push-send недоступен');

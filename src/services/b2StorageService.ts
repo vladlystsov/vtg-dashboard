@@ -27,11 +27,16 @@ const API_URL =
   (import.meta.env.VITE_B2_PROXY_URL as string | undefined)?.trim() ||
   'https://vtg-dashboard.vercel.app/api/b2-storage';
 
-// Таймаут одного вызова функции: без него зависший запрос к недоступному
-// хосту держит «Загрузку файлов хранилища» вечно и выглядит как вечная
-// недоступность. Плюс одна повторная попытка — сеть до Vercel нестабильна.
-const API_TIMEOUT_MS = 20000;
-const API_RETRIES = 1;
+// Прокси-функция живёт на Vercel, и DNS для vtg-dashboard.vercel.app отдаёт
+// ротацию адресов, где часть не принимает соединение вовсе (проверено:
+// 64.29.17.131 и 216.198.79.131 не отвечают, 64.29.17.195 отвечает за 0,5 с).
+// Одно долгое ожидание в таком случае бесполезно — вместо него делаем
+// несколько КОРОТКИХ попыток: каждая перерезолвит DNS и с высокой
+// вероятностью попадёт на живой адрес. Суммарное ожидание примерно то же,
+// но успеха намного больше.
+const API_TIMEOUT_MS = 7000;
+const API_RETRIES = 3; // 4 попытки по 7 с ≈ 28 с в худшем случае
+const API_RETRY_PAUSE_MS = 400;
 
 const FOLDER_TRACKS = 'tracks';
 const FOLDER_BEATS = 'beats';
@@ -42,33 +47,78 @@ export interface PublishBeatCallbacks {
   onError: (message: string) => void;
 }
 
-async function callApi(op: string, extra: Record<string, unknown> = {}): Promise<any> {
+/**
+ * Сигнал запроса: таймаут плюс (если передан) отмена пользователем.
+ *
+ * Раньше отмена доходила только до загрузки файла, а функция выдачи ссылки
+ * (op=upload-url) жила на своём таймауте. Когда она зависала (прокси на
+ * недоступном адресе), нажатие «Отменить» не прерывало запрос, карточка
+ * оставалась со спиннером, а кнопка — в состоянии «Отменяем…».
+ */
+function requestSignal(userSignal?: AbortSignal): AbortSignal {
+  if (!userSignal) return AbortSignal.timeout(API_TIMEOUT_MS);
+  if (userSignal.aborted) {
+    const already = new AbortController();
+    already.abort(userSignal.reason);
+    return already.signal;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new DOMException('timeout', 'TimeoutError')),
+    API_TIMEOUT_MS
+  );
+  userSignal.addEventListener(
+    'abort',
+    () => {
+      clearTimeout(timer);
+      controller.abort(userSignal.reason);
+    },
+    { once: true }
+  );
+  return controller.signal;
+}
+
+async function callApi(
+  op: string,
+  extra: Record<string, unknown> = {},
+  userSignal?: AbortSignal
+): Promise<any> {
   const user = auth.currentUser;
   if (!user) throw new Error('Требуется вход в аккаунт');
   const idToken = await user.getIdToken();
   let res: Response | null = null;
-  let lastError: unknown = null;
+  let timedOutAttempts = 0;
   for (let attempt = 0; attempt <= API_RETRIES; attempt++) {
     try {
       res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ op, ...extra }),
-        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+        signal: requestSignal(userSignal),
       });
       break;
     } catch (e) {
-      lastError = e;
-      // Явная отмена (AbortError) повтору не подлежит; таймаут и обрыв сети
-      // пробуем ещё раз — ниже сообщение говорит, что именно произошло.
+      if (userSignal?.aborted) {
+        throw new Error('Загрузка отменена');
+      }
+      if ((e as Error)?.name === 'AbortError' && userSignal) throw new Error('Загрузка отменена');
+      // Явная отмена повтору не подлежит; таймаут и обрыв сети пробуем
+      // ещё раз — ниже сообщение говорит, что именно произошло.
       if ((e as Error)?.name === 'AbortError') throw new Error('Запрос к хранилищу отменён');
+      if ((e as Error)?.name === 'TimeoutError') timedOutAttempts++;
+      if (attempt < API_RETRIES) {
+        // Пауза, чтобы успела смениться выбранная DNS-запись.
+        await new Promise((r) => setTimeout(r, API_RETRY_PAUSE_MS));
+      }
     }
   }
   if (!res) {
-    const timedOut = (lastError as Error)?.name === 'TimeoutError';
+    const total = (API_TIMEOUT_MS * (API_RETRIES + 1)) / 1000;
     throw new Error(
-      timedOut
-        ? `Хранилище не отвечает (таймаут ${API_TIMEOUT_MS / 1000} с): ${API_URL}`
+      timedOutAttempts > 0
+        ? `Хранилище не отвечает: ${timedOutAttempts} из ${API_RETRIES + 1} попыток по ` +
+          `${API_TIMEOUT_MS / 1000} с не получили ответа (ждали до ${total} с). Адрес: ${API_URL}. ` +
+          `Проверьте, открывается ли он в браузере.`
         : `Хранилище недоступно (сеть или прокси-функция): ${API_URL}`
     );
   }
@@ -110,7 +160,9 @@ function buildStoragePath(folder: string, title: string, originalName: string): 
 
 /** Presigned PUT: файл льётся из браузера напрямую в B2, минуя serverless. */
 async function uploadFile(path: string, file: File, signal?: AbortSignal): Promise<string> {
-  const resp = await callApi('upload-url', { path });
+  // Сигнал пользователя прокидываем и сюда: без этого отмена не действует,
+  // пока запрос висит на выдаче ссылки (op=upload-url).
+  const resp = await callApi('upload-url', { path }, signal);
   const url = resp && typeof resp.url === 'string' ? resp.url : '';
   if (!url) {
     throw new Error('Прокси-функция не вернула ссылку для загрузки (нет поля url)');

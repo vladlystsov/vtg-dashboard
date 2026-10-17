@@ -274,7 +274,13 @@ export default function ProjectsView({
 
   const cancelUpload = (projectId: string) => {
     const controller = uploadControllers.current.get(projectId);
-    if (!controller) return;
+    if (!controller) {
+      // Загрузки уже нет (успела завершиться или отмениться), а спиннер ещё
+      // висит — снимаем его руками, иначе кнопка «Отмена» ничего не делает.
+      setUploadingId((id) => (id === projectId ? null : id));
+      setCancellingId((id) => (id === projectId ? null : id));
+      return;
+    }
     setCancellingId(projectId);
     controller.abort();
   };
@@ -353,7 +359,11 @@ export default function ProjectsView({
               className="project-zip-cancel"
               title="Отменить загрузку"
               disabled={cancellingId === p.id}
-              onClick={() => cancelUpload(p.id)}
+              onClick={(e) => {
+                // Гасим всплытие: иначе клик откроет редактирование версии.
+                e.stopPropagation();
+                cancelUpload(p.id);
+              }}
             >
               ✕
             </button>
@@ -543,8 +553,13 @@ export default function ProjectsView({
                             onClick={(e) => {
                               if (!canEdit || isVirtualProject(p)) return;
                               // Клик по кнопкам/ссылкам внутри блока не открывает
-                              // редактирование и не всплывает до карточки трека
-                              if ((e.target as HTMLElement).closest('button, a')) {
+                              // редактирование и не всплывает до карточки трека.
+                              // .project-zip в списке — обязателен: когда кнопка
+                              // отмены уже disabled, браузер не отправляет по ней
+                              // click, и целью события становится родительский div.
+                              // Без этой проверки повторное нажатие «×» открывало
+                              // редактирование версии вместо отмены загрузки.
+                              if ((e.target as HTMLElement).closest('button, a, .project-zip')) {
                                 e.stopPropagation();
                                 return;
                               }
