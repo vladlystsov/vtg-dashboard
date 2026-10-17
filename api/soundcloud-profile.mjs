@@ -170,11 +170,19 @@ function mapTrack(track, user) {
   const title = typeof track.title === 'string' ? track.title.trim() : '';
   const url = typeof track.permalink_url === 'string' ? track.permalink_url.trim() : '';
   if (!title || !/^https:\/\/soundcloud\.com\//i.test(url)) return null;
+  // publisher_artist — поле «со-кредитов» SoundCloud (кнопка «Show credits»):
+  // перечисляет всех артистов трека («FLEXXXY & DZZZY»), даже если их нет в
+  // заголовке. description — текст описания (там часто «prod by …» прописью).
+  const publisherArtist =
+    typeof track.publisher_artist === 'string' ? track.publisher_artist.trim() : '';
+  const description = typeof track.description === 'string' ? track.description.trim() : '';
   return {
     title,
     url,
     author: (track.user && track.user.username) || (user && user.username) || 'SoundCloud',
     thumbnail: artworkFor(track, user) || undefined,
+    ...(publisherArtist ? { publisherArtist } : {}),
+    ...(description ? { description: description.slice(0, 2000) } : {}),
   };
 }
 

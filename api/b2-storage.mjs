@@ -31,13 +31,17 @@ const PRESIGN_TTL_SECONDS = 6 * 60 * 60; // С…РІР°С‚РёС‚ РЅР°
 function cors(res) {
   // CORS для браузера. GET нужен не только для 302-редиректа player'а, но и для
   // кросс-доменного скачивания в кэш (fetch(url, {mode:'cors'}) из GitHub Pages).
+  // PUT нужен для прямых загрузок файлов в B2 через presigned URL.
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization, x-bz-content-sha1, x-bz-file-name, x-bz-upload-timestamp, cache-control');
+  res.setHeader('Access-Control-Expose-Headers', 'x-bz-content-sha1, x-bz-file-name, x-bz-upload-timestamp');
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
 function send(res, status, payload) {
+  // Гарантируем, что CORS-заголовки всегда установлены в ответе
+  cors(res);
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(payload));

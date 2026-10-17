@@ -12,6 +12,7 @@ for (const it of j.items || []) {
   if (pc.extraArtists.length) bits.push('артисты: ' + pc.extraArtists.join(', '));
   if (pc.feat.length) bits.push('feat: ' + pc.feat.join(', '));
   if (pc.beatmakers.length) bits.push('битмейкеры: ' + pc.beatmakers.join(', '));
+  if (pc.mixers.length) bits.push('микс: ' + pc.mixers.join(', '));
   console.log(`- ${it.title}\n    ${bits.length ? '→ ' + bits.join(' | ') : '→ без участников'}`);
 }
 console.log('LIVE: ок');

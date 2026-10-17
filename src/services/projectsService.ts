@@ -3,6 +3,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   query,
@@ -74,4 +75,15 @@ export async function updateProject(id: string, data: Partial<Project>) {
 
 export async function deleteProject(id: string) {
   await deleteDoc(doc(db, 'projects', id));
+}
+
+/**
+ * Обновляет поля проекта; undefined в значении трактуется как «удалить поле»
+ * (deleteField). В отличие от updateProject, здесь не применяется
+ * cleanForFirestore, который вырезает undefined — иначе поле не очистить.
+ */
+export async function updateProjectFields(id: string, patch: Record<string, unknown>) {
+  const data: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  for (const [k, v] of Object.entries(patch)) data[k] = v === undefined ? deleteField() : v;
+  await updateDoc(doc(db, 'projects', id), data);
 }

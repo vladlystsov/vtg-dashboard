@@ -1,38 +1,168 @@
-﻿:root {
-  --blue-900: #1e3a5f;
-  --blue-800: #24466f;
-  --blue-700: #2d5a8e;
-  --blue-600: #3b82f6;
-  --blue-500: #60a5fa;
-  --blue-400: #93c5fd;
-  --blue-100: #dbeafe;
-  --blue-50: #eff6ff;
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-800: #1f2937;
-  --gray-900: #111827;
-  --crimson-500: #dc2626;
-  --crimson-600: #dc2626;
-  --crimson-red: #b91c1c;
-  --green-500: #10b981;
-  --green-600: #059669;
-  --amber-500: #f59e0b;
-  --purple-500: #8b5cf6;
+:root {
+  /* ===== Красный (акцент) — переопределяет «синюю» шкалу =====
+     Имена переменных сохранены, поэтому все ~4600 строк ниже
+     перекрашиваются автоматически без их правки.
+     Золото (--gold-*) осталось ТОЛЬКО для метки не просроченного
+     дедлайна — как сигнал «всё под контролем». */
+  --gold-900: #241b05;
+  --gold-800: #45360a;
+  --gold-700: #6b5410;
+  --gold-600: #8a6d12;
+  --gold-500: #a67f18;
+  --gold-400: #c9a227;
+  --gold-300: #e0bc5e;
+  --gold-200: #eddaa4;
+
+  --red-600: #b02525;
+  --red-500: #e03131;
+
+  --blue-900: #2a0606;
+  --blue-800: #4d0d0d;
+  --blue-700: #6e1414;
+  --blue-600: #8f1c1c;
+  --blue-500: #b02525;
+  --blue-400: #c93434;
+  --blue-100: #f7d9d9;
+  --blue-50: #fdf0f0;
+  --gray-50: #ffffff;
+  --gray-100: #f7f6f3;
+  --gray-200: #e8e6e1;
+  --gray-300: #d5d2cb;
+  --gray-400: #9a968e;
+  --gray-500: #6f6b64;
+  --gray-600: #4d4a44;
+  --gray-700: #33312d;
+  --gray-800: #1a1917;
+  --gray-900: #0d0c0b;
+  --crimson-500: #e03131;
+  --crimson-600: #c92a2a;
+  --crimson-red: #b02525;
+  --green-500: #2f9e44;
+  --green-600: #2b8a3e;
+  --amber-500: #f08c00;
+  --purple-500: #7950f2;
   --orange-100: #ffedd5;
   --orange-300: #fdba74;
   --orange-600: #ea580c;
+
+  /* Поверхности — заменяют жёсткие #fff, чтобы тема переключалась */
+  --surface: #ffffff;
+  --surface-2: #faf9f6;
+  --surface-3: #f2f0eb;
+  --surface-inset: #f4f2ed;
+  --header-bg: rgba(255, 255, 255, 0.86);
+  --overlay-bg: rgba(24, 20, 12, 0.55);
+  --on-accent: #ffffff;
+  --focus-ring: rgba(201, 52, 52, 0.3);
+
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px -1px rgba(15,23,42,0.1), 0 2px 4px -2px rgba(15,23,42,0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(15,23,42,0.1), 0 4px 6px -4px rgba(15,23,42,0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.12), 0 4px 6px -4px rgba(0,0,0,0.1);
+  --shadow-accent: 0 4px 14px rgba(201, 52, 52, 0.22);
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /** Логотип: используется как CSS-маска, цвет задаёт background-color.
+     public/logo_vtg.png — белый на прозрачном фоне. */
+  --vtg-logo: url('/logo_vtg.png');
+}
+
+/* Логотип в шапке: белый в тёмной теме, чёрный в светлой */
+.logo-img {
+  width: 92px;
+  height: auto;
+  aspect-ratio: 410 / 280;
+  background-color: var(--gray-900);
+  -webkit-mask: var(--vtg-logo) center / contain no-repeat;
+  mask: var(--vtg-logo) center / contain no-repeat;
+  transition: background-color .2s ease;
+}
+[data-theme='dark'] .logo-img { background-color: #ffffff; }
+
+/* Переключатель светлой/тёмной темы */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.theme-toggle:hover {
+  color: var(--blue-600);
+  border-color: var(--blue-400);
+  background: var(--surface-2);
+}
+
+@media (max-width: 480px) {
+  .logo-img { width: 78px; }
+}
+
+/* ===== ТЁМНАЯ ТЕМА: чёрный фон, белый текст, золото/красный =====
+   Инверсия шкал — все существующие правила переключаются сами. */
+[data-theme='dark'] {
+  --gold-900: #0d0a02;
+  --gold-800: #3a2d0b;
+  --gold-700: #7a6015;
+  --gold-600: #a8842a;
+  --gold-500: #d9b64a;
+  --gold-400: #e8cd7d;
+  --gold-300: #f2ddab;
+  --gold-200: #f7eccb;
+  --red-600: #f03e3e;
+  --red-500: #ff6b6b;
+  --green-600: #40c057;
+  --green-500: #51cf66;
+  --blue-900: #0a0202;
+  --blue-800: #2a0808;
+  --blue-700: #6b1616;
+  --blue-600: #d63a3a;
+  --blue-500: #e05555;
+  --blue-400: #ef6f6f;
+  --blue-100: #3d1212;
+  --blue-50: #210808;
+  --gray-50: #0a0a0b;
+  --gray-100: #131315;
+  --gray-200: #1e1e21;
+  --gray-300: #2c2c30;
+  --gray-400: #8b8b90;
+  --gray-500: #a5a5aa;
+  --gray-600: #c4c4c9;
+  --gray-700: #dedee2;
+  --gray-800: #f2f2f4;
+  --gray-900: #ffffff;
+  --crimson-500: #ff6b6b;
+  --crimson-600: #f03e3e;
+  --crimson-red: #ff8787;
+  --amber-500: #ffd43b;
+  --purple-500: #b197fc;
+  --orange-100: #3a2410;
+  --orange-300: #ffa94d;
+  --orange-600: #ff922b;
+  --surface: #161618;
+  --surface-2: #1d1d20;
+  --surface-3: #242428;
+  --surface-inset: #101012;
+  --header-bg: rgba(12, 12, 14, 0.88);
+  --overlay-bg: rgba(0, 0, 0, 0.72);
+  --on-accent: #0d0c0b;
+  --focus-ring: rgba(239, 111, 111, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.6), 0 2px 4px -2px rgba(0,0,0,0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.7), 0 4px 6px -4px rgba(0,0,0,0.6);
+  --shadow-accent: 0 4px 16px rgba(214, 58, 58, 0.24);
+}
+
+/* Плавная смена темы (без неё — только фон/текст, без transition) */
+body, .app, .app-header, .track-card, .modal-overlay, .track-form-modal {
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease;
 }
 
 * {
@@ -85,6 +215,7 @@ body {
   max-width: 1600px;
   width: 100%;
   margin: 0 auto;
+  min-height: 0;
 }
 
 /* ===== Login ===== */
@@ -93,37 +224,58 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--blue-900) 0%, var(--blue-700) 50%, var(--blue-600) 100%);
+  background:
+    radial-gradient(900px 420px at 50% -8%, var(--blue-900), transparent 70%),
+    linear-gradient(160deg, var(--gray-900) 0%, var(--gray-800) 55%, var(--gray-900) 100%);
   padding: 20px;
+  position: relative;
+}
+
+/* Переключатель темы в углу экрана входа */
+.login-theme-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.login-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--blue-400);
+  border-color: var(--blue-500);
 }
 
 .login-card {
-  background: rgba(255,255,255,0.97);
+  background: var(--surface);
   backdrop-filter: blur(10px);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 40px 36px;
   width: 100%;
   max-width: 400px;
-  border: 1px solid rgba(255,255,255,0.6);
+  border: 1px solid var(--blue-400);
 }
 
-.login-logo h1 {
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: 4px;
-  background: linear-gradient(135deg, var(--blue-800), var(--crimson-red));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+/* Логотип на странице входа: белый в тёмной теме, чёрный в светлой */
+.login-logo-img {
+  width: 142px;
+  height: auto;
+  aspect-ratio: 410 / 280;
+  margin: 0 auto;
+  background-color: var(--gray-900);
+  -webkit-mask: var(--vtg-logo) center / contain no-repeat;
+  mask: var(--vtg-logo) center / contain no-repeat;
 }
+[data-theme='dark'] .login-logo-img { background-color: #ffffff; }
 
 .login-logo p {
-  color: var(--gray-400);
-  margin-bottom: 32px;
-  font-size: 13px;
-  letter-spacing: 2px;
+  color: var(--gray-500);
+  margin: 12px 0 32px;
+  font-size: 12px;
+  letter-spacing: 3px;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .login-card form {
@@ -187,7 +339,7 @@ body {
 /* ===== Buttons ===== */
 .btn-primary {
   background: linear-gradient(135deg, var(--blue-700), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius-sm);
   padding: 12px 20px;
@@ -278,7 +430,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
-  background: rgba(255,255,255,0.85);
+  background: var(--header-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--gray-200);
   position: sticky;
@@ -439,7 +591,7 @@ body {
 .kanban-filter-btns {
   display: flex;
   gap: 4px;
-  background: rgba(255,255,255,0.7);
+  background: var(--surface);
   border-radius: var(--radius-md);
   padding: 3px;
   border: 1px solid var(--gray-200);
@@ -486,7 +638,7 @@ body {
   padding: 7px 10px;
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   color: var(--gray-700);
   cursor: pointer;
@@ -510,7 +662,7 @@ body {
 
 .projects-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -548,6 +700,12 @@ body {
   animation: spinner-rotate 0.8s linear infinite;
 }
 
+@media (max-width: 1200px) {
+  .projects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .projects-grid {
     grid-template-columns: 1fr;
@@ -555,7 +713,7 @@ body {
 }
 
 .project-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -624,7 +782,7 @@ body {
   justify-content: center;
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
   color: var(--gray-500);
   font-size: 12px;
   line-height: 1;
@@ -806,7 +964,7 @@ body {
 }
 
 .kanban-column {
-  background: rgba(255,255,255,0.7);
+  background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
@@ -843,6 +1001,7 @@ body {
   min-height: auto;
   cursor: pointer;
   border-radius: var(--radius-lg);
+  flex: 1;
 }
 
 .kanban-archive-hint {
@@ -860,11 +1019,18 @@ body {
   text-align: center;
 }
 
+.kanban-column-archive:not(.kanban-column-archive-open) .column-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+}
+
 .kanban-archive-note {
-  padding: 4px 14px 14px;
   font-size: 12px;
   color: var(--gray-400);
   text-align: center;
+  padding: 14px;
 }
 
 .kanban-column-archive-open .kanban-archive-note {
@@ -916,7 +1082,7 @@ body {
 
 /* ===== Track Card ===== */
 .track-card {
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-md);
   padding: 10px 12px;
   border: 1px solid var(--gray-200);
@@ -1206,7 +1372,7 @@ body {
   grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr auto;
   gap: 16px;
   align-items: center;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   padding: 14px 18px;
@@ -1286,7 +1452,7 @@ body {
   text-align: center;
   color: var(--gray-400);
   padding: 60px 20px;
-  background: #fff;
+  background: var(--surface);
   border: 1px dashed var(--gray-300);
   border-radius: var(--radius-md);
 }
@@ -1308,7 +1474,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   padding: 20px;
@@ -1321,7 +1487,7 @@ body {
   height: 48px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--blue-700), var(--blue-500));
-  color: #fff;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1389,7 +1555,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15,23,42,0.5);
+  background: var(--overlay-bg);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -1399,7 +1565,7 @@ body {
 }
 
 .track-form-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 640px;
@@ -1422,7 +1588,7 @@ body {
   border-bottom: 1px solid var(--gray-200);
   position: sticky;
   top: 0;
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
@@ -1483,7 +1649,15 @@ body {
   font-size: 14px;
   outline: none;
   font-family: inherit;
+  /* Без явного фона поля остаются белыми в тёмной теме */
+  background-color: var(--surface);
+  color: var(--gray-900);
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: var(--gray-400);
 }
 
 .form-group textarea {
@@ -1545,7 +1719,7 @@ body {
   height: 22px;
   border-radius: 50%;
   border: 2px solid var(--gray-300);
-  background: #fff;
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1772,7 +1946,7 @@ body {
   grid-template-columns: 36px 56px 1fr auto auto;
   gap: 14px;
   align-items: center;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   padding: 10px 16px;
@@ -1812,7 +1986,7 @@ body {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 800;
   font-size: 12px;
 }
@@ -1885,7 +2059,7 @@ body {
 }
 
 .deck-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -2019,7 +2193,7 @@ body {
   font-weight: 700;
   padding: 3px 9px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -2118,7 +2292,7 @@ body {
 }
 
 .project-create-form {
-  background: rgba(255,255,255,0.9);
+  background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   padding: 20px;
@@ -2138,7 +2312,7 @@ body {
 }
 
 .project-card {
-  background: rgba(255,255,255,0.9);
+  background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
@@ -2275,7 +2449,7 @@ body {
 }
 
 .tracks-tab.active {
-  background: #fff;
+  background: var(--surface);
   color: var(--gray-800);
   box-shadow: var(--shadow-sm);
 }
@@ -2285,7 +2459,7 @@ body {
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-sm);
   font-size: 14px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .albums-list {
@@ -2297,7 +2471,7 @@ body {
 .album-card {
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -2472,7 +2646,7 @@ body {
   line-height: 22.5px;
   min-width: 0;
   overflow-wrap: anywhere;
-  padding: 0 8px;
+  padding: 0;
 }
 
 .album-header {
@@ -2544,7 +2718,7 @@ body {
   gap: 8px;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   cursor: pointer;
 }
@@ -2598,7 +2772,7 @@ body {
   color: var(--gray-400);
   font-weight: 800;
   background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .at-cover-change {
@@ -2655,7 +2829,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 0;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
@@ -2774,14 +2948,37 @@ body {
   justify-content: center;
 }
 
-.at-upload-uploading {
-  background: #d97706;
-  cursor: help;
-}
-
 .at-upload-error {
   background: #b91c1c;
   cursor: help;
+}
+
+/* Download cancel spinner + button */
+.at-download-cancel-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.at-download-spinner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+.at-download-cancel-icon {
+  position: relative;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  z-index: 1;
 }
 
 .at-artists {
@@ -2976,14 +3173,22 @@ body {
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   background: var(--gray-50);
-  margin-bottom: 14px;
   flex-wrap: wrap;
-  position: sticky;
-  top: 60px;
-  z-index: 5;
 }
 
-.album-track-list .shipped-player {
+.sp-sticky {
+  position: sticky;
+  top: 56px;
+  z-index: 5;
+  margin-bottom: 14px;
+}
+
+.sp-sticky:has(.sp-drawer) .shipped-player {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.album-track-list .sp-sticky {
   position: static;
   top: auto;
 }
@@ -2999,7 +3204,7 @@ body {
   height: 34px;
   border-radius: 50%;
   border: 1px solid var(--gray-300);
-  background: #fff;
+  background: var(--surface);
   color: var(--gray-700);
   font-size: 14px;
   line-height: 1;
@@ -3171,11 +3376,12 @@ body {
 .sp-drawer {
   width: 100%;
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  background: #fff;
-  margin-bottom: 14px;
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--surface);
   max-height: 320px;
   overflow-y: auto;
+  box-shadow: var(--shadow-md);
 }
 
 .sp-list {
@@ -3374,7 +3580,7 @@ body {
 .gate-block {
   text-align: center;
   padding: 80px 20px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   max-width: 520px;
@@ -3403,7 +3609,7 @@ body {
 }
 
 .profile-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -3494,7 +3700,7 @@ body {
 }
 
 .admin-section {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   padding: 16px;
@@ -3796,6 +4002,145 @@ body {
   }
 }
 
+/* ============================================================================
+   Теги даты на карточке задачи (Фаза 2)
+   Цвет зависит от срочности: просрочено — красный, не просрочено — золото.
+   ========================================================================== */
+
+/* Компактная плашка с датой в шапке карточки */
+.track-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+/* Плашка даты: просрочено — красный, НЕ просрочено — золотой.
+   Золото здесь работает как сигнал «всё под контролем». */
+.track-due-overdue {
+  background: rgba(224, 49, 49, .14);
+  color: var(--red-600);
+  border-color: rgba(224, 49, 49, .35);
+}
+.track-due-today {
+  background: var(--gold-100);
+  color: var(--gold-700);
+  border-color: var(--gold-400);
+}
+.track-due-soon {
+  background: var(--gold-50);
+  color: var(--gold-600);
+  border-color: var(--gold-300);
+}
+.track-due-far {
+  background: transparent;
+  color: var(--gold-600);
+  border-color: var(--gold-400);
+}
+
+/* Текстовая метка в подвале карточки: «сегодня», «через 2 д.» */
+.track-due-label {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.track-due-label.track-due-overdue { color: var(--red-600); background: none; border-color: transparent; }
+.track-due-label.track-due-today { color: var(--gold-700); background: none; border-color: transparent; }
+.track-due-label.track-due-soon { color: var(--gold-600); background: none; border-color: transparent; }
+.track-due-label.track-due-far { color: var(--gold-600); background: none; border-color: transparent; }
+
+/* Чекбоксы выбора напоминаний о сроке (Фаза 2) */
+.remind-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px;
+}
+.remind-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.remind-check:hover { border-color: var(--blue-400); }
+.remind-check.on {
+  border-color: var(--blue-500);
+  background: var(--blue-50);
+  color: var(--gray-900);
+}
+.remind-check input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .remind-checks { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============================================================================
+   ТЁМНАЯ ТЕМА: элементы формы и мелочи
+   Браузер рисует input/select/textarea системными цветами — без этих
+   правил поля и выпадающие списки остались бы белыми на чёрном фоне.
+   ========================================================================== */
+
+/* Любые поля вне .form-group (фильтры, комбобоксы, даты) */
+input:not([type='checkbox']):not([type='radio']):not([type='file']),
+select,
+textarea {
+  background-color: var(--surface);
+  color: var(--gray-900);
+  border-color: var(--gray-300);
+}
+/* Иконка календаря у date/time — иначе тёмная на тёмном фоне */
+[data-theme='dark'] input[type='date'],
+[data-theme='dark'] input[type='datetime-local'],
+[data-theme='dark'] input[type='time'] {
+  color-scheme: dark;
+}
+/* Варианты выпадающего списка (цвет системный) */
+[data-theme='dark'] select option {
+  background: var(--surface);
+  color: var(--gray-900);
+}
+/* Чекбоксы/радио — красный акцент */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--blue-600);
+}
+/* Скроллбары в тёмной теме */
+[data-theme='dark'] ::-webkit-scrollbar { width: 10px; height: 10px; }
+[data-theme='dark'] ::-webkit-scrollbar-track { background: var(--surface-inset); }
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 5px;
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
+/* Выделение текста */
+::selection {
+  background: var(--blue-100);
+  color: var(--gray-900);
+}
+[data-theme='dark'] ::selection {
+  background: var(--blue-600);
+  color: var(--on-accent);
+}
+
 /* ===== Combobox (person selector) ===== */
 .combobox {
   position: relative;
@@ -3812,7 +4157,7 @@ body {
   right: 0;
   max-height: 200px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
@@ -3870,7 +4215,7 @@ body {
   height: 30px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--blue-800), var(--blue-600));
-  color: #fff;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3888,7 +4233,7 @@ body {
   right: 0;
   top: calc(100% + 6px);
   min-width: 200px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -3964,15 +4309,23 @@ body {
   top: calc(100% + 6px);
   width: 320px;
   max-width: calc(100vw - 24px);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 45;
-  overflow: hidden;
+  overflow-x: hidden;
+  /* Длинный список уведомлений листается (на тач-устройствах — пальцем) */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: min(70vh, 520px);
 }
 
 .notif-header {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4079,7 +4432,11 @@ body {
   flex-shrink: 0;
 }
 
-/* ===== Toast ===== */
+/* ===== Toast =====
+   Фон и текст тоста инвертируются вместе с темой: в светлой тёмный фон
+   со светлым текстом, в тёмной — светлый фон с тёмным. Текст берём из
+   --gray-50 (светлый в светлой теме, почти чёрный в тёмной), поэтому он
+   всегда контрастен фону --gray-800 и не был белым по белому. */
 .toast {
   position: fixed;
   bottom: 20px;
@@ -4087,7 +4444,7 @@ body {
   transform: translateX(-50%);
   max-width: 90vw;
   background: var(--gray-800);
-  color: #fff;
+  color: var(--gray-50);
   padding: 12px 18px;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -4106,7 +4463,7 @@ body {
   max-width: 520px;
   margin: 80px auto;
   padding: 24px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   text-align: center;
@@ -4214,7 +4571,7 @@ body {
   padding: 40px;
   text-align: center;
   color: var(--gray-500);
-  background: #fff;
+  background: var(--surface);
   border: 1px dashed var(--gray-300);
   border-radius: var(--radius-lg);
   font-size: 14px;
@@ -4227,7 +4584,7 @@ body {
 }
 
 .beat-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -4639,7 +4996,7 @@ body {
 
 .archive-folder {
   border: 1px solid var(--gray-200);
-  background: #fff;
+  background: var(--surface);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 13px;
@@ -4654,6 +5011,99 @@ body {
 }
 
 .archive-folder.active {
+
+
+/* ===== Окно импорта: персональные тумблеры Трек/Бит ===== */
+
+/* Секции внутри окна импорта: «Новые» + «Дубликаты» */
+.dup-section + .dup-section {
+  margin-top: 18px;
+}
+.dup-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dup-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.dup-kind-actions {
+  display: flex;
+  gap: 4px;
+}
+.btn-link-small {
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  color: var(--gray-700);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-link-small:hover {
+  background: var(--gray-100);
+}
+.dup-empty {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+.dup-item-new {
+  cursor: default;
+}
+.dup-item-new .dup-item-info {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.dup-item-cover {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Персональный тумблер Трек/Бит у каждого элемента */
+.dup-item-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--gray-600);
+  flex-shrink: 0;
+}
+.dup-item-kind-label {
+  margin-right: 2px;
+}
+.dup-kind-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 8px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  background: var(--gray-50);
+  font-size: 12px;
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dup-kind-btn:hover {
+  background: var(--gray-100);
+}
+.dup-kind-btn.active {
+  background: var(--surface);
+  border-color: var(--blue-600);
+  color: var(--blue-600);
+  font-weight: 600;
+}
   background: var(--blue-600);
   border-color: var(--blue-600);
   color: #fff;
@@ -4695,7 +5145,7 @@ body {
 }
 
 .release-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -4748,6 +5198,24 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-track-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.project-track-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.release-card-artist {
+  font-size: 13px;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .release-card-meta {
@@ -4818,6 +5286,33 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+/* Кнопка удаления карточки проекта (в шапке карточки) */
+.release-card-delete {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Клик по блоку версии открывает окно изменения версии */
+.release-version-clickable {
+  cursor: pointer;
+}
+
+.release-version-clickable:hover {
+  border-color: var(--blue-300, #93c5fd);
+  background: var(--gray-50);
+}
+
+/* Чип версии проекта: «Основной» — зелёный, «Другая версия» — жёлтый */
+.project-variant-chip-main {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green-600);
+}
+
+.project-variant-chip-other {
+  background: rgba(245, 158, 11, 0.18);
+  color: #a16207;
 }
 
 .release-version-zip {
@@ -5068,10 +5563,10 @@ body {
   color: var(--blue-800);
 }
 
-/* ===== Отступ количества битов под названием сборника ===== */
+/* ===== Подпись количества битов под названием сборника ===== */
 .album-subtitle {
   margin: 2px 0 0;
-  padding: 0 8px;
+  padding: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--gray-500);
@@ -5260,7 +5755,7 @@ body {
   color: var(--gray-800);
 }
 .dup-destination-btn.active {
-  background: #fff;
+  background: var(--surface);
   color: var(--blue-600);
   box-shadow: var(--shadow-sm);
 }
@@ -5292,3 +5787,257 @@ body {
 }
 
 
+
+/* ===== iOS standalone (black-translucent): контент не уходит под статус-бар ===== */
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+  .app-header {
+    top: env(safe-area-inset-top);
+  }
+}
+
+/* ===== Новости приложения (Фаза 5) ===== */
+/* Отступ сверху даёт .app-main, снизу — от toolbar'а с «Фильтр:». */
+.news-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 16px;
+  max-width: 1200px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--gray-200);
+  border-left: 4px solid var(--blue-600);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.news-banner--current {
+  border-left-color: var(--green-500);
+}
+
+.news-banner-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  color: var(--blue-600);
+}
+
+.news-banner--current .news-banner-icon {
+  color: var(--green-500);
+}
+
+.news-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Вся строка — кнопка: нажатие раскрывает подробности. */
+.news-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.news-banner-head:disabled {
+  cursor: default;
+}
+
+.news-banner-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.news-banner-version {
+  flex-shrink: 0;
+  background: var(--blue-600);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.news-banner-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray-800);
+}
+
+.news-banner-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--gray-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-banner-caret {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--gray-400);
+  transition: transform .15s ease;
+}
+
+.news-banner-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.news-banner-head:not(:disabled):hover .news-banner-caret {
+  color: var(--gray-700);
+}
+
+.news-banner-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.news-banner-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--gray-600);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.news-banner-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  text-decoration: none;
+}
+
+/* Пока качается обновление, кнопка показывает, что идёт работа, а не
+   приглашает нажать — поэтому гасим наведение и курсор «нажми меня».
+   opacity выше, чем у .btn-primary:disabled, — плашка не должна терять
+   читаемость надписи на красной кнопке. */
+.news-banner-download:disabled {
+  opacity: 0.7;
+  cursor: progress;
+  transform: none;
+  box-shadow: none;
+}
+
+.news-banner-install-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--crimson-red);
+}
+
+.news-banner-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--gray-400);
+  cursor: pointer;
+}
+
+.news-banner-close:hover {
+  color: var(--crimson-red);
+  background: var(--surface-2);
+}
+
+/* убликация новостей (админка → вкладка «овости») */
+.news-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.news-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--gray-800);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.news-input:focus {
+  outline: none;
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.news-textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.news-form-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.news-version {
+  width: 180px;
+}
+
+.news-admin-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.news-admin-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.news-admin-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray-800);
+}
+
+.news-admin-text {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--gray-600);
+  white-space: pre-wrap;
+}
+
+.news-admin-date {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-400);
+}

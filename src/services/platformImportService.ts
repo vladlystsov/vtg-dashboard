@@ -1,6 +1,7 @@
 import { createTrack, updateTrack } from './trackService';
+import { createBeat } from './beatsService';
 import type { Track } from '../types/track';
-import { youtubeVideoId } from '../types/track';
+import { detectPlatform, youtubeVideoId } from '../types/track';
 import { parseTrackCollaborators } from './collabParser';
 
 export interface ImportedItem {
@@ -8,12 +9,14 @@ export interface ImportedItem {
   url: string;
   author: string;
   thumbnail?: string;
-  /** Со-артисты из шапки названия («A x B — Song»). */
+  /** Со-артисты из шапки названия («A x B — Song») и со-кредитов (publisher_artist). */
   extraArtists?: string[];
   /** Участники «feat. / ft. / при участии». */
   feat?: string[];
   /** «prod by …» → битмейкеры. */
   beatmakers?: string[];
+  /** «mixed by …» → микс-инженеры. */
+  mixers?: string[];
 }
 
 export interface PlatformImportResult {
@@ -26,6 +29,8 @@ export interface PlatformImportResult {
 interface ImportOptions {
   uid: string;
   existingTracks: Track[];
+  /** Имя изготовителя бита (из профиля): пишется в записи бита. */
+  beatmakerName?: string;
 }
 
 export function isYouTubeHost(url: string): boolean {
@@ -165,6 +170,16 @@ const SOUNDCLOUD_PROFILE_SECTIONS = /^(tracks|likes|reposts|comments|followers|f
 const SOUNDCLOUD_PROFILE_PROXY =
   (import.meta.env.VITE_SOUNDCLOUD_PROXY_URL as string | undefined)?.trim() || '/api/soundcloud-profile';
 
+/**
+ * Адрес serverless-прокси импорта каналов YouTube (api/youtube-rss.mjs).
+ * RSS youtube.com и страницы каналов не отдают CORS браузеру, публичные
+ * CORS-прокси нестабильны — поэтому канал читает наша Vercel-функция.
+ * По умолчанию — тот же origin (SPA на Vercel); для GitHub Pages задайте
+ * VITE_YOUTUBE_PROXY_URL — полный URL функции.
+ */
+const YOUTUBE_RSS_PROXY =
+  (import.meta.env.VITE_YOUTUBE_PROXY_URL as string | undefined)?.trim() || '/api/youtube-rss';
+
 async function fetchJson(url: string, timeoutMs = 15000): Promise<any> {
   const text = await fetchTextWithCorsFallback(url, timeoutMs);
   return JSON.parse(text);
@@ -197,7 +212,10 @@ async function fetchTextWithCorsFallback(url: string, timeoutMs: number): Promis
   }
 }
 
-async function importViaYouTubeOEmbed(url: string): Promise<ImportedItem[]> {
+async function importViaYouTubeOEmbed(rawUrl: string): Promise<ImportedItem[]> {
+  // music.youtube.com/watch?v=… — тот же трек, oEmbed-эндпоинт принимает
+  // ссылки www.youtube.com, поэтому для запроса нормализуем хост.
+  const url = rawUrl.replace(/\/\/music\.youtube\.com\//i, '//www.youtube.com/');
   const j = await fetchJson(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
   const title = String(j.title || '').trim();
   const author = String(j.author_name || '').trim();
@@ -282,6 +300,7 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
   const dc = desc.trim() ? parseTrackCollaborators(desc, { mainAuthor: author, allowArtistSplit: false }) : null;
   const beatmakers = pc.beatmakers.length ? pc.beatmakers : dc?.beatmakers || [];
   const featNames = pc.feat.length ? pc.feat : dc?.feat || [];
+  const mixers = pc.mixers.length ? pc.mixers : dc?.mixers || [];
   // Со-артисты: из названия + из описания (для релизов с несколькими авторами)
   const extraArtists = [...pc.extraArtists];
   if (dc?.extraArtists.length) {
@@ -301,6 +320,7 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
         ...(extraArtists.length ? { extraArtists } : {}),
         ...(featNames.length ? { feat: featNames } : {}),
         ...(beatmakers.length ? { beatmakers } : {}),
+        ...(mixers.length ? { mixers } : {}),
       },
     ],
     type,
@@ -309,24 +329,70 @@ async function importViaSoundCloudOEmbed(url: string): Promise<SoundCloudEmbedRe
 
 /**
  * Резолвит YouTube handle (@handle) в channel ID через страницу канала.
+ * Хендлы могут существовать только на одном из хостов (YT Music и YouTube
+ * не всегда совпадают), поэтому пробуем оба: www, затем music.
  * Возвращает channel ID или null, если не удалось определить.
  */
 async function resolveYouTubeHandleToChannelId(handle: string): Promise<string | null> {
-  try {
-    const url = `https://www.youtube.com/@${handle}`;
-    const html = await fetchText(url, 15000);
-    // Ищем channel ID в meta-тегах или JSON-LD
-    const m1 = /"channelId"\s*:\s*"([A-Za-z0-9_-]+)"/.exec(html);
-    if (m1) return m1[1];
-    const m2 = /<meta\s+itemprop="channelId"\s+content="([A-Za-z0-9_-]+)"/i.exec(html);
-    if (m2) return m2[1];
-    // Ищем RSS link
-    const m3 = /<link\s+rel="alternate"\s+type="application\/rss\+xml"\s+href="[^"]+channel_id=([A-Za-z0-9_-]+)"/i.exec(html);
-    if (m3) return m3[1];
-    return null;
-  } catch {
-    return null;
+  for (const host of ['www.youtube.com', 'music.youtube.com']) {
+    try {
+      const url = `https://${host}/@${encodeURIComponent(handle)}`;
+      const html = await fetchText(url, 15000);
+      // Ищем channel ID в meta-тегах или JSON-LD
+      const m1 = /"channelId"\s*:\s*"([A-Za-z0-9_-]+)"/.exec(html);
+      if (m1) return m1[1];
+      const m2 = /<meta\s+itemprop="channelId"\s+content="([A-Za-z0-9_-]+)"/i.exec(html);
+      if (m2) return m2[1];
+      // Ищем RSS link
+      const m3 = /<link\s+rel="alternate"\s+type="application\/rss\+xml"\s+href="[^"]+channel_id=([A-Za-z0-9_-]+)"/i.exec(html);
+      if (m3) return m3[1];
+      const m4 = /"externalId"\s*:\s*"(UC[A-Za-z0-9_-]+)"/.exec(html);
+      if (m4) return m4[1];
+    } catch {
+      // пробуем следующий хост
+    }
   }
+  return null;
+}
+
+/**
+ * Импорт канала через наш serverless-прокси (api/youtube-rss.mjs):
+ * серверно резолвит channel ID (включая @handle и music.youtube.com) и
+ * читает RSS. Основной путь — RSS/публичные CORS-прокси нестабильны.
+ * При недоступности прокси — фолбэк на старый путь (RSS через CORS-фолбэк).
+ */
+async function importYouTubeChannelViaProxy(rawUrl: string): Promise<ImportedItem[]> {
+  const endpoint = new URL(YOUTUBE_RSS_PROXY, window.location.origin);
+  endpoint.searchParams.set('url', rawUrl);
+  const res = await Promise.race<Response>([
+    fetch(endpoint.toString()),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('таймаут')), 25000)),
+  ]);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    let detail = '';
+    try {
+      detail = String(JSON.parse(body)?.error || '');
+    } catch {
+      detail = body;
+    }
+    throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
+  }
+  const data = await res.json();
+  const raw: any[] = Array.isArray(data?.items) ? data.items : [];
+  const out: ImportedItem[] = [];
+  for (const t of raw) {
+    const title = String(t?.title || '').trim();
+    const url = String(t?.url || '').trim();
+    if (!title || !/^https:\/\/(www\.)?youtube\.com\/watch/i.test(url)) continue;
+    out.push({
+      title,
+      url,
+      author: String(t?.author || '').trim() || 'YouTube',
+      thumbnail: t?.thumbnail ? String(t.thumbnail) : undefined,
+    });
+  }
+  return out;
 }
 
 async function importYouTubeChannelRss(channelIdOrHandle: string): Promise<ImportedItem[]> {
@@ -485,6 +551,12 @@ export async function updateTracksFromItems(pairs: ExistingTrackMatch[]): Promis
       beatmakerUids: beatmakers.map(() => ''),
       feat: (item.feat || []).join(', '),
     };
+    // Микс-инженеры перезаписываем только если площадка их указала — иначе
+    // сотрём вручную проставленные mix by.
+    if ((item.mixers || []).length) {
+      patch.mixBy = item.mixers!.slice();
+      patch.mixByUids = item.mixers!.map(() => '');
+    }
     if (item.thumbnail?.trim()) patch.coverUrl = item.thumbnail.trim();
     if (!track.platformUrl?.trim()) patch.platformUrl = sanitizePlatformUrl(item.url);
     try {
@@ -526,8 +598,8 @@ export async function persistItems(items: ImportedItem[], opts: ImportOptions): 
       artistUids: authors.map(() => ''),
       beatmakers,
       beatmakerUids: beatmakers.map(() => ''),
-      mixBy: [],
-      mixByUids: [],
+      mixBy: (it.mixers || []).slice(),
+      mixByUids: (it.mixers || []).map(() => ''),
       feat: (it.feat || []).join(', '),
       project: '',
       // Импортированные треки оставляем только в разделе «Отгружено»:
@@ -552,6 +624,37 @@ export async function persistItems(items: ImportedItem[], opts: ImportOptions): 
   return imported;
 }
 
+/**
+ * Сохраняет импортированные элементы как биты (коллекция «beats»).
+ * Отличается от persistItems полями бита: beatmaker, статус «published»,
+ * платформа-источник и т.д.
+ */
+export async function persistBeats(items: ImportedItem[], opts: ImportOptions): Promise<number> {
+  let imported = 0;
+  for (const it of items) {
+    if (!it.author.trim()) continue;
+    const artists = dedupeNames([it.author.trim(), ...(it.extraArtists || [])]);
+    try {
+      await createBeat({
+        title: it.title.trim(),
+        artists,
+        artistUids: artists.map(() => ''),
+        platformUrl: sanitizePlatformUrl(it.url),
+        platform: detectPlatform(it.url),
+        coverUrl: it.thumbnail?.trim() || undefined,
+        beatmakerUid: opts.uid,
+        beatmakerName: opts.beatmakerName?.trim() || it.author.trim(),
+        status: 'published',
+        createdBy: opts.uid,
+      });
+      imported++;
+    } catch {
+      // отдельный бит не критичен — продолжаем остальные
+    }
+  }
+  return imported;
+}
+
 export async function fetchYouTubeItems(input: string): Promise<{ items: ImportedItem[]; warnings: string[] }> {
   const warnings: string[] = [];
   const urls = parsePlatformLinks(input, 'youtube');
@@ -564,35 +667,43 @@ export async function fetchYouTubeItems(input: string): Promise<{ items: Importe
   const items: ImportedItem[] = [];
   for (const trimmed of urls) {
     try {
-      // YouTube Music: плейлист или видео
-      if (isYouTubeMusicUrl(trimmed)) {
+      const vid = youtubeVideoId(trimmed);
+      // Канал: /channel/ID, /c/имя, /@handle — и на www.youtube.com, и на
+      // music.youtube.com (ID каналов и хендлы у них общие). Проверяем канал
+      // ДО ветки YouTube Music: иначе ссылки вида music.youtube.com/channel/…
+      // и music.youtube.com/@handle попадают в music-ветку (плейлист/видео),
+      // которая для каналов всегда пуста.
+      const channelId = vid ? null : extractYouTubeChannelId(trimmed);
+      if (vid) {
+        const o = await importViaYouTubeOEmbed(trimmed);
+        if (o.length === 0) warnings.push(`YouTube не вернул данные по видео «${trimmed}».`);
+        items.push(...o);
+      } else if (channelId) {
+        try {
+          // Основной путь — наш serverless-прокси (надёжен из браузера).
+          let rss: ImportedItem[] = [];
+          try {
+            rss = await importYouTubeChannelViaProxy(trimmed);
+          } catch {
+            // Фолбэк: RSS напрямую/через публичный CORS-прокси.
+            rss = await importYouTubeChannelRss(channelId);
+          }
+          if (rss.length === 0) warnings.push(`В канале «${trimmed}» не найдено видео.`);
+          items.push(...rss);
+        } catch {
+          warnings.push(
+            `Не удалось загрузить список видео канала «${trimmed}». Проверьте ссылку и интернет или импортируйте одиночные ссылки на видео.`
+          );
+        }
+      } else if (isYouTubeMusicUrl(trimmed)) {
+        // YouTube Music: плейлист (list=…) или страница без стандартного watch?v=
         const musicItems = await fetchYouTubeMusicItems(trimmed);
         if (musicItems.length === 0) {
           warnings.push(`YouTube Music не вернул данные по «${trimmed}».`);
         }
         items.push(...musicItems);
-        continue;
-      }
-      const vid = youtubeVideoId(trimmed);
-      if (vid) {
-        const o = await importViaYouTubeOEmbed(trimmed);
-        if (o.length === 0) warnings.push(`YouTube не вернул данные по видео «${trimmed}».`);
-        items.push(...o);
       } else {
-        const channelId = extractYouTubeChannelId(trimmed);
-        if (!channelId) {
-          warnings.push(`Ссылка «${trimmed}» должна быть на видео (watch?v=...), канал вида .../channel/ID, .../@handle или YouTube Music.`);
-        } else {
-          try {
-            const rss = await importYouTubeChannelRss(channelId);
-            if (rss.length === 0) warnings.push(`В канале «${trimmed}» не найдено видео.`);
-            items.push(...rss);
-          } catch {
-            warnings.push(
-              `Не удалось загрузить список видео канала «${trimmed}». Проверьте ссылку и интернет или импортируйте одиночные ссылки на видео.`
-            );
-          }
-        }
+        warnings.push(`Ссылка «${trimmed}» должна быть на видео (watch?v=...), канал (.../channel/ID, .../@handle) или YouTube Music.`);
       }
     } catch (e: any) {
       warnings.push(`YouTube: ${e?.message || 'сеть недоступна'}. Проверьте ссылку «${trimmed}» и интернет.`);
@@ -698,14 +809,37 @@ async function fetchSoundCloudProfileItems(
     seen.add(key);
     const author = String(t?.author || '').trim() || 'SoundCloud';
     const pc = parseTrackCollaborators(title, { mainAuthor: author });
+    // Со-кредиты SoundCloud (publisher_artist из прокси): «FLEXXXY & DZZZY» и
+    // т.п. — полноценные со-артисты, даже если их нет в заголовке.
+    const extraArtists = [...pc.extraArtists];
+    const addExtra = (name: string): void => {
+      const v = String(name || '').trim();
+      if (!v || v.length > 40 || /https?:|prod/i.test(v)) return;
+      const k = v.toLowerCase();
+      if (k === author.toLowerCase()) return;
+      if (extraArtists.some((x) => x.toLowerCase() === k)) return;
+      extraArtists.push(v);
+    };
+    const publisherArtist = String(t?.publisherArtist || '').trim();
+    if (publisherArtist) {
+      for (const name of publisherArtist.split(/\s*(?:,|&|\/|\+|\b×\b|\bx\b)\s*/i)) addExtra(name);
+    }
+    // Описание трека: «prod by …», feat прописью, со-артисты — как в oEmbed-пути.
+    const desc = String(t?.description || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    const dc = desc.trim() ? parseTrackCollaborators(desc, { mainAuthor: author, allowArtistSplit: false }) : null;
+    const beatmakers = pc.beatmakers.length ? pc.beatmakers : dc?.beatmakers || [];
+    const featNames = pc.feat.length ? pc.feat : dc?.feat || [];
+    const mixers = pc.mixers.length ? pc.mixers : dc?.mixers || [];
+    for (const a of dc?.extraArtists || []) addExtra(a);
     items.push({
       title,
       url: sanitizePlatformUrl(url),
       author,
       thumbnail: t?.thumbnail ? String(t.thumbnail) : undefined,
-      ...(pc.extraArtists.length ? { extraArtists: pc.extraArtists } : {}),
-      ...(pc.feat.length ? { feat: pc.feat } : {}),
-      ...(pc.beatmakers.length ? { beatmakers: pc.beatmakers } : {}),
+      ...(extraArtists.length ? { extraArtists } : {}),
+      ...(featNames.length ? { feat: featNames } : {}),
+      ...(beatmakers.length ? { beatmakers } : {}),
+      ...(mixers.length ? { mixers } : {}),
     });
   }
   const profileLabel = String(data?.user?.username || data?.user?.permalink || profileUrl);

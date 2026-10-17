@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Track, ChecklistItem, KanbanColumn, ReleaseType, UserProfile, ProjectVariant, ProjectVocalType, ProjectDaw } from '../types/track';
-import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform, youtubeVideoId, PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS, PROJECT_VOCAL_TYPES, PROJECT_DAW_LABELS, PROJECT_DAWS } from '../types/track';
+import { CHECKLIST_TEMPLATES, KANBAN_COLUMNS, RELEASE_TYPE_LABELS, asArray, detectPlatform, youtubeVideoId, PROJECT_VARIANT_LABELS, PROJECT_VOCAL_TYPE_LABELS, PROJECT_VOCAL_TYPES, PROJECT_DAW_LABELS, PROJECT_DAWS, REMIND_OFFSETS, DEFAULT_REMIND_OFFSETS } from '../types/track';
 import { PlatformPlayer } from './TracksListView';
 import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,6 +20,19 @@ interface TrackFormProps {
 }
 
 const CHECKLIST_STATUS_ORDER: ChecklistItem['status'][] = ['pending', 'in_progress', 'done', 'review', 'verified'];
+
+/**
+ * ISO → значение для <input type="datetime-local"> в локальном времени.
+ * toISOString() даёт UTC и «съезжает» на несколько часов, поэтому
+ * собираем строку из локальных get*().
+ */
+function toLocalInputValue(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 async function withTimeout<T>(p: Promise<T>, ms = 15000, label = 'операция'): Promise<T> {
   return Promise.race([
@@ -185,6 +198,11 @@ export default function TrackForm({
   const [personalCoverFile, setPersonalCoverFile] = useState<File | null>(null);
   const [personalCoverUrl, setPersonalCoverUrl] = useState(initialTrack?.personalCoverUrl || '');
   const [personalCoverPreview, setPersonalCoverPreview] = useState<string | null>(initialTrack?.personalCoverUrl || null);
+  // Срок сдачи задачи и напоминания о нём (Фаза 2)
+  const [dueDate, setDueDate] = useState(toLocalInputValue(initialTrack?.dueDate));
+  const [remindOffsets, setRemindOffsets] = useState<number[]>(
+    initialTrack?.remindOffsets?.length ? initialTrack.remindOffsets : DEFAULT_REMIND_OFFSETS
+  );
 
   const hasProject = !!project;
   const prevProject = useRef(project);
@@ -438,6 +456,12 @@ export default function TrackForm({
         projectDaw,
         projectDawVersion: projectDawVersion.trim() || undefined,
         personalCoverUrl: finalPersonalCoverUrl.trim() || undefined,
+        // Срок сдачи и напоминания (Фаза 2). Без срока поля не пишем,
+        // чтобы в Firestore не копились пустые значения.
+        ...(dueDate ? {
+          dueDate: new Date(dueDate).toISOString(),
+          remindOffsets: remindOffsets.slice().sort((a, b) => a - b),
+        } : {}),
         ...(projectZipFile ? {
           projectZipStatus: 'uploading' as const,
           projectZipError: undefined,
@@ -914,6 +938,50 @@ export default function TrackForm({
           {status === 'completed' && (
             <div className="form-hint">При сохранении все пункты чек-листа будут помечены как Verified.</div>
           )}
+        </div>
+
+        <div className="form-section">
+          <h3>Срок сдачи</h3>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Срок сдачи</label>
+              <input
+                type="datetime-local"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Напомнить за</label>
+            <div className="remind-checks">
+              {REMIND_OFFSETS.map(({ hours, label }) => (
+                <label
+                  key={hours}
+                  className={`remind-check ${remindOffsets.includes(hours) ? 'on' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={remindOffsets.includes(hours)}
+                    onChange={(e) =>
+                      setRemindOffsets((prev) =>
+                        e.target.checked
+                          ? [...prev, hours].sort((a, b) => a - b)
+                          : prev.filter((h) => h !== hours)
+                      )
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <div className="form-hint">
+              {dueDate
+                ? 'Приложение пришлёт уведомление на телефон за выбранное время до срока.'
+                : 'Сначала укажите срок сдачи — тогда напоминания будут работать.'}
+            </div>
+          </div>
         </div>
 
         <div className="form-section">

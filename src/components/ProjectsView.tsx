@@ -25,16 +25,13 @@ interface ProjectsViewProps {
   ) => Promise<string | undefined>;
   onDelete: (id: string) => Promise<void>;
   onUpdateTrack: (id: string, patch: Partial<Track>) => Promise<void>;
+  onOpenTrack?: (track: Track) => void;
 }
 
 function projectTrackIds(p: Project): string[] {
   const ids = Array.isArray(p.trackIds) ? p.trackIds : [];
   const legacy = Array.isArray(p.tracks) ? p.tracks.filter((x): x is string => typeof x === 'string') : [];
   return Array.from(new Set([...ids, ...legacy]));
-}
-
-function overlap(a: string[], b: string[]): boolean {
-  return a.some((x) => b.includes(x));
 }
 
 interface VersionFormState {
@@ -46,7 +43,6 @@ interface VersionFormState {
   daw: ProjectDaw;
   dawVersion: string;
   stage: ProjectStage;
-  active: boolean;
   zipFile: File | null;
   description: string;
   genre: string;
@@ -67,7 +63,6 @@ function emptyForm(preselectedTrackIds: string[] = [], preselectedTitle = ''): V
     daw: 'fl',
     dawVersion: DEFAULT_DLD_VERSION,
     stage: 'mixing',
-    active: true,
     zipFile: null,
     description: '',
     genre: '',
@@ -86,12 +81,16 @@ export default function ProjectsView({
   onSave,
   onDelete,
   onUpdateTrack,
+  onOpenTrack,
 }: ProjectsViewProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingCardTrackId, setDeletingCardTrackId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [zipError, setZipError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [modal, setModal] = useState<VersionFormState | null>(null);
+  const [trackSearch, setTrackSearch] = useState('');
   const [savingVersion, setSavingVersion] = useState(false);
 
   const uploadControllers = useRef(new Map<string, AbortController>());
@@ -176,6 +175,29 @@ export default function ProjectsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, projects]);
 
+  const trackArtistName = (t: Track): string =>
+    asArray(t.artists).map((a) => String(a)).filter(Boolean)[0] ||
+    userMap.get(t.artistUids?.[0] || '')?.artistName ||
+    '';
+
+  // Фильтрация карточек по поисковому запросу: название трека, артист,
+  // сборник, названия версий проекта.
+  const visibleProjectTracks = useMemo<Track[]>(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return projectTracks;
+    return projectTracks.filter((t) => {
+      const haystack = [
+        t.title,
+        t.project || '',
+        trackArtistName(t),
+        ...asArray(t.artists).map((a) => String(a)),
+        ...projectsForTrack(t).map((p) => p.name),
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectTracks, searchQuery, tracks, projects, userMap]);
+
   const publishZip = (
     savedProject: Project,
     file: File,
@@ -257,18 +279,6 @@ export default function ProjectsView({
     controller.abort();
   };
 
-  const deactivateOverlapping = async (self: Project | null, trackIds: string[]) => {
-    const others = projects.filter((p) => {
-      if (self && p.id === self.id) return false;
-      return overlap(projectTrackIds(p), trackIds);
-    });
-    for (const p of others) {
-      if (p.active) {
-        await onSave(p.id, { ...p, active: false } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
-      }
-    }
-  };
-
   const saveVersion = async () => {
     if (!modal) return;
     if (modal.trackIds.length === 0) {
@@ -293,7 +303,8 @@ export default function ProjectsView({
       daw: modal.daw,
       dawVersion: modal.dawVersion.trim() || undefined,
       stage: modal.stage,
-      active: modal.active,
+      // Роль «активной версии» выполняет вариант «Основной» (variant === 'main')
+      active: modal.variant === 'main',
       zipStatus: modal.zipFile ? ('uploading' as const) : undefined,
       description: modal.description.trim() || undefined,
       genre: modal.genre.trim() || undefined,
@@ -312,9 +323,6 @@ export default function ProjectsView({
     try {
       if (modal.editing) {
         await onSave(modal.editing.id, payload);
-        if (modal.active) {
-          await deactivateOverlapping(modal.editing, modal.trackIds);
-        }
         if (modal.zipFile) {
           publishZip({ ...modal.editing, ...payload } as Project, modal.zipFile, modal.trackIds);
         }
@@ -322,7 +330,6 @@ export default function ProjectsView({
         const id = await onSave(null, { ...payload, createdBy: '' });
         if (id) {
           const saved = { id, ...payload } as Project;
-          if (modal.active) await deactivateOverlapping(null, modal.trackIds);
           if (modal.zipFile) publishZip(saved, modal.zipFile, modal.trackIds);
         }
       }
@@ -330,15 +337,6 @@ export default function ProjectsView({
     } finally {
       setSavingVersion(false);
     }
-  };
-
-  const setActive = async (version: Project) => {
-    for (const p of projects) {
-      if (p.id !== version.id && p.active && overlap(projectTrackIds(p), projectTrackIds(version))) {
-        await onSave(p.id, { ...p, active: false } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
-      }
-    }
-    await onSave(version.id, { ...version, active: true } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
   };
 
   const renderZipSection = (p: Project) => {
@@ -367,26 +365,6 @@ export default function ProjectsView({
       return (
         <div className="project-zip project-zip-error">
           <span>{p.zipError || 'Ошибка публикации'}</span>
-          {!isVirtualProject(p) && (
-            <button type="button" className="btn-small-ghost" onClick={() => setModal({
-              ...emptyForm(projectTrackIds(p), p.name),
-              editing: p,
-              variant: p.variant || 'main',
-              vocalType: p.vocalType || '',
-              daw: p.daw || 'fl',
-              dawVersion: p.dawVersion || '',
-              stage: p.stage || 'mixing',
-              active: !!p.active,
-              description: p.description || '',
-              genre: p.genre || '',
-              tags: (p.tags || []).join(', '),
-              artists: (p.artists || []).join(', '),
-              coverUrl: p.coverUrl || '',
-              status: p.status || 'draft',
-            })}>
-              Заменить
-            </button>
-          )}
         </div>
       );
     }
@@ -402,26 +380,6 @@ export default function ProjectsView({
           >
             Скачать архив версии
           </DownloadButton>
-          {!isVirtualProject(p) && (
-            <button type="button" className="btn-small-ghost" onClick={() => setModal({
-              ...emptyForm(projectTrackIds(p), p.name),
-              editing: p,
-              variant: p.variant || 'main',
-              vocalType: p.vocalType || '',
-              daw: p.daw || 'fl',
-              dawVersion: p.dawVersion || '',
-              stage: p.stage || 'mixing',
-              active: !!p.active,
-              description: p.description || '',
-              genre: p.genre || '',
-              tags: (p.tags || []).join(', '),
-              artists: (p.artists || []).join(', '),
-              coverUrl: p.coverUrl || '',
-              status: p.status || 'draft',
-            })}>
-              Заменить
-            </button>
-          )}
         </div>
       );
     }
@@ -429,10 +387,12 @@ export default function ProjectsView({
   };
 
   const openNewVersion = (t?: Track) => {
+    setTrackSearch('');
     setModal(emptyForm(t ? [t.id] : [], t ? t.title : ''));
   };
 
   const openEditVersion = (p: Project) => {
+    setTrackSearch('');
     setModal({
       ...emptyForm(projectTrackIds(p), p.name),
       editing: p,
@@ -441,7 +401,6 @@ export default function ProjectsView({
       daw: p.daw || 'fl',
       dawVersion: p.dawVersion || '',
       stage: p.stage || 'mixing',
-      active: !!p.active,
       description: p.description || '',
       genre: p.genre || '',
       tags: (p.tags || []).join(', '),
@@ -451,10 +410,34 @@ export default function ProjectsView({
     });
   };
 
+  // Список треков для селектора в модалке версии (с поиском)
+  const trackSearchQuery = trackSearch.trim().toLowerCase();
+  const visibleTrackOptions = trackSearchQuery
+    ? tracks.filter((t) => {
+        const haystack = [
+          t.title,
+          t.project || '',
+          trackArtistName(t),
+          ...asArray(t.artists).map((a) => String(a)),
+        ].join(' ').toLowerCase();
+        return (
+          haystack.includes(trackSearchQuery) ||
+          String(t.trackNumber ?? '').includes(trackSearchQuery)
+        );
+      })
+    : tracks;
+
   return (
     <div className="projects-view">
       <div className="beats-head">
         <h2>Проекты</h2>
+        <input
+          className="beats-search"
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Поиск по названию трека, артисту, сборнику, версии…"
+        />
         <div className="projects-head-actions">
           <button className="btn-primary" onClick={() => openNewVersion()}>
             + Новая версия
@@ -469,16 +452,23 @@ export default function ProjectsView({
           Проектов пока нет. Каждый проект привязывается к одному конкретному треку
           (сингл или трек из сборника). Создайте первую версию проекта — и карточка трека появится здесь.
         </div>
+      ) : visibleProjectTracks.length === 0 ? (
+        <div className="beats-empty">
+          По запросу «{searchQuery.trim()}» ничего не найдено.
+        </div>
       ) : (
         <div className="projects-grid">
-          {projectTracks.map((t) => {
+          {visibleProjectTracks.map((t) => {
             const versions = projectsForTrack(t);
-            const trackArtist =
-              asArray(t.artists).map((a) => String(a)).filter(Boolean)[0] ||
-              userMap.get(t.artistUids?.[0] || '')?.artistName ||
-              '';
+            const trackArtist = trackArtistName(t);
             return (
-              <div className="release-card project-track-card" key={t.id}>
+              <div
+                className="release-card project-track-card"
+                key={t.id}
+                onClick={() => onOpenTrack?.(t)}
+                role={onOpenTrack ? 'button' : undefined}
+                title={onOpenTrack ? 'Открыть трек' : undefined}
+              >
                 <div className="release-card-cover">
                   {(t.personalCoverUrl || t.coverUrl) ? (
                     <img src={t.personalCoverUrl || t.coverUrl} alt="" />
@@ -491,20 +481,44 @@ export default function ProjectsView({
                 <div className="release-card-body">
                   <div className="release-card-header">
                     <span className="release-card-title" title={t.title}>{t.title}</span>
-                    <span className="column-count">{versions.length}</span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        className="at-delete release-card-delete"
+                        title="Удалить карточку проекта и все её версии"
+                        disabled={deletingCardTrackId === t.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!window.confirm(`Удалить карточку проекта «${t.title}» вместе со всеми версиями (${versions.length})?`)) return;
+                          setDeletingCardTrackId(t.id);
+                          void (async () => {
+                            for (const p of versions) {
+                              if (isVirtualProject(p)) continue;
+                              await onDelete(p.id);
+                            }
+                            // Убираем виртуальные версии (архивы, прикреплённые
+                            // к треку напрямую), чтобы карточка исчезла совсем.
+                            await onUpdateTrack(t.id, {
+                              projectZips: [],
+                              projectZipUrl: '',
+                              projectZipStatus: undefined,
+                              projectZipError: undefined,
+                            });
+                          })().finally(() => setDeletingCardTrackId(null));
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <div className="release-card-artist">
+                    {trackArtist || '—'}
                   </div>
                   {t.project && (
                     <div className="release-card-meta">
                       <span className="beat-chip">Сборник: {t.project}</span>
                     </div>
                   )}
-                  <div className="project-track-row project-track-row-own">
-                    <span className="project-track-title">
-                      {t.trackNumber ? `${t.trackNumber}. ` : ''}
-                      {t.title}
-                    </span>
-                    <span className="project-track-meta">{trackArtist || '—'}</span>
-                  </div>
 
                   <div className="project-card-section-title">Проекты ({versions.length})</div>
                   {versions.length === 0 ? (
@@ -514,28 +528,34 @@ export default function ProjectsView({
                   ) : (
                     <div className="release-versions">
                       {versions.map((p) => {
+                        const variantLabel = p.variant ? PROJECT_VARIANT_LABELS[p.variant] : '';
                         const chips = [
-                          p.variant ? PROJECT_VARIANT_LABELS[p.variant] : '',
                           p.vocalType ? PROJECT_VOCAL_TYPE_LABELS[p.vocalType] : '',
                           p.daw ? PROJECT_DAW_LABELS[p.daw] : '',
                           p.dawVersion ? `v${p.dawVersion}` : '',
                           p.stage ? PROJECT_STAGE_LABELS[p.stage] : '',
                         ].filter(Boolean);
                         return (
-                          <div className={`release-version ${p.active ? 'release-version-active' : ''}`} key={p.id}>
+                          <div
+                            className={`release-version ${canEdit && !isVirtualProject(p) ? 'release-version-clickable' : ''}`}
+                            key={p.id}
+                            title={canEdit && !isVirtualProject(p) ? 'Изменить версию' : undefined}
+                            onClick={(e) => {
+                              if (!canEdit || isVirtualProject(p)) return;
+                              // Клик по кнопкам/ссылкам внутри блока не открывает
+                              // редактирование и не всплывает до карточки трека
+                              if ((e.target as HTMLElement).closest('button, a')) {
+                                e.stopPropagation();
+                                return;
+                              }
+                              e.stopPropagation();
+                              openEditVersion(p);
+                            }}
+                          >
                             <div className="release-version-head">
                               <span className="release-version-name" title={p.name}>{p.name}</span>
-                              {p.active && <span className="beat-chip release-active-chip">активная</span>}
                               {canEdit && !isVirtualProject(p) && (
                                 <div className="release-version-actions">
-                                  {!p.active && (
-                                    <button type="button" className="btn-small-ghost" onClick={() => void setActive(p)}>
-                                      Сделать активной
-                                    </button>
-                                  )}
-                                  <button type="button" className="btn-small-ghost" onClick={() => openEditVersion(p)}>
-                                    Изменить
-                                  </button>
                                   <button
                                     type="button"
                                     className="at-delete"
@@ -552,8 +572,15 @@ export default function ProjectsView({
                                 </div>
                               )}
                             </div>
-                            {chips.length > 0 && (
+                            {(variantLabel || chips.length > 0) && (
                               <div className="release-version-chips">
+                                {variantLabel && (
+                                  <span
+                                    className={`beat-chip project-variant-chip ${p.variant === 'main' ? 'project-variant-chip-main' : 'project-variant-chip-other'}`}
+                                  >
+                                    {variantLabel}
+                                  </span>
+                                )}
                                 {chips.map((c) => <span className="beat-chip" key={c}>{c}</span>)}
                               </div>
                             )}
@@ -576,7 +603,15 @@ export default function ProjectsView({
                   )}
 
                   {canEdit && (
-                    <button type="button" className="btn-add-inline" onClick={() => openNewVersion(t)}>
+                    <button
+                      type="button"
+                      className="btn-add-inline"
+                      onClick={(e) => {
+                        // Не всплываем до карточки, иначе откроется трек
+                        e.stopPropagation();
+                        openNewVersion(t);
+                      }}
+                    >
                       + Новая версия проекта для «{t.title}»
                     </button>
                   )}
@@ -608,8 +643,15 @@ export default function ProjectsView({
 
               <div className="form-group">
                 <label>Трек, к которому привязывается версия проекта *</label>
+                <input
+                  type="text"
+                  value={trackSearch}
+                  onChange={(e) => setTrackSearch(e.target.value)}
+                  placeholder="Поиск трека: название, артист, сборник, номер…"
+                  style={{ marginBottom: 8 }}
+                />
                 <div className="release-multiselect">
-                  {tracks.map((t) => {
+                  {visibleTrackOptions.map((t) => {
                     const checked = modal.trackIds.includes(t.id);
                     const select = () => {
                       setModal({ ...modal, trackIds: checked ? [] : [t.id] });
@@ -624,6 +666,11 @@ export default function ProjectsView({
                       </label>
                     );
                   })}
+                  {visibleTrackOptions.length === 0 && tracks.length > 0 && (
+                    <div className="project-card-empty">
+                      По запросу «{trackSearch.trim()}» треки не найдены.
+                    </div>
+                  )}
                   {tracks.length === 0 && (
                     <div className="project-card-empty">Сначала создайте хотя бы один трек.</div>
                   )}
@@ -759,13 +806,6 @@ export default function ProjectsView({
                     {PROJECT_STAGES.map((s) => (
                       <option key={s} value={s}>{PROJECT_STAGE_LABELS[s]}</option>
                     ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Активная версия</label>
-                  <select value={modal.active ? '1' : '0'} onChange={(e) => setModal({ ...modal, active: e.target.value === '1' })}>
-                    <option value="1">Да (главная)</option>
-                    <option value="0">Нет</option>
                   </select>
                 </div>
               </div>

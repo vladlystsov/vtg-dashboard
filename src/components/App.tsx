@@ -21,6 +21,7 @@ import {
   subscribeToTracks,
   createTrack,
   updateTrack,
+  updateTrackFields,
   deleteTrack,
   moveTrack,
 } from '../services/trackService';
@@ -47,13 +48,19 @@ import {
   subscribeToBeats,
   createBeat,
   updateBeat,
+  updateBeatFields,
   deleteBeat,
 } from '../services/beatsService';
-import { publishBeatAudioInBackground } from '../services/b2StorageService';
+import {
+  publishBeatAudioInBackground,
+  deleteStorageFileByUrl,
+  storagePathFromUrl,
+} from '../services/b2StorageService';
 import {
   subscribeToProjects,
   createProject,
   updateProject,
+  updateProjectFields,
   deleteProject,
 } from '../services/projectsService';
 import {
@@ -64,6 +71,13 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
+import { collectDueReminders } from '../services/deadlineService';
+import { registerForPush, sendPushToUsers } from '../services/pushService';
+import { subscribeToAppNews } from '../services/appNewsService';
+import type { AppNewsItem } from '../services/appNewsService';
+import { loadAppVersion } from '../services/appVersionService';
+import type { AppVersionInfo } from '../services/appVersionService';
+import NewsBanner from './NewsBanner';
 
 
 type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects' | 'projselect';
@@ -84,6 +98,8 @@ export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [appNews, setAppNews] = useState<AppNewsItem[]>([]);
+  const [appVersion, setAppVersion] = useState<AppVersionInfo | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>(beatIdFromHash() ? 'beats' : 'board');
   const requestedBeatId = beatIdFromHash();
@@ -221,8 +237,109 @@ export default function App() {
     return () => { notifUnsubRef.current?.(); notifUnsubRef.current = null; };
   }, [user]);
 
+  // ---- Новости приложения (Фаза 5) ----
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToAppNews(
+      (data) => setAppNews(data),
+      (e) => console.error('appNews sub', e)
+    );
+    return unsub;
+  }, [user]);
+
+  // Версия приложения. В нативе читается реальная versionName из APK
+  // (@capacitor/app), в вебе — версия загруженного бандра; «последняя»
+  // версия всегда приходит из сети, минуя кэш service worker'а.
+  useEffect(() => {
+    let alive = true;
+    void loadAppVersion()
+      .then((info) => {
+        if (alive) setAppVersion(info);
+      })
+      .catch((e) => console.error('app version', e));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const seenNotif = useRef<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ---- Push-уведомления (Фаза 4) ----
+  // Один раз при входе регистрируем устройство в Firestore (для FCM).
+  // Ошибка не критична: без push приложение работает с локальными
+  // уведомлениями как раньше.
+  useEffect(() => {
+    if (!user) return;
+    void registerForPush(user.uid).catch((e) => console.error('push register', e));
+  }, [user]);
+
+  // ---- Напоминания о сроках сдачи (Фаза 2) ----
+  // При появлении треков и раз в минуту проверяем, не пора ли отправить
+  // напоминание. Каждое отправляется один раз: ключи уже показанных
+  // напоминаний храним в localStorage.
+  const firedRemindersRef = useRef<Set<string>>(new Set());
+  const remindersTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`vtg-reminders-${profile?.uid || 'anon'}`);
+      if (saved) firedRemindersRef.current = new Set(JSON.parse(saved));
+    } catch {
+      /* приватный режим */
+    }
+  }, [profile?.uid]);
+
+  useEffect(() => {
+    if (!profile || !tracks.length) return;
+
+    const fire = async () => {
+      const due = collectDueReminders(tracks, new Date());
+      for (const r of due) {
+        if (firedRemindersRef.current.has(r.key)) continue;
+        firedRemindersRef.current.add(r.key);
+        try {
+          localStorage.setItem(
+            `vtg-reminders-${profile.uid}`,
+            JSON.stringify([...firedRemindersRef.current])
+          );
+        } catch {
+          /* приватный режим */
+        }
+        try {
+          const text = `Скоро срок сдачи: «${r.track.title}» — ${r.due.label}`;
+          await createNotification({
+            type: 'deadline',
+            text,
+            actorUid: profile.uid,
+            actorName: profile.artistName || profile.displayName,
+            createdAt: new Date().toISOString(),
+          });
+          // Push участникам трека (себе — не отправляем: уведомление
+          // и так уже показано локально тостом).
+          const recipients = Array.from(new Set([
+            ...(r.track.artistUids || []),
+            ...(r.track.beatmakerUids || []),
+            ...(r.track.mixByUids || []),
+            ...(r.track.remindAssignee ? [r.track.remindAssignee] : []),
+          ].filter(Boolean))).filter((uid) => uid !== profile.uid);
+          if (recipients.length) {
+            void sendPushToUsers(recipients, { title: 'VTG Dashboard', body: text, data: { type: 'deadline', trackId: r.track.id } });
+          }
+        } catch (e) {
+          console.error('deadline reminder', e);
+        }
+      }
+    };
+
+    void fire();
+    if (remindersTimerRef.current) clearInterval(remindersTimerRef.current);
+    remindersTimerRef.current = setInterval(() => void fire(), 60_000);
+    return () => {
+      if (remindersTimerRef.current) clearInterval(remindersTimerRef.current);
+      remindersTimerRef.current = null;
+    };
+  }, [tracks, profile]);
 
   useEffect(() => {
     if (!profile) return;
@@ -306,6 +423,13 @@ export default function App() {
         actorName: profile?.artistName || profile?.displayName,
         createdAt: now,
       });
+      // Push админам и владельцу (себе — не отправляем).
+      const recipients = users
+        .filter((u) => (u.role === 'admin' || u.role === 'owner') && u.uid !== profile?.uid)
+        .map((u) => u.uid);
+      if (recipients.length) {
+        void sendPushToUsers(recipients, { title: 'VTG Dashboard', body: text, data: { type: 'task_status_changed' } });
+      }
     } catch {
       // ignore notification errors
     }
@@ -390,8 +514,37 @@ export default function App() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Удалить трек?')) return;
+    if (!confirm('Удалить трек? Связанные файлы будут удалены из хранилища. Карточки проектов останутся.')) return;
     if (isOnline) {
+      const track = tracks.find((t) => t.id === id);
+      // Удаляем файлы трека из B2, чтобы не оставалось битых ссылок.
+      // Карточки проектов НЕ удаляем — только чистим в них ссылки на архивы.
+      if (track) {
+        const urls = [
+          track.platformUrl,
+          track.personalCoverUrl,
+          track.coverUrl,
+          track.projectZipUrl,
+        ];
+        for (const pz of track.projectZips || []) urls.push(pz.zipUrl);
+        const zipPaths = new Set<string>();
+        for (const u of urls) {
+          if (!u) continue;
+          const isZip = u === track.projectZipUrl || (track.projectZips || []).some((z) => z.zipUrl === u);
+          const path = isZip ? storagePathFromUrl(u) : null;
+          if (path) zipPaths.add(path);
+          try { await deleteStorageFileByUrl(u); } catch { /* файл уже может быть удалён */ }
+        }
+        // Убираем ссылки на удалённые архивы из карточек проектов
+        for (const zp of zipPaths) {
+          const refProjects = projectList.filter((p) => storagePathFromUrl(p.zipUrl || '') === zp);
+          for (const p of refProjects) {
+            try {
+              await updateProjectFields(p.id, { zipUrl: undefined, zipStatus: undefined, zipError: undefined });
+            } catch { /* ignore */ }
+          }
+        }
+      }
       await deleteTrack(id);
     } else {
       await addPendingSync('delete', id);
@@ -434,7 +587,11 @@ export default function App() {
   };
 
   const handleDeleteBeat = async (id: string) => {
-    if (!confirm('Удалить бит?')) return;
+    if (!confirm('Удалить бит? Его файл будет удалён из хранилища.')) return;
+    const beat = (beats || []).find((b) => b.id === id);
+    if (isOnline && beat?.platformUrl) {
+      try { await deleteStorageFileByUrl(beat.platformUrl); } catch { /* файл уже может быть удалён */ }
+    }
     await deleteBeat(id);
   };
 
@@ -456,7 +613,43 @@ export default function App() {
     return createProject({ ...data, createdBy: data.createdBy || profile?.uid || '' } as any);
   };
 
+  // Чистит в треках ссылки на архив проекта по пути файла в хранилище
+  // (убирает элементы projectZips и поля projectZip*), карточки остаются.
+  const cleanProjectZipRefsFromTracks = async (zipPath: string) => {
+    for (const t of tracks) {
+      const patch: Record<string, unknown> = {};
+      if (storagePathFromUrl(t.projectZipUrl || '') === zipPath) {
+        patch.projectZipUrl = undefined;
+        patch.projectZipStatus = undefined;
+        patch.projectZipError = undefined;
+      }
+      const zips = t.projectZips || [];
+      const next = zips.filter((z) => storagePathFromUrl(z.zipUrl || '') !== zipPath);
+      if (next.length !== zips.length) patch.projectZips = next.length ? next : undefined;
+      if (Object.keys(patch).length) {
+        try { await updateTrackFields(t.id, patch); } catch { /* ignore */ }
+      }
+    }
+  };
+
   const handleDeleteProject = async (id: string) => {
+    // При удалении проекта пропадает и его карточка, и его следы:
+    // архив из хранилища + ссылки на него в треках
+    const project = projectList.find((p) => p.id === id);
+    if (project?.zipUrl) {
+      try { await deleteStorageFileByUrl(project.zipUrl); } catch { /* файл уже может быть удалён */ }
+    }
+    const zipPath = project ? storagePathFromUrl(project.zipUrl || '') : null;
+    if (zipPath) await cleanProjectZipRefsFromTracks(zipPath);
+    await deleteProject(id);
+  };
+
+  // Удаление проекта, когда его архив уже удалён из хранилища
+  // (вкладка «Хранилище»): чистим ссылки и убираем карточку.
+  const handleStorageProjectDeleted = async (id: string) => {
+    const project = projectList.find((p) => p.id === id);
+    const zipPath = project ? storagePathFromUrl(project.zipUrl || '') : null;
+    if (zipPath) await cleanProjectZipRefsFromTracks(zipPath);
     await deleteProject(id);
   };
 
@@ -529,6 +722,7 @@ export default function App() {
 
       <ShippedPlayer tracks={playerTracks}>
         <main className="app-main">
+          <NewsBanner news={appNews} version={appVersion} />
         {!canUseBoard && (
           <div className="gate-block">
             <h2>Доска недоступна</h2>
@@ -584,6 +778,7 @@ export default function App() {
             onSave={handleSaveProject}
             onDelete={handleDeleteProject}
             onUpdateTrack={updateTrack as any}
+            onOpenTrack={handleOpenTrack}
           />
         )}
 
@@ -627,6 +822,9 @@ export default function App() {
             currentUserRole={profile?.role}
             currentUid={profile?.uid}
             ownerCount={ownerCount}
+            onStorageDeleteProject={handleStorageProjectDeleted}
+            onUpdateTrackFields={updateTrackFields}
+            onUpdateBeatFields={updateBeatFields}
           />
         )}
       </main>

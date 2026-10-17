@@ -41,13 +41,22 @@ interface StorageExplorerProps {
   tracks: Track[];
   beats: Beat[];
   projects: Project[];
+  // Вызывается при удалении из хранилища файла, который был архивом карточки
+  // проекта: карточка проекта удаляется (файл был её единственным артефактом)
+  onStorageDeleteProject?: (id: string) => Promise<void>;
+  // Точечная очистка полей трека/бита (undefined → удалить поле из Firestore)
+  onUpdateTrackFields?: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  onUpdateBeatFields?: (id: string, patch: Record<string, unknown>) => Promise<void>;
 }
 
 /**
  * Проводник хранилища (Backblaze B2) в админ-панели — вкладка «Хранилище».
  * Показывает загруженные файлы с настоящим удалением и суммарным объёмом.
+ * При удалении файла связанные ссылки в карточках очищаются: mp3/обложки
+ * треков и битов (карточки остаются), архивы проектов (карточка проекта
+ * с удалённым архивом удаляется).
  */
-export default function StorageExplorer({ tracks, beats, projects }: StorageExplorerProps) {
+export default function StorageExplorer({ tracks, beats, projects, onStorageDeleteProject, onUpdateTrackFields, onUpdateBeatFields }: StorageExplorerProps) {
   const [items, setItems] = useState<StorageItem[] | null>(null);
   const [loadError, setLoadError] = useState('');
   const [query, setQuery] = useState('');
@@ -116,14 +125,57 @@ export default function StorageExplorer({ tracks, beats, projects }: StorageExpl
   const removeFile = async (item: StorageItem) => {
     if (busyFile) return;
     const usedBy = linked.get(item.path);
-    const warn = usedBy?.length
-      ? `\n\nВнимание: файл используется: ${usedBy.join('; ')}. После удаления воспроизведение/скачивание перестанет работать.`
+    // Карточки проектов, чей архив указывает на этот файл:
+    // файл — единственный артефакт карточки, поэтому карточка удаляется вместе с файлом
+    const deadProjects = projects.filter((p) => storagePathFromUrl(p.zipUrl || '') === item.path);
+    const warns: string[] = [];
+    if (deadProjects.length) {
+      warns.push(
+        `с этим архивом связаны карточки проектов: ${deadProjects.map((p) => `«${p.name}»`).join(', ')} — они будут удалены вместе с файлом`
+      );
+    }
+    if (usedBy?.length) {
+      warns.push(`файл используется: ${usedBy.join('; ')}`);
+    }
+    const warn = warns.length
+      ? `\n\nВнимание: ${warns.join('; ')}. Ссылки на файл будут очищены, воспроизведение/скачивание перестанет работать.`
       : '';
     if (!window.confirm(`Удалить файл «${item.name}» из хранилища? Действие необратимо.${warn}`)) return;
     setBusyFile(item.path);
     try {
       await deleteStorageFile(item.path);
       setItems((prev) => (prev || []).filter((x) => x.path !== item.path));
+
+      // 1) Карточки проектов, чей архив удалён, — убираем карточки
+      for (const p of deadProjects) {
+        try { await onStorageDeleteProject?.(p.id); } catch { /* ignore */ }
+      }
+
+      // 2) Треки: чистим ссылки на удалённый файл (mp3/обложки/архивы) — карточки остаются
+      for (const t of tracks) {
+        const patch: Record<string, unknown> = {};
+        if (storagePathFromUrl(t.platformUrl || '') === item.path) patch.platformUrl = undefined;
+        if (storagePathFromUrl(t.coverUrl || '') === item.path) patch.coverUrl = undefined;
+        if (storagePathFromUrl(t.personalCoverUrl || '') === item.path) patch.personalCoverUrl = undefined;
+        if (storagePathFromUrl(t.projectZipUrl || '') === item.path) {
+          patch.projectZipUrl = undefined;
+          patch.projectZipStatus = undefined;
+          patch.projectZipError = undefined;
+        }
+        const zips = t.projectZips || [];
+        const nextZips = zips.filter((z) => storagePathFromUrl(z.zipUrl || '') !== item.path);
+        if (nextZips.length !== zips.length) patch.projectZips = nextZips.length ? nextZips : undefined;
+        if (Object.keys(patch).length) {
+          try { await onUpdateTrackFields?.(t.id, patch); } catch { /* ignore */ }
+        }
+      }
+
+      // 3) Биты: чистим ссылку на mp3 — карточка остаётся
+      for (const b of beats) {
+        if (storagePathFromUrl(b.platformUrl || '') === item.path) {
+          try { await onUpdateBeatFields?.(b.id, { platformUrl: undefined }); } catch { /* ignore */ }
+        }
+      }
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'Не удалось удалить файл');
     } finally {
