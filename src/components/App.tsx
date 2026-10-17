@@ -8,14 +8,10 @@ import ProfileView from './ProfileView';
 import AdminPanel from './AdminPanel';
 import BeatsView from './BeatsView';
 import ProjectsView from './ProjectsView';
-import ProjectSelectionView from './ProjectSelectionView';
 import type { Track, UserProfile, ArtistRequest, KanbanColumn, Project } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import { asArray, resolveNames } from '../types/track';
 import type { Beat, BeatFormData } from '../types/beat';
-import type { EduProject } from '../types/eduProject';
-import { EDU_PROJECT_DEFAULT_DATA } from '../types/eduProjectDefaultData';
-import { EDU_PROJECT_PLACEHOLDERS } from '../types/eduProjectPlaceholders';
 import ShippedPlayer, { toShippedItem, shippedFromUrl, type ShippedTrackItem } from './ShippedPlayer';
 import {
   subscribeToTracks,
@@ -63,11 +59,6 @@ import {
   updateProjectFields,
   deleteProject,
 } from '../services/projectsService';
-import {
-  subscribeToEduProjects,
-  deleteEduProject,
-  bulkImportEduProjects,
-} from '../services/eduProjectsService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { saveTrackOffline, addPendingSync } from '../services/offlineStorage';
@@ -80,7 +71,7 @@ import type { AppVersionInfo } from '../services/appVersionService';
 import NewsBanner from './NewsBanner';
 
 
-type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects' | 'projselect';
+type View = 'board' | 'tracks' | 'beats' | 'team' | 'profile' | 'admin' | 'projects';
 
 function beatIdFromHash(): string | undefined {
   const m = window.location.hash.match(/#beat=([A-Za-z0-9_-]+)/);
@@ -93,8 +84,6 @@ export default function App() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [beats, setBeats] = useState<Beat[]>([]);
   const [projectList, setProjectList] = useState<Project[]>([]);
-  const [eduProjects, setEduProjects] = useState<EduProject[]>([]);
-  const [eduProjectsLoading, setEduProjectsLoading] = useState(true);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<ArtistRequest[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -152,21 +141,6 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToProjects((data) => setProjectList(data), (e) => console.error('projects sub', e));
-    return unsub;
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeToEduProjects(
-      (data) => {
-        setEduProjects(data);
-        setEduProjectsLoading(false);
-      },
-      (e) => {
-        console.error('eduProjects sub', e);
-        setEduProjectsLoading(false);
-      }
-    );
     return unsub;
   }, [user]);
 
@@ -653,18 +627,6 @@ export default function App() {
     await deleteProject(id);
   };
 
-  const handleImportEduPlaceholders = async (): Promise<number> => {
-    if (eduProjects.length > 0) return 0;
-    const created = await bulkImportEduProjects(
-      EDU_PROJECT_DEFAULT_DATA.length > 0 ? EDU_PROJECT_DEFAULT_DATA : EDU_PROJECT_PLACEHOLDERS
-    );
-    return created;
-  };
-
-  const handleDeleteEduProject = async (id: string) => {
-    await deleteEduProject(id);
-  };
-
   const myUid = profile?.uid || '';
   const ownerCount = users.filter((u) => u.role === 'owner').length;
   const unreadCount = notifications.filter((n) => !(n.readBy || []).includes(myUid)).length;
@@ -779,16 +741,6 @@ export default function App() {
             onDelete={handleDeleteProject}
             onUpdateTrack={updateTrack as any}
             onOpenTrack={handleOpenTrack}
-          />
-        )}
-
-        {view === 'projselect' && (
-          <ProjectSelectionView
-            projects={eduProjects}
-            loading={eduProjectsLoading}
-            canEdit={isRoleAllowed}
-            onImportPlaceholders={handleImportEduPlaceholders}
-            onDelete={handleDeleteEduProject}
           />
         )}
 

@@ -69,11 +69,6 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
-    match /eduProjects/{projectId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
-    }
-
     // ===== Push-уведомления (Фаза 4) =====
     // Ключ документа = токен устройства. Пользователь управляет только
     // своими записями; читать/удалять чужие нельзя.
