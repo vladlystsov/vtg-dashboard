@@ -319,6 +319,38 @@ export function storagePathFromUrl(url: string): string | null {
   return null;
 }
 
+/**
+ * Приводит ссылку хранилища к текущему прокси.
+ *
+ * Ссылки на файлы сохраняются в Firestore как абсолютные адреса, поэтому
+ * после переезда прокси на другой домен старые записи продолжали бы ходить
+ * на прежний (Vercel) адрес, который из части сетей недоступен. Такие ссылки
+ * переписываем на лету: путь из `?path=` переносим на актуальный API_URL.
+ *
+ * Ссылки не из хранилища (SoundCloud, YouTube, прямой B2) не трогаем —
+ * без `?path=` функция возвращает адрес как есть.
+ */
+export function resolveStorageUrl(url?: string | null): string {
+  const raw = (url || '').trim();
+  if (!raw) return '';
+  const fn = /[?&]path=([^&]+)/.exec(raw);
+  if (!fn) return raw;
+  return `${API_URL}?path=${fn[1]}`;
+}
+
+/**
+ * Переписывает ссылки хранилища в указанных полях записи.
+ * Нестроковые и пустые значения не трогает и новых ключей не создаёт.
+ */
+export function resolveStorageUrls<T extends object>(item: T, fields: readonly (keyof T)[]): T {
+  const next = { ...item } as Record<string, unknown>;
+  for (const field of fields) {
+    const value = next[field as string];
+    if (typeof value === 'string') next[field as string] = resolveStorageUrl(value);
+  }
+  return next as T;
+}
+
 /** Удалить файл по пути в бакете (серверная операция с ключами). */
 export async function deleteStorageFile(path: string): Promise<void> {
   await callApi('delete', { path });

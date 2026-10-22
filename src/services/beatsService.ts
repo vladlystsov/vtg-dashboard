@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Beat } from '../types/beat';
+import { resolveStorageUrls } from './b2StorageService';
 
 const beatsRef = collection(db, 'beats');
 
@@ -46,7 +47,10 @@ export function subscribeToBeats(
 ) {
   const q = query(beatsRef, orderBy('updatedAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
-    const beats = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Beat));
+    const beats = snapshot.docs.map((d) =>
+      // Загруженный mp3 и обложка лежат в хранилище — ссылки на актуальный прокси.
+      resolveStorageUrls({ id: d.id, ...d.data() } as Beat, ['platformUrl', 'coverUrl'])
+    );
     callback(beats);
   }, onError);
 }

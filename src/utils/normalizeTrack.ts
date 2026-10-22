@@ -1,4 +1,8 @@
 import type { Track } from '../types/track';
+import { resolveStorageUrl } from '../services/b2StorageService';
+
+/** Поля трека со ссылками на файлы в хранилище. */
+const STORAGE_URL_FIELDS = ['coverUrl', 'personalCoverUrl', 'platformUrl', 'projectZipUrl'] as const;
 
 /**
  * Нормализация треков, прочитанных из Firestore/IndexedDB.
@@ -16,6 +20,16 @@ export function normalizeTrack(raw: any): Track {
     } else {
       t.projectZips = undefined;
     }
+  }
+  // Ссылки на файлы — на актуальный прокси хранилища: в записях могли
+  // остаться адреса прежнего домена (Vercel).
+  for (const field of STORAGE_URL_FIELDS) {
+    if (typeof t[field] === 'string') t[field] = resolveStorageUrl(t[field]);
+  }
+  if (Array.isArray(t.projectZips)) {
+    t.projectZips = t.projectZips.map((z: any) =>
+      z && typeof z.zipUrl === 'string' ? { ...z, zipUrl: resolveStorageUrl(z.zipUrl) } : z
+    );
   }
   return t as Track;
 }

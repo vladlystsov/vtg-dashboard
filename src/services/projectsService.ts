@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Project } from '../types/track';
+import { resolveStorageUrls } from './b2StorageService';
 
 const projectsRef = collection(db, 'projects');
 
@@ -46,7 +47,10 @@ export function subscribeToProjects(
 ) {
   const q = query(projectsRef, orderBy('updatedAt', 'desc'));
   return onSnapshot(q, (snapshot) => {
-    const projects = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
+    const projects = snapshot.docs.map((d) =>
+      // Ссылки на zip и обложки — на актуальный прокси хранилища.
+      resolveStorageUrls({ id: d.id, ...d.data() } as Project, ['zipUrl', 'coverUrl'])
+    );
     console.log('[Projects] Загружено проектов:', projects.length, projects);
     callback(projects);
   }, (err) => {
