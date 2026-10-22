@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         // (вызывается load()) и plugin manager читает список. После super.onCreate()
         // registerPlugin() уже не подействует — плагин просто не попадёт в мост.
         registerPlugin(ApkInstallerPlugin.class);
+        registerPlugin(FileSaverPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ShippedMini, toShippedItem, useShippedPlayerManager, type ShippedTrackItem } from './ShippedPlayer';
 import { uploadCover } from '../services/fileService';
 import { listCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
+import { canSaveNatively, cancelSave, saveToDownloads, SaveCancelledError } from '../services/fileSaveService';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -428,13 +429,25 @@ export function DownloadButton({
 }) {
   const [downloading, setDownloading] = useState(false);
   const [done, setDone] = useState(false);
+  const [percent, setPercent] = useState<number | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  // Нативное сохранение отменяется плагином, а не AbortController'ом:
+  // крестик должен вести себя по-разному в зависимости от пути загрузки.
+  const nativeRef = useRef(false);
 
-  useEffect(() => () => controllerRef.current?.abort(), []);
+  useEffect(() => () => {
+    controllerRef.current?.abort();
+    // Ушли со страницы во время нативной загрузки — не оставляем её висеть.
+    if (nativeRef.current) void cancelSave();
+  }, []);
 
   const cancel = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (nativeRef.current) {
+      void cancelSave();
+      return;
+    }
     controllerRef.current?.abort();
     controllerRef.current = null;
     setDownloading(false);
@@ -448,6 +461,35 @@ export function DownloadButton({
       return;
     }
     if (!url) return;
+
+    const targetName =
+      fileName || `${title.replace(/[^\wа-яА-ЯёЁ\s-]+/g, '').trim() || 'audio'}.mp3`;
+
+    // В Android WebView атрибут download у ссылки не работает — ни для
+    // обычных адресов, ни для blob:. Нажатие молча ничего не делает, поэтому
+    // там файл качает и кладёт в «Загрузки» нативный плагин.
+    if (canSaveNatively()) {
+      nativeRef.current = true;
+      setDownloading(true);
+      setDone(false);
+      setPercent(0);
+      try {
+        await saveToDownloads({ url, fileName: targetName }, ({ percent: p }) => setPercent(p));
+        setDone(true);
+        setTimeout(() => setDone(false), 3000);
+      } catch (err) {
+        // Отмена — не сбой: пользователь сам её вызвал.
+        if (!(err instanceof SaveCancelledError)) {
+          window.alert(err instanceof Error && err.message ? err.message : 'Не удалось сохранить файл.');
+        }
+      } finally {
+        nativeRef.current = false;
+        setDownloading(false);
+        setPercent(null);
+      }
+      return;
+    }
+
     let blobUrl: string | null = null;
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -468,9 +510,7 @@ export function DownloadButton({
     }
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download =
-      fileName ||
-      `${title.replace(/[^\wа-яА-ЯёЁ\s-]+/g, '').trim() || 'audio'}.mp3`;
+    a.download = targetName;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -489,7 +529,7 @@ export function DownloadButton({
       <a
         className={`at-download ${downloading ? 'at-download-cancel' : ''} ${children ? 'at-download-link' : ''}`}
         href={url}
-        title={downloading ? 'Отменить загрузку' : (hrefTitle || 'Скачать')}
+        title={downloading ? `Отменить загрузку${percent === null ? '' : ` (${percent}%)`}` : (hrefTitle || 'Скачать')}
         onClick={handleDownload}
       >
         {downloading ? (
