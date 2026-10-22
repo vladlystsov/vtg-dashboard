@@ -10,8 +10,12 @@
 # Секреты НЕ в этом файле — задаются командой:
 #   npx wrangler secret put B2_KEY_ID
 #   npx wrangler secret put B2_APP_KEY
+#   npx wrangler secret put B2_BUCKET_NAME
+#   npx wrangler secret put B2_REGION
 #   npx wrangler secret put FIREBASE_API_KEY
 #   npx wrangler secret put FIREBASE_PROJECT_ID
+#
+# PUBLIC_BASE необязателен: без него ссылки строятся от origin запроса.
 
 name = "vtg-b2-storage"
 main = "b2-storage.mjs"
