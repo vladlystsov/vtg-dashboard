@@ -1,4 +1,4 @@
-﻿apply plugin: 'com.android.application'
+apply plugin: 'com.android.application'
 
 // Ключ подписи release-сборок: android/keystore.properties + app/release.keystore.
 // Оба файла не коммитятся. Ключ единственный и невосстановимый — потеряв его,
