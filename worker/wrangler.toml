@@ -22,7 +22,12 @@ main = "b2-storage.mjs"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Не включаем observers: деплой должен работать на бесплатном тарифе
-# (он требует платную подписку Workers Paid).
-[observers]
+# Публичный адрес: https://vtg-b2-storage.vtg-dashboard.workers.dev
+workers_dev = true
+# Preview-адреса не нужны: они плодят лишние домены и сборки.
+preview_urls = false
+
+# Не включаем observability: логи и трейсы на бесплатном тарифе не нужны,
+# а конфиг должен оставаться валидным для wrangler 4.x.
+[observability]
 enabled = false

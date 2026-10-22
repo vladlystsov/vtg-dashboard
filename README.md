@@ -149,16 +149,16 @@ npx wrangler secret put PUBLIC_BASE   # напр. https://vtg-b2-storage.<под
 
 Если он не задан, база ссылок берётся из origin запроса. В обычном случае (`workers.dev`) ничего указывать не нужно. Ссылки всегда получаются **абсолютными**: они сохраняются в Firestore и должны открываться и с сайта на GitHub Pages, и из APK — относительный `/api/b2-storage` там вёл бы на origin клиента, где функции нет.
 
-После деплоя wrangler напечатает адрес вида `https://vtg-b2-storage.<поддомен>.workers.dev`. Проверьте его без токена:
+После деплоя wrangler напечатает адрес вида `https://vtg-b2-storage.<поддомен>.workers.dev`. Боевой адрес — `https://vtg-b2-storage.vtg-dashboard.workers.dev`, он зашит значением по умолчанию в `src/services/b2StorageService.ts`. Проверьте его без токена:
 
 ```bash
-curl -s https://vtg-b2-storage.<поддомен>.workers.dev/health
+curl -s https://vtg-b2-storage.vtg-dashboard.workers.dev/health
 # {"ok":true,"missing":[],"uid":null}
 ```
 
-Дальше адрес подставляется в сборку: положите его GitHub-секретом `VITE_B2_PROXY_URL` (он имеет приоритет над значением по умолчанию в коде) либо попросите заменить дефолт в `src/services/b2StorageService.ts` — тогда адрес будет зашит и в сайт, и в APK. Секрет читают оба workflow: `deploy.yml` (сайт) и `release-android.yml` (APK), поэтому после его добавления нужны новые сборки того и другого.
+`VITE_B2_PROXY_URL` нужен только чтобы переопределить адрес (например, при переезде на свой домен): он имеет приоритет над значением по умолчанию, и его читают оба workflow — `deploy.yml` (сайт) и `release-android.yml` (APK).
 
-**Старые ссылки в Firestore** (загруженные до переезда) указывают на `https://vtg-dashboard.vercel.app/api/b2-storage?path=…`. Пока функция на Vercel не удалена, они продолжают работать; если Vercel убрать, старые файлы перестанут открываться, пока ссылки не будут переписаны на новый прокси.
+**Старые ссылки в Firestore** (загруженные до переезда) указывают на `https://vtg-dashboard.vercel.app/api/b2-storage?path=…`. Клиент переписывает такие ссылки на текущий прокси при чтении (`resolveStorageUrl`), поэтому старые архивы и обложки работают и без функции на Vercel.
 
 **Лимит 100 МБ на запрос Worker не мешает:** браузер льёт файл напрямую в B2 по presigned-ссылке, через прокси проходит только подпись. Гигабайтный zip идёт мимо Worker целиком.
 

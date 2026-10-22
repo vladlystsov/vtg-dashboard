@@ -4407,6 +4407,83 @@ input[type='radio'] {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ===== Уведомление о сохранённом файле ===== */
+
+.save-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  max-width: min(92vw, 460px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px 12px 16px;
+  background: var(--gray-800);
+  color: var(--gray-50);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  z-index: 70;
+  animation: toast-in 0.25s ease-out;
+}
+
+.save-toast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.save-toast-text strong {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.save-toast-text span {
+  font-size: 12px;
+  color: var(--gray-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.save-toast-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.save-toast-action {
+  border: 0;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.save-toast-action:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.save-toast-close {
+  border: 0;
+  background: transparent;
+  color: var(--gray-400);
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* ===== Error boundary ===== */
 .error-boundary {
   max-width: 520px;

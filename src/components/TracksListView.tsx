@@ -7,7 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { ShippedMini, toShippedItem, useShippedPlayerManager, type ShippedTrackItem } from './ShippedPlayer';
 import { uploadCover } from '../services/fileService';
 import { listCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
-import { canSaveNatively, cancelSave, saveToDownloads, SaveCancelledError } from '../services/fileSaveService';
+import { canSaveNatively, cancelSave, openSavedFile, revealSavedFile, saveToDownloads, SaveCancelledError } from '../services/fileSaveService';
+import { showSaveToast } from '../services/saveToastService';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -453,8 +454,14 @@ export function DownloadButton({
     setDownloading(false);
   };
 
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Ошибку показываем тем же уведомлением: alert в WebView выглядит чужеродно
+  // и блокирует интерфейс до нажатия «ОК».
+  const showFileError = (err: unknown, fallback = 'Не удалось открыть файл') => {
+    const message = err instanceof Error && err.message ? err.message : '';
+    showSaveToast({ title: message || fallback, actions: [] });
+  };
+
+  const handleDownload = async (e: React.MouseEvent) => {    e.stopPropagation();
     e.preventDefault();
     if (downloading) {
       cancel(e);
@@ -474,14 +481,25 @@ export function DownloadButton({
       setDone(false);
       setPercent(0);
       try {
-        await saveToDownloads({ url, fileName: targetName }, ({ percent: p }) => setPercent(p));
+        const saved = await saveToDownloads(
+          { url, fileName: targetName },
+          ({ percent: p }) => setPercent(p),
+        );
         setDone(true);
         setTimeout(() => setDone(false), 3000);
+        // Файл уже в «Загрузках» — сразу предлагаем его открыть или
+        // показать в проводнике, а не заставляем искать руками.
+        showSaveToast({
+          title: saved.fileName,
+          subtitle: `Сохранено: ${saved.location}`,
+          actions: [
+            { label: 'Открыть', run: () => openSavedFile(saved).catch(showFileError) },
+            { label: 'В папку', run: () => revealSavedFile(saved).catch(showFileError) },
+          ],
+        });
       } catch (err) {
         // Отмена — не сбой: пользователь сам её вызвал.
-        if (!(err instanceof SaveCancelledError)) {
-          window.alert(err instanceof Error && err.message ? err.message : 'Не удалось сохранить файл.');
-        }
+        if (!(err instanceof SaveCancelledError)) showFileError(err, 'Не удалось сохранить файл');
       } finally {
         nativeRef.current = false;
         setDownloading(false);
@@ -525,6 +543,9 @@ export function DownloadButton({
     <span className={`at-download-wrap ${className || ''}`} onClick={(e) => e.stopPropagation()}>
       {done && (
         <span className="at-downloading-badge at-downloaded">✓ Скачано</span>
+      )}
+      {!done && percent !== null && (
+        <span className="at-downloading-badge">{percent}%</span>
       )}
       <a
         className={`at-download ${downloading ? 'at-download-cancel' : ''} ${children ? 'at-download-link' : ''}`}

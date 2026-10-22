@@ -1,4 +1,4 @@
-import type { PluginListenerHandle } from '@capacitor/core';
+﻿import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 import { isNativeApp, platformName } from './platform';
 
 /**
@@ -28,6 +28,9 @@ export interface SaveToDownloadsResult {
   fileName: string;
   /** Человекочитаемое место: «Download/имя.файл» либо абсолютный путь. */
   location: string;
+  /** content:// или file:// — по нему файл открывается и показывается в проводнике. */
+  uri: string;
+  mimeType: string;
 }
 
 export type SaveProgress = { percent: number };
@@ -40,6 +43,8 @@ export type SaveProgress = { percent: number };
  */
 interface FileSaverApi {
   saveToDownloads(options: SaveToDownloadsOptions): Promise<SaveToDownloadsResult>;
+  openFile(options: { uri: string; mimeType: string }): Promise<void>;
+  revealFile(options: { location: string; uri: string }): Promise<void>;
   cancel(): Promise<void>;
   addListener(
     eventName: string,
@@ -62,15 +67,11 @@ export function canSaveNatively(): boolean {
 
 // registerPlugin должен вызываться один раз: результат кэшируем, иначе каждый
 // вызов создавал бы новую прокси-обёртку.
-let saverPromise: Promise<FileSaverApi> | null = null;
+let saver: FileSaverApi | null = null;
 
-function getSaver(): Promise<FileSaverApi> {
-  if (!saverPromise) {
-    saverPromise = import('@capacitor/core').then(({ registerPlugin }) =>
-      registerPlugin<FileSaverApi>('FileSaver'),
-    );
-  }
-  return saverPromise;
+function getSaver(): FileSaverApi {
+  if (!saver) saver = registerPlugin<FileSaverApi>('FileSaver');
+  return saver;
 }
 
 /** Скачивает файл и сохраняет его в «Загрузки». Бросает Error с текстом для показа. */
@@ -81,7 +82,7 @@ export async function saveToDownloads(
   if (!canSaveNatively()) {
     throw new Error('Сохранение в «Загрузки» доступно только в Android-приложении.');
   }
-  const saver = await getSaver();
+  const saver = getSaver();
 
   // Слушатель должен быть подписан до старта загрузки, иначе первые
   // проценты пройдут мимо него.
@@ -119,13 +120,29 @@ export async function saveToDownloads(
 }
 
 /**
+ * Открывает сохранённый файл системным приложением: архив — проводником,
+ * mp3 — плеером. Ошибку пробрасываем наверх, чтобы интерфейс сказал,
+ * что подходящего приложения нет.
+ */
+export async function openSavedFile(result: SaveToDownloadsResult): Promise<void> {
+  if (!canSaveNatively() || !result.uri) return;
+  await getSaver().openFile({ uri: result.uri, mimeType: result.mimeType });
+}
+
+/** Открывает папку «Загрузки» — файл уже лежит там. */
+export async function revealSavedFile(result: SaveToDownloadsResult): Promise<void> {
+  if (!canSaveNatively() || !result.uri) return;
+  await getSaver().revealFile({ location: result.location, uri: result.uri });
+}
+
+/**
  * Прерывает текущее сохранение. Плагин останавливает поток и удаляет
  * недописанный файл, поэтому в «Загрузках» не остаётся обрывка.
  */
 export async function cancelSave(): Promise<void> {
   if (!canSaveNatively()) return;
   try {
-    const saver = await getSaver();
+    const saver = getSaver();
     await saver.cancel();
   } catch {
     // Отменять нечего — молча выходим.

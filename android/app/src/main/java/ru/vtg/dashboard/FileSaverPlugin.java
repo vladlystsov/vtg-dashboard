@@ -1,10 +1,13 @@
 package ru.vtg.dashboard;
 
+import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 
 import com.getcapacitor.JSObject;
@@ -57,6 +60,13 @@ public class FileSaverPlugin extends Plugin {
      */
     private final AtomicBoolean cancelRequested = new AtomicBoolean(false);
 
+    /**
+     * Текущее соединение. cancel() рвёт его напрямую: если сокет висит на
+     * connect или чтении, одного флага недостаточно — поток увидит его
+     * только после возврата из сети, то есть после таймаута в 30–60 секунд.
+     */
+    private volatile HttpURLConnection activeConnection;
+
     /** Отмена — не ошибка сети: на стороне JS по коду CANCELLED просто молчим. */
     private static class CancelledException extends Exception {
         CancelledException() {
@@ -93,15 +103,78 @@ public class FileSaverPlugin extends Plugin {
 
         try {
             cancelRequested.set(false);
-            String location = save(url, fileName, mimeType);
+            Saved saved = save(url, fileName, mimeType);
             JSObject ret = new JSObject();
             ret.put("fileName", fileName);
-            ret.put("location", location);
+            ret.put("location", saved.location);
+            ret.put("uri", saved.uri);
+            ret.put("mimeType", mimeType);
             call.resolve(ret);
         } catch (CancelledException e) {
             call.reject("Загрузка отменена", "CANCELLED");
         } catch (Exception e) {
             call.reject("Не удалось сохранить файл: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Открывает сохранённый файл тем приложением, которое за него отвечает
+     * (архив — файловым менеджером, mp3 — плеером).
+     */
+    @PluginMethod
+    public void openFile(PluginCall call) {
+        String uri = call.getString("uri");
+        if (uri == null || uri.isEmpty()) {
+            call.reject("Не передан путь к файлу");
+            return;
+        }
+        String mimeType = call.getString("mimeType", "application/octet-stream");
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(Uri.parse(uri), mimeType);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("Нет приложения, которое откроет этот файл", "NO_APP");
+        } catch (Exception e) {
+            call.reject("Не удалось открыть файл: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Показывает папку, в которой лежит файл. Открываем её через провайдер
+     * «Внешнее хранилище»: у стандартного проводника нет способа открыть
+     * произвольную папку по файловому пути, а document-URI он понимает.
+     */
+    @PluginMethod
+    public void revealFile(PluginCall call) {
+        String location = call.getString("location", "");
+        String fallbackUri = call.getString("uri");
+        try {
+            Uri folder = DocumentsContract.buildDocumentUri(
+                    "com.android.externalstorage.documents",
+                    "primary:" + Environment.DIRECTORY_DOWNLOADS);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(folder, DocumentsContract.Document.MIME_TYPE_DIR);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            // Проводник не умеет открывать папки — хотя бы покажем сам файл.
+            if (fallbackUri != null && !fallbackUri.isEmpty()) {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType(Uri.parse(fallbackUri), "*/*");
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(intent);
+                    call.resolve();
+                    return;
+                } catch (Exception ignored) {
+                    // Ниже отдадим исходную ошибку.
+                }
+            }
+            call.reject("Не удалось открыть папку «" + location + "»: " + e.getMessage(), e);
         }
     }
 
@@ -113,11 +186,31 @@ public class FileSaverPlugin extends Plugin {
     @PluginMethod
     public void cancel(PluginCall call) {
         cancelRequested.set(true);
+        try {
+            HttpURLConnection current = activeConnection;
+            if (current != null) {
+                current.disconnect();
+            }
+        } catch (Exception ignored) {
+            // Соединение уже закрыто — отменять нечего.
+        }
         call.resolve();
     }
 
-    private String save(String url, String fileName, String mimeType) throws Exception {
+    /** Что получилось в итоге: путь для показа и URI для открытия файла. */
+    private static class Saved {
+        final String location;
+        final String uri;
+
+        Saved(String location, String uri) {
+            this.location = location;
+            this.uri = uri;
+        }
+    }
+
+    private Saved save(String url, String fileName, String mimeType) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        activeConnection = connection;
         connection.setConnectTimeout(30_000);
         connection.setReadTimeout(60_000);
         connection.setInstanceFollowRedirects(true);
@@ -140,12 +233,13 @@ public class FileSaverPlugin extends Plugin {
                 return saveViaLegacyFile(in, fileName, contentLength);
             }
         } finally {
+            activeConnection = null;
             connection.disconnect();
         }
     }
 
     /** Android 10+: MediaStore.Downloads, разрешение WRITE_EXTERNAL_STORAGE не требуется. */
-    private String saveViaMediaStore(InputStream in, String fileName, String mimeType, long contentLength)
+    private Saved saveViaMediaStore(InputStream in, String fileName, String mimeType, long contentLength)
             throws Exception {
         ContentResolver resolver = getContext().getContentResolver();
         ContentValues values = new ContentValues();
@@ -180,11 +274,29 @@ public class FileSaverPlugin extends Plugin {
         values.put(MediaStore.Downloads.IS_PENDING, 0);
         resolver.update(item, values, null, null);
 
-        return Environment.DIRECTORY_DOWNLOADS + "/" + fileName;
+        // MediaProvider мог переименовать файл, если такое имя уже было:
+        // показываем пользователю настоящее имя, а не то, что мы просили.
+        String actualName = displayNameOf(resolver, item, fileName);
+        return new Saved(Environment.DIRECTORY_DOWNLOADS + "/" + actualName, item.toString());
+    }
+
+    private static String displayNameOf(ContentResolver resolver, Uri item, String fallback) {
+        try (android.database.Cursor cursor = resolver.query(
+                item, new String[]{MediaStore.Downloads.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String name = cursor.getString(0);
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            }
+        } catch (Exception ignored) {
+            // Не смогли прочитать — вернём то, что просили.
+        }
+        return fallback;
     }
 
     /** Android 6–9: прямая запись в публичный Downloads. */
-    private String saveViaLegacyFile(InputStream in, String fileName, long contentLength) throws Exception {
+    private Saved saveViaLegacyFile(InputStream in, String fileName, long contentLength) throws Exception {
         File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         if (!dir.exists() && !dir.mkdirs()) {
             throw new IllegalStateException("не удалось создать папку «Загрузки»");
@@ -194,7 +306,7 @@ public class FileSaverPlugin extends Plugin {
         try (OutputStream out = new FileOutputStream(target)) {
             copy(in, out, contentLength);
         }
-        return target.getAbsolutePath();
+        return new Saved(target.getAbsolutePath(), Uri.fromFile(target).toString());
     }
 
     /** Копирование потока с прогрессом: событие шлём примерно 5 раз в секунду. */
