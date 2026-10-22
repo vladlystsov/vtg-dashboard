@@ -15,7 +15,8 @@
  *   - GET ?path=… → 302 на presigned GET (ссылка живёт 15 минут).
  *
  * Секреты задаются через `wrangler secret put` (см. README), а не файлом:
- * ключи B2 не должны попадать в git.
+ * ключи B2 не должны попадать в git. Публичный адрес прокси — либо из
+ * `PUBLIC_BASE`, либо из origin запроса (см. publicBase()).
  */
 
 import {
@@ -74,14 +75,35 @@ async function getRole(uid, idToken, env) {
   return typeof role === 'string' ? role : null;
 }
 
-/** Постоянная ссылка на файл: /api/b2-storage?path=… (не индексируется). */
-function fileLink(env, path) {
-  const base = (env.PUBLIC_BASE || '').trim().replace(/\/+$/, '');
-  const q = `?path=${encodeURIComponent(path)}`;
-  return base ? `${base}${q}` : `/api/b2-storage${q}`;
+/**
+ * База постоянных ссылок на файлы.
+ *
+ * Берём PUBLIC_BASE, если он задан (прокси на своём домене). Иначе — origin
+ * текущего запроса: на workers.dev это и есть адрес прокси.
+ *
+ * Абсолютный адрес здесь обязателен. Раньше при пустом PUBLIC_BASE отдавался
+ * относительный `/api/b2-storage?path=…`, и он попадал в Firestore как ссылка
+ * на файл. На сайте (GitHub Pages) такой путь ведёт в `vladlystsov.github.io`,
+ * а в APK — в `https://localhost`: файлы переставали открываться сразу после
+ * загрузки. Относительную ссылку отдавать нельзя.
+ */
+function publicBase(env, request) {
+  const configured = (env.PUBLIC_BASE || '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+
+  const url = new URL(request.url);
+  // Отбрасываем завершающие слэши и служебный /health: база должна указывать
+  // на сам прокси, а не на конкретную операцию.
+  const path = url.pathname.replace(/\/+$/, '').replace(/\/health$/, '');
+  return `${url.origin}${path}`;
 }
 
-async function listAllObjects(client, env, bucket) {
+/** Постоянная ссылка на файл: <база>?path=… (не индексируется). */
+function fileLink(env, path, request) {
+  return `${publicBase(env, request)}?path=${encodeURIComponent(path)}`;
+}
+
+async function listAllObjects(client, env, bucket, request) {
   const items = [];
   let token;
   for (let page = 0; page < MAX_LIST_PAGES; page++) {
@@ -98,7 +120,7 @@ async function listAllObjects(client, env, bucket) {
         name: String(o.Key || '').split('/').pop(),
         size: Number(o.Size) || 0,
         updated: o.LastModified ? new Date(o.LastModified).toISOString() : undefined,
-        publicUrl: fileLink(env, o.Key),
+        publicUrl: fileLink(env, o.Key, request),
       });
     }
     if (!res.IsTruncated || !res.NextContinuationToken) break;
@@ -184,7 +206,7 @@ export default {
       const target = await getSignedUrl(client, new PutObjectCommand({ Bucket: bucket, Key: path }), {
         expiresIn: PRESIGN_TTL_SECONDS,
       });
-      return json(200, { url: target, publicUrl: fileLink(env, path), method: 'PUT' });
+      return json(200, { url: target, publicUrl: fileLink(env, path, request), method: 'PUT' });
     }
 
     if (op === 'delete') {
@@ -197,7 +219,7 @@ export default {
 
     if (op === 'list') {
       if (!ROLE_ADMIN.includes(role)) return json(403, { error: 'Список файлов доступен только админам' });
-      return json(200, { items: await listAllObjects(client, env, bucket) });
+      return json(200, { items: await listAllObjects(client, env, bucket, request) });
     }
 
     return json(400, { error: 'Неизвестная операция' });

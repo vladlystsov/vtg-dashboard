@@ -72,6 +72,25 @@ r = await call({
 j = await r.json();
 assert(r.status === 200 && typeof j.url === 'string' && j.url.includes('X-Amz-Signature'), 'upload-url → presigned PUT');
 assert(typeof j.publicUrl === 'string' && j.publicUrl.includes('path='), 'publicUrl ведёт через функцию');
+// Ссылка попадает в Firestore и открывается с сайта (GitHub Pages) и из APK,
+// поэтому она обязана быть абсолютной. Относительный «/api/b2-storage» вёл бы
+// на origin клиента, где такой функции нет.
+assert(
+  j.publicUrl.startsWith('https://proxy.test/api/b2-storage?path='),
+  'publicUrl абсолютный (из origin запроса)',
+);
+
+// 7b. Если задан PUBLIC_BASE, он важнее origin запроса
+r = await handler.fetch(new Request('https://proxy.test/api/b2-storage', {
+  method: 'POST',
+  headers: { authorization: 'Bearer good' },
+  body: JSON.stringify({ op: 'upload-url', path: 'tracks/test-b.mp3' }),
+}), { ...ENV, PUBLIC_BASE: 'https://storage.example.com/' });
+j = await r.json();
+assert(
+  j.publicUrl.startsWith('https://storage.example.com?path='),
+  'publicUrl берёт PUBLIC_BASE без двойного слэша',
+);
 
 // 8. Некорректный путь в upload-url → 400
 r = await call({
