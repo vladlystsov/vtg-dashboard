@@ -1,3 +1,4 @@
+import { App } from '@capacitor/app';
 import { isNativeApp, platformName } from './platform';
 
 /**
@@ -99,7 +100,6 @@ async function fetchMeta(url: string): Promise<AppMeta | null> {
  * `PackageInfoCompat.getLongVersionCode`), на iOS — CFBundleVersion. */
 async function nativeVersion(): Promise<{ version: string | null; build: number | null }> {
   try {
-    const { App } = await import('@capacitor/app');
     const info = await App.getInfo();
     const version = typeof info.version === 'string' && info.version ? info.version : null;
     const parsedBuild = Number.parseInt(String((info as { build?: unknown }).build ?? ''), 10);

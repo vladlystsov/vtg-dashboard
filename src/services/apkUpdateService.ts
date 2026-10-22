@@ -1,4 +1,5 @@
-import type { PluginListenerHandle } from '@capacitor/core';
+﻿import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
 import { isNativeApp, platformName } from './platform';
 
 /**
@@ -14,8 +15,8 @@ import { isNativeApp, platformName } from './platform';
  *  - iOS так обновляться не может в обход App Store, поэтому там эта
  *    функция не вызывается вовсе.
  *
- * `@capacitor/filesystem` и `@capacitor/core` подгружаются динамически,
- * чтобы веб-сборка не тащила за собой мобильные плагины.
+ * Плагины импортируются статически: динамический `import()` в release-сборке
+ * на устройстве не разрешался, и обновление зависало на первом же шаге.
  */
 
 /** Файл в кэше, в который пишется новая версия. Перезаписывается при каждом обновлении. */
@@ -43,15 +44,11 @@ interface ApkInstallerApi {
 
 // `registerPlugin` должен вызываться один раз: результат кэшируем, иначе
 // каждый вызов создавал бы новую прокси-обёртку.
-let installerPromise: Promise<ApkInstallerApi> | null = null;
+let installer: ApkInstallerApi | null = null;
 
-function getInstaller(): Promise<ApkInstallerApi> {
-  if (!installerPromise) {
-    installerPromise = import('@capacitor/core').then(({ registerPlugin }) =>
-      registerPlugin<ApkInstallerApi>('ApkInstaller'),
-    );
-  }
-  return installerPromise;
+function getInstaller(): ApkInstallerApi {
+  if (!installer) installer = registerPlugin<ApkInstallerApi>('ApkInstaller');
+  return installer;
 }
 
 /** Техническая причина уходит в консоль, пользователю — короткая фраза по-русски. */
@@ -73,7 +70,7 @@ function isUnknownSourcesError(e: unknown): boolean {
 
 /** Открывает экран настроек, где разрешают установку из этого источника. */
 export async function openInstallSettings(): Promise<void> {
-  await getInstaller().then((plugin) => plugin.openInstallSettings());
+  await getInstaller().openInstallSettings();
 }
 
 /**
@@ -85,7 +82,7 @@ export async function openInstallSettings(): Promise<void> {
  */
 export async function isInstallAllowed(): Promise<boolean> {
   try {
-    const { allowed } = await getInstaller().then((plugin) => plugin.canInstall());
+    const { allowed } = await getInstaller().canInstall();
     return allowed !== false;
   } catch {
     return true;
@@ -119,8 +116,6 @@ export async function downloadAndInstallApk(
   if (!isNativeApp() || platformName() !== 'android') {
     throw new Error('Обновление доступно только в Android-приложении.');
   }
-
-  const [{ Directory, Filesystem }] = await Promise.all([import('@capacitor/filesystem')]);
 
   // Разрешение на установку проверяем ДО скачивания: без него установщик
   // не откроется, и незачем качать несколько мегабайт.
@@ -179,7 +174,7 @@ export async function downloadAndInstallApk(
     // считаем, что установщик уже открыт (он же и уводит приложение в фон),
     // и просто возвращаем управление — иначе плашка зависает навсегда.
     const acked = await Promise.race([
-      getInstaller().then((plugin) => plugin.install({ path })).then(() => true),
+      getInstaller().install({ path }).then(() => true),
       new Promise<boolean>((resolve) => {
         setTimeout(() => resolve(false), INSTALL_ACK_TIMEOUT_MS);
       }),

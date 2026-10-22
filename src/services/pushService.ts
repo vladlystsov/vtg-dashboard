@@ -1,6 +1,7 @@
 import {
   doc, getDoc, setDoc, deleteDoc, collection, getDocs, serverTimestamp,
 } from 'firebase/firestore';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { db, auth } from '../config/firebase';
 import { isNativeApp } from './platform';
 
@@ -84,7 +85,6 @@ export async function registerForPush(uid: string): Promise<string | null> {
   // --- Нативное приложение (Android) ---
   if (isNativeApp()) {
     try {
-      const { PushNotifications } = await import('@capacitor/push-notifications');
       const perm = await PushNotifications.checkPermissions();
       if (perm.receive !== 'granted') {
         const req = await PushNotifications.requestPermissions();
