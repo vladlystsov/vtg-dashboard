@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "690376519750",
+    "project_id": "vtg-dashboard",
+    "storage_bucket": "vtg-dashboard.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:690376519750:android:e52953b105547daec29a47",
+        "android_client_info": {
+          "package_name": "ru.vtg.dashboard"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXLd4XWWs9X2xrAefYbSY8AX0bB40fQkU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

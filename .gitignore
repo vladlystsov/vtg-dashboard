@@ -42,8 +42,9 @@ android/app/build/
 android/build/
 android/capacitor-cordova-android-plugins/build/
 android/local.properties
-# Секрет Firebase для push — кладём локально, в git не коммитим.
-android/app/google-services.json
+# google-services.json НЕ игнорируем: без него Gradle не подключает плагин
+# Firebase, и приложение падает при регистрации push. Секретом файл не является —
+# он лежит внутри каждого собранного APK.
 
 # ===== Android / подпись релизов =====
 # Ключ подписи release-сборок и пароли к нему. Потеря ключа = приложение
