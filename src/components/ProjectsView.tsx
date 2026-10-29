@@ -345,7 +345,27 @@ export default function ProjectsView({
     }
   };
 
+  // Загрузка считается «живой», если она есть в памяти этого экрана либо
+  // запись об «uploading» свежая. Иначе это след прерванной загрузки (закрыли
+  // страницу/приложение): файла уже нет, и спиннер не должен крутиться вечно.
+  const STALE_UPLOAD_MS = 15 * 60 * 1000;
+  const isStaleUploading = (p: Project): boolean => {
+    if (p.zipStatus !== 'uploading') return false;
+    if (uploadingId === p.id || uploadControllers.current.has(p.id)) return false;
+    const stamp = new Date(p.updatedAt || p.createdAt || 0).getTime();
+    return !Number.isFinite(stamp) || Date.now() - stamp > STALE_UPLOAD_MS;
+  };
+
   const renderZipSection = (p: Project) => {
+    if (isStaleUploading(p)) {
+      return (
+        <div className="project-zip project-zip-error">
+          <span>
+            Загрузка архива прервана. Откройте версию, чтобы прикрепить архив заново.
+          </span>
+        </div>
+      );
+    }
     if (uploadingId === p.id || p.zipStatus === 'uploading') {
       return (
         <div className="project-zip project-zip-uploading">

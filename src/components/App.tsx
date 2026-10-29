@@ -740,7 +740,11 @@ export default function App() {
             canEdit={isRoleAllowed}
             onSave={handleSaveProject}
             onDelete={handleDeleteProject}
-            onUpdateTrack={updateTrack as any}
+            // updateTrackFields (а не updateTrack): undefined должен реально
+            // стирать поле через deleteField, иначе «зависшая» загрузка архива
+            // (projectZipStatus: 'uploading') не снималась и карточка проекта
+            // не удалялась — спиннер висел вечно (проект Geld).
+            onUpdateTrack={updateTrackFields as any}
             onOpenTrack={handleOpenTrack}
           />
         )}
