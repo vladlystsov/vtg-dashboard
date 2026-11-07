@@ -27,6 +27,9 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { installDom } from './vendor/minidom.mjs';
+
+installDom();
 
 const ROLE_UPLOAD = ['admin', 'owner', 'beatmaker'];
 const ROLE_ADMIN = ['admin', 'owner'];
@@ -219,7 +222,12 @@ export default {
 
     if (op === 'list') {
       if (!ROLE_ADMIN.includes(role)) return json(403, { error: 'Список файлов доступен только админам' });
-      return json(200, { items: await listAllObjects(client, env, bucket, request) });
+      try {
+        const items = await listAllObjects(client, env, bucket, request);
+        return json(200, { items });
+      } catch (e) {
+        return json(500, { error: `list error: ${e && e.message ? e.message : String(e)}` });
+      }
     }
 
     return json(400, { error: 'Неизвестная операция' });
