@@ -25,7 +25,7 @@ interface ProjectsViewProps {
   ) => Promise<string | undefined>;
   onDelete: (id: string) => Promise<void>;
   onUpdateTrack: (id: string, patch: Partial<Track>) => Promise<void>;
-  /** РћС‡РёСЃС‚РєР° РїРѕР»РµР№ РїСЂРѕРµРєС‚Р° (undefined = СѓРґР°Р»РёС‚СЊ зеле): РЅСѓР¶РЅР°, С‡С‚РѕР±С‹ СЃРЅСЏС‚СЊ Р·Р°РІРёСЃС€РёР№ СЃС‚Р°С‚СѓСЃ Р·Р°РіСЂСѓР·РєРё. */
+  /** Очистка полей проекта (undefined = удалить зеле): нужна, чтобы снять зависший статус загрузки. */
   onUpdateProjectFields?: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onOpenTrack?: (track: Track) => void;
 }
@@ -105,9 +105,9 @@ export default function ProjectsView({
   }, [tracks]);
 
   /**
-   * РЎРЅРёРјР°РµС‚ СЃС‚Р°С‚СѓСЃ В«Р·Р°РіСЂСѓР¶Р°РµС‚СЃСЏВ» Сѓ РІРµСЂСЃРёРё: Сѓ Р·Р°РїРёСЃРё РїСЂРѕРµРєС‚Р°, Сѓ Р°СЂС…РёРІР° С‚СЂРµРєР°
-   * (projectZips) или Сѓ СЃС‚Р°СЂРѕРіРѕ РѕРґРёРЅРѕС‡РЅРѕРіРѕ РїРѕР»СЏ projectZip*. РРЅР°С‡Рµ РїРѕСЃР»Рµ
-   * РїСЂРµСЂРІР°РЅРЅРѕР№ Р·Р°Р»РёРІРєРё СЃРїРёРЅРЅРµСЂ РѕСЃС‚Р°С‘С‚СЃСЏ РЅР°РІСЃРµРіРґР° вЂ” и В«РћС‚РјРµРЅР°В» еже Хе СѓР±РёСЂР°РµС‚.
+   * Снимает статус «загружается» у версии: у записи проекта, у архива трека
+   * (projectZips) или у старого одиночного поля projectZip*. �?наче после
+   * прерванной заливки спиннер остаётся навсегда вЂ” и «Отмена» еже Хе убирает.
    */
   const clearZipStatus = (projectId: string) => {
     if (!projectId.startsWith('zip:')) {
@@ -127,8 +127,8 @@ export default function ProjectsView({
     void onUpdateTrack(trackId, { projectZips: zips.length ? zips : undefined });
   };
 
-  // Р§РёСЃС‚РёРј Р±СЂРѕС€РµРЅРЅС‹Рµ Р·Р°РіСЂСѓР·РєРё: их РЅРµРєРѕРјСѓ Р·Р°РІРµСЂС€РёС‚СЊ, и Р±РµР· СЌС‚РѕРіРѕ РєР°СЂС‚РѕС‡РєР°
-  // Р±РµСЃРєРѕРЅРµС‡РЅРѕ РїРѕРєР°Р·С‹РІР°РµС‚ В«Р—Р°РіСЂСѓР¶Р°РµРј Р°СЂС…РёРІ РІРµСЂСЃРёРё Ц С…СЂР°РЅРёР»РёС‰РµвЂ¦В».
+  // Чистим брошенные загрузки: их некому завершить, и без этого карточка
+  // бесконечно показывает «Загружаем архив версии Ц хранилище…».
   const healedUploads = useRef(new Set<string>());
   useEffect(() => {
     const now = Date.now();
@@ -164,13 +164,13 @@ export default function ProjectsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, tracks]);
 
-  // Архив РїСЂРёРІСЏР·Р°РЅ СЃС‚СЂРѕРіРѕ д РѕРґРЅРѕРјСѓ С‚СЂРµРєСѓ. Р’РµСЂСЃРёРё (Р·Р°РїРёСЃРё Project) РёС‰СѓС‚СЃСЏ
-  // зе РєРѕРЅРєСЂРµС‚РЅРѕРјСѓ id С‚СЂРµРєР°, Р° Хе зе РІСЃРµРјСѓ СЃР±РѕСЂРЅРёРєСѓ.
+  // Архив привязан строго д одному треку. Версии (записи Project) ищутся
+  // зе конкретному id трека, а Хе зе всему сборнику.
   const projectTrackIdsOf = (p: Project): string[] => projectTrackIds(p);
 
-  // Р’РёСЂС‚СѓР°Р»СЊРЅС‹Рµ РІРµСЂСЃРёРё: РїСЂРѕРµРєС‚С‹, РїСЂРёРєСЂРµРїР»С‘РЅРЅС‹Рµ д С‚СЂРµРєСѓ С‡РµСЂРµР· С„РѕСЂРјСѓ С‚СЂРµРєР°
-  // (projectZipUrl / projectZips), РґР»СЏ РєРѕС‚РѕСЂС‹С… РµС‰С‘ Хет
-  // РѕС‚РґРµР»СЊРЅРѕР№ Р·Р°РїРёСЃРё Ц делледции projects. РћС‚РѕР±СЂР°Р¶Р°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РґР»СЏ С‡С‚РµРЅРёСЏ.
+  // Виртуальные версии: проекты, прикреплённые д треку через форму трека
+  // (projectZipUrl / projectZips), для которых ещё Хет
+  // отдельной записи Ц делледции projects. Отображаются только для чтения.
   const virtualProjectsForTrack = (t: Track): Project[] => {
     const docIds = new Set(projects.map((p) => p.id));
     const out: Project[] = [];
@@ -217,7 +217,7 @@ export default function ProjectsView({
     return [...docVersions, ...virtualProjectsForTrack(t)];
   };
 
-  // РџРѕРєР°Р·С‹РІР°РµРј РєР°СЂС‚РѕС‡РєРё РІСЃРµС… С‚СЂРµРєРѕРІ, Сѓ РєРѕС‚РѕСЂС‹С… РµСЃС‚СЊ С…РѕС‚СЏ Р±С‹ РѕРґРЅР° РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р°
+  // Показываем карточки всех треков, у которых есть хотя бы одна версия проекта
   const projectTracks = useMemo<Track[]>(() => {
     const seen = new Set<string>();
     const out: Track[] = [];
@@ -243,8 +243,8 @@ export default function ProjectsView({
     userMap.get(t.artistUids?.[0] || '')?.artistName ||
     '';
 
-  // Р¤РёР»СЊС‚СЂР°С†РёСЏ РєР°СЂС‚РѕС‡РµРє зе РїРѕРёСЃРєРѕРІРѕРјСѓ Р·Р°РїСЂРѕСЃСѓ: РЅР°Р·РІР°РЅРёРµ С‚СЂРµРєР°, Р°СЂС‚РёСЃС‚,
-  // СЃР±РѕСЂРЅРёРє, РЅР°Р·РІР°РЅРёСЏ РІРµСЂСЃРёР№ РїСЂРѕРµРєС‚Р°.
+  // Фильтрация карточек зе поисковому запросу: название трека, артист,
+  // сборник, названия версий проекта.
   const visibleProjectTracks = useMemo<Track[]>(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return projectTracks;
@@ -328,9 +328,9 @@ export default function ProjectsView({
       },
     }).catch((e) => {
       if (controller.signal.aborted) {
-        finishUpload({ zipStatus: 'error' as const, zipError: 'Р—Р°РіСЂСѓР·РєР° РѕС‚РјРµРЅРµРЅР°' });
+        finishUpload({ zipStatus: 'error' as const, zipError: 'Загрузка отменена' });
       } else if (!(e instanceof DOMException && e.name === 'AbortError')) {
-        finishUpload({ zipStatus: 'error' as const, zipError: e instanceof Error ? e.message : 'РћС€РёР±РєР° РїСѓР±Р»РёРєР°С†РёРё' });
+        finishUpload({ zipStatus: 'error' as const, zipError: e instanceof Error ? e.message : 'Ошибка публикации' });
       }
     });
   };
@@ -338,9 +338,9 @@ export default function ProjectsView({
   const cancelUpload = (projectId: string) => {
     const controller = uploadControllers.current.get(projectId);
     if (!controller) {
-      // Р—Р°РіСЂСѓР·РєРё СѓР¶Рµ Хет (СѓСЃРїРµР»Р° Р·Р°РІРµСЂС€РёС‚СЊСЃСЏ, РѕС‚РјРµРЅРёС‚СЊСЃСЏ или РµС‘ Р±СЂРѕСЃРёР»Рё),
-      // Р° СЃРїРёРЅРЅРµСЂ РµС‰С‘ РІРёСЃРёС‚ вЂ” СЃРЅРёРјР°РµРј и Р»РѕРєР°Р»СЊРЅРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ, и СЃС‚Р°С‚СѓСЃ Ц Р±Р°Р·Рµ:
-      // РёРЅР°С‡Рµ РїРѕСЃР»Рµ РїРµСЂРµСЂРёСЃРѕРІРєРё еХ РІРµСЂРЅС‘С‚СЃСЏ из Firestore.
+      // Загрузки уже Хет (успела завершиться, отмениться или её бросили),
+      // а спиннер ещё висит вЂ” снимаем и локальное состояние, и статус Ц базе:
+      // иначе после перерисовки еХ вернётся из Firestore.
       setUploadingId((id) => (id === projectId ? null : id));
       setCancellingId((id) => (id === projectId ? null : id));
       clearZipStatus(projectId);
@@ -353,7 +353,7 @@ export default function ProjectsView({
   const saveVersion = async () => {
     if (!modal) return;
     if (modal.trackIds.length === 0) {
-      setZipError('Р’С‹Р±РµСЂРёС‚Рµ РѕРґРёРЅ С‚СЂРµРє, д РєРѕС‚РѕСЂРѕРјСѓ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р°.');
+      setZipError('Выберите один трек, д которому привязывается версия проекта.');
       setTimeout(() => setZipError(null), 4000);
       return;
     }
@@ -374,7 +374,7 @@ export default function ProjectsView({
       daw: modal.daw,
       dawVersion: modal.dawVersion.trim() || undefined,
       stage: modal.stage,
-      // Р РѕР»СЊ В«Р°РєС‚РёРІРЅРѕР№ РІРµСЂСЃРёРёВ» РІС‹РїРѕР»РЅСЏРµС‚ РІР°СЂРёР°РЅС‚ В«РћСЃРЅРѕРІРЅРѕР№В» (variant === 'main')
+      // Роль «активной версии» выполняет вариант «Основной» (variant === 'main')
       active: modal.variant === 'main',
       zipStatus: modal.zipFile ? ('uploading' as const) : undefined,
       description: modal.description.trim() || undefined,
@@ -410,9 +410,9 @@ export default function ProjectsView({
     }
   };
 
-  // Р—Р°РіСЂСѓР·РєР° СЃС‡РёС‚Р°РµС‚СЃСЏ В«Р¶РёРІРѕР№В», РµСЃР»Рё РѕРЅР° РµСЃС‚СЊ Ц РїР°РјСЏС‚Рё СЌС‚РѕРіРѕ СЌРєСЂР°РЅР° Р»РёР±Рѕ
-  // Р·Р°РїРёСЃСЊ РѕР± «uploading» СЃРІРµР¶Р°СЏ. РРЅР°С‡Рµ СЌС‚Рѕ СЃР»РµРґ РїСЂРµСЂРІР°РЅРЅРѕР№ Р·Р°РіСЂСѓР·РєРё (Р·Р°РєСЂС‹Р»Рё
-  // СЃС‚СЂР°РЅРёС†Сѓ/РїСЂРёР»РѕР¶РµРЅРёРµ): С„Р°Р№Р»Р° СѓР¶Рµ Хет, и СЃРїРёРЅРЅРµСЂ Хе РґРѕР»Р¶РµРЅ РєСЂСѓС‚РёС‚СЊСЃСЏ ЦечХе.
+  // Загрузка считается «живой», если она есть Ц памяти этого экрана либо
+  // запись об «uploading» свежая. �?наче это след прерванной загрузки (закрыли
+  // страницу/приложение): файла уже Хет, и спиннер Хе должен крутиться ЦечХе.
   const STALE_UPLOAD_MS = 15 * 60 * 1000;
   const isStaleUploading = (p: Project): boolean => {
     if (p.zipStatus !== 'uploading') return false;
@@ -426,7 +426,7 @@ export default function ProjectsView({
       return (
         <div className="project-zip project-zip-error">
           <span>
-            Р—Р°РіСЂСѓР·РєР° Р°СЂС…РёРІР° РїСЂРµСЂРІР°РЅР°. РћС‚РєСЂРѕР№С‚Рµ РІРµСЂСЃРёСЋ, С‡С‚РѕР±С‹ РїСЂРёРєСЂРµРїРёС‚СЊ Р°СЂС…РёРІ Р·Р°РЅРѕРІРѕ.
+            Загрузка архива прервана. Откройте версию, чтобы прикрепить архив заново.
           </span>
         </div>
       );
@@ -436,16 +436,16 @@ export default function ProjectsView({
         <div className="project-zip project-zip-uploading">
           <span className="project-zip-spinner" />
           <span className="project-zip-cancel-label">
-            {cancellingId === p.id ? 'РћС‚РјРµРЅСЏРµРјвЂ¦' : 'Р—Р°РіСЂСѓР¶Р°РµРј Р°СЂС…РёРІ РІРµСЂСЃРёРё Ц С…СЂР°РЅРёР»РёС‰РµвЂ¦'}
+            {cancellingId === p.id ? 'Отменяем…' : 'Загружаем архив версии Ц хранилище…'}
           </span>
           {canEdit && (
             <button
               type="button"
               className="project-zip-cancel"
-              title="РћС‚РјРµРЅРёС‚СЊ Р·Р°РіСЂСѓР·РєСѓ"
+              title="Отменить загрузку"
               disabled={cancellingId === p.id}
               onClick={(e) => {
-                // Р“Р°СЃРёРј РІСЃРїР»С‹С‚РёРµ: РёРЅР°С‡Рµ длид РѕС‚РєСЂРѕРµС‚ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІРµСЂСЃРёРё.
+                // Гасим всплытие: иначе длид откроет редактирование версии.
                 e.stopPropagation();
                 cancelUpload(p.id);
               }}
@@ -459,7 +459,7 @@ export default function ProjectsView({
     if (p.zipStatus === 'error' || p.zipError) {
       return (
         <div className="project-zip project-zip-error">
-          <span>{p.zipError || 'РћС€РёР±РєР° РїСѓР±Р»РёРєР°С†РёРё'}</span>
+          <span>{p.zipError || 'Ошибка публикации'}</span>
         </div>
       );
     }
@@ -469,11 +469,11 @@ export default function ProjectsView({
           <span className="project-zip-ok">вњ“</span>
           <DownloadButton
             url={p.zipUrl}
-            title={`РђСЂС…РёРІ ${p.name}`}
+            title={`Архив ${p.name}`}
             fileName={`VTG ${p.name}.zip`}
-            hrefTitle="РЎРєР°С‡Р°С‚СЊ Р°СЂС…РёРІ РІРµСЂСЃРёРё"
+            hrefTitle="Скачать архив версии"
           >
-            РЎРєР°С‡Р°С‚СЊ Р°СЂС…РёРІ РІРµСЂСЃРёРё
+            Скачать архив версии
           </DownloadButton>
         </div>
       );
@@ -505,7 +505,7 @@ export default function ProjectsView({
     });
   };
 
-  // РЎРїРёСЃРѕРє С‚СЂРµРєРѕРІ РґР»СЏ СЃРµР»РµРєС‚РѕСЂР° Ц РјРѕРґР°Р»РєРµ РІРµСЂСЃРёРё (СЃ РїРѕРёСЃРєРѕРј)
+  // Список треков для селектора Ц модалке версии (с поиском)
   const trackSearchQuery = trackSearch.trim().toLowerCase();
   const visibleTrackOptions = trackSearchQuery
     ? tracks.filter((t) => {
@@ -531,11 +531,11 @@ export default function ProjectsView({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="РџРѕРёСЃРє зе РЅР°Р·РІР°РЅРёСЋ С‚СЂРµРєР°, Р°СЂС‚РёСЃС‚Сѓ, СЃР±РѕСЂРЅРёРєСѓ, РІРµСЂСЃРёРёвЂ¦"
+          placeholder="Поиск зе названию трека, артисту, сборнику, версии…"
         />
         <div className="projects-head-actions">
           <button className="btn-primary" onClick={() => openNewVersion()}>
-            + РќРѕРІР°СЏ РІРµСЂСЃРёСЏ
+            + Новая версия
           </button>
         </div>
       </div>
@@ -544,12 +544,12 @@ export default function ProjectsView({
 
       {projectTracks.length === 0 ? (
         <div className="beats-empty">
-          АрхивРѕРІ РїРѕРєР° Хет. РљР°Р¶РґС‹Р№ РїСЂРѕРµРєС‚ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ д РѕРґРЅРѕРјСѓ РєРѕРЅРєСЂРµС‚РЅРѕРјСѓ С‚СЂРµРєСѓ
-          (СЃРёРЅРіР» или С‚СЂРµРє из СЃР±РѕСЂРЅРёРєР°). РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІСѓСЋ РІРµСЂСЃРёСЋ РїСЂРѕРµРєС‚Р° вЂ” и РєР°СЂС‚РѕС‡РєР° С‚СЂРµРєР° РїРѕСЏРІРёС‚СЃСЏ Р·РґРµСЃСЊ.
+          АрхивРѕРІ пока Хет. Каждый проект привязывается д одному конкретному треку
+          (сингл или трек из сборника). Создайте первую версию проекта вЂ” и карточка трека появится здесь.
         </div>
       ) : visibleProjectTracks.length === 0 ? (
         <div className="beats-empty">
-          пе Р·Р°РїСЂРѕСЃСѓ «{searchQuery.trim()}» Хичеже Хе РЅР°Р№РґРµРЅРѕ.
+          пе запросу «{searchQuery.trim()}» Хичеже Хе найдено.
         </div>
       ) : (
         <div className="projects-grid">
@@ -562,7 +562,7 @@ export default function ProjectsView({
                 key={t.id}
                 onClick={() => onOpenTrack?.(t)}
                 role={onOpenTrack ? 'button' : undefined}
-                title={onOpenTrack ? 'РћС‚РєСЂС‹С‚СЊ С‚СЂРµРє' : undefined}
+                title={onOpenTrack ? 'Открыть трек' : undefined}
               >
                 <div className="release-card-cover">
                   {(t.personalCoverUrl || t.coverUrl) ? (
@@ -580,19 +580,19 @@ export default function ProjectsView({
                       <button
                         type="button"
                         className="at-delete release-card-delete"
-                        title="РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ РїСЂРѕРµРєС‚Р° и РІСЃРµ РµС‘ РІРµСЂСЃРёРё"
+                        title="Удалить карточку проекта и все её версии"
                         disabled={deletingCardTrackId === t.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ РїСЂРѕРµРєС‚Р° «${t.title}» РІРјРµСЃС‚Рµ СЃРѕ РІСЃРµРјРё РІРµСЂСЃРёСЏРјРё (${versions.length})?`)) return;
+                          if (!window.confirm(`Удалить карточку проекта «${t.title}» вместе со всеми версиями (${versions.length})?`)) return;
                           setDeletingCardTrackId(t.id);
                           void (async () => {
                             for (const p of versions) {
                               if (isVirtualProject(p)) continue;
                               await onDelete(p.id);
                             }
-                            // РЈР±РёСЂР°РµРј РІРёСЂС‚СѓР°Р»СЊРЅС‹Рµ РІРµСЂСЃРёРё (Р°СЂС…РёРІС‹, РїСЂРёРєСЂРµРїР»С‘РЅРЅС‹Рµ
-                            // д С‚СЂРµРєСѓ РЅР°РїСЂСЏРјСѓСЋ), С‡С‚РѕР±С‹ РєР°СЂС‚РѕС‡РєР° РёСЃС‡РµР·Р»Р° СЃРѕРІСЃРµРј.
+                            // Убираем виртуальные версии (архивы, прикреплённые
+                            // д треку напрямую), чтобы карточка исчезла совсем.
                             await onUpdateTrack(t.id, {
                               projectZips: [],
                               projectZipUrl: '',
@@ -611,14 +611,14 @@ export default function ProjectsView({
                   </div>
                   {t.project && (
                     <div className="release-card-meta">
-                      <span className="beat-chip">РЎР±РѕСЂРЅРёРє: {t.project}</span>
+                      <span className="beat-chip">Сборник: {t.project}</span>
                     </div>
                   )}
 
                   <div className="project-card-section-title">АрхивС‹ ({versions.length})</div>
                   {versions.length === 0 ? (
                     <div className="project-card-empty">
-                      Р’РµСЂСЃРёР№ РїРѕРєР° Хет. РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІСѓСЋ, С‡С‚РѕР±С‹ СЃРІРѕРґРёС‚СЊ/РјР°СЃС‚РµСЂРёС‚СЊ СЌС‚РѕС‚ С‚СЂРµРє.
+                      Версий пока Хет. Создайте первую, чтобы сводить/мастерить этот трек.
                     </div>
                   ) : (
                     <div className="release-versions">
@@ -634,16 +634,16 @@ export default function ProjectsView({
                           <div
                             className={`release-version ${canEdit && !isVirtualProject(p) ? 'release-version-clickable' : ''}`}
                             key={p.id}
-                            title={canEdit && !isVirtualProject(p) ? 'РР·РјРµРЅРёС‚СЊ РІРµСЂСЃРёСЋ' : undefined}
+                            title={canEdit && !isVirtualProject(p) ? '�?зменить версию' : undefined}
                             onClick={(e) => {
                               if (!canEdit || isVirtualProject(p)) return;
-                              // клид зе РєРЅРѕРїРєР°Рј/СЃСЃС‹Р»РєР°Рј РІРЅСѓС‚СЂРё Р±Р»РѕРєР° Хе РѕС‚РєСЂС‹РІР°РµС‚
-                              // СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ и Хе РІСЃРїР»С‹РІР°РµС‚ РґРѕ РєР°СЂС‚РѕС‡РєРё С‚СЂРµРєР°.
-                              // .project-zip Ц СЃРїРёСЃРєРµ вЂ” РѕР±СЏР·Р°С‚РµР»РµРЅ: РєРѕРіРґР° РєРЅРѕРїРєР°
-                              // етйеХъ СѓР¶Рµ disabled, Р±СЂР°СѓР·РµСЂ Хе РѕС‚РїСЂР°РІР»СЏРµС‚ зе РЅРµР№
-                              // click, и С†РµР»СЊСЋ СЃРѕР±С‹С‚РёСЏ СЃС‚Р°РЅРѕРІРёС‚СЃСЏ СЂРѕРґРёС‚РµР»СЊСЃРєРёР№ div.
-                              // Р‘РµР· СЌС‚РѕР№ РїСЂРѕРІРµСЂРєРё РїРѕРІС‚РѕСЂРЅРѕРµ РЅР°Р¶Р°С‚РёРµ В«Г—В» РѕС‚РєСЂС‹РІР°Р»Рѕ
-                              // СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІРµСЂСЃРёРё РІРјРµСЃС‚Рѕ етйеХъ Р·Р°РіСЂСѓР·РєРё.
+                              // клид зе кнопкам/ссылкам внутри блока Хе открывает
+                              // редактирование и Хе всплывает до карточки трека.
+                              // .project-zip Ц списке вЂ” обязателен: когда кнопка
+                              // етйеХъ уже disabled, браузер Хе отправляет зе ней
+                              // click, и целью события становится родительский div.
+                              // Без этой проверки повторное нажатие В«Г—В» открывало
+                              // редактирование версии вместо етйеХъ загрузки.
                               if ((e.target as HTMLElement).closest('button, a, .project-zip')) {
                                 e.stopPropagation();
                                 return;
@@ -659,10 +659,10 @@ export default function ProjectsView({
                                   <button
                                     type="button"
                                     className="at-delete"
-                                    title="РЈРґР°Р»РёС‚СЊ РІРµСЂСЃРёСЋ"
+                                    title="Удалить версию"
                                     disabled={deletingId === p.id}
                                     onClick={() => {
-                                      if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РІРµСЂСЃРёСЋ «${p.name}»?`)) return;
+                                      if (!window.confirm(`Удалить версию «${p.name}»?`)) return;
                                       setDeletingId(p.id);
                                       void onDelete(p.id).finally(() => setDeletingId(null));
                                     }}
@@ -692,7 +692,7 @@ export default function ProjectsView({
                                   className="btn-small-ghost"
                                   onClick={() => openEditVersion(p)}
                                 >
-                                  в¬† РџСЂРёРєСЂРµРїРёС‚СЊ Р°СЂС…РёРІ РІРµСЂСЃРёРё (.zip)
+                                  в¬† Прикрепить архив версии (.zip)
                                 </button>
                               )}
                             </div>
@@ -707,12 +707,12 @@ export default function ProjectsView({
                       type="button"
                       className="btn-add-inline"
                       onClick={(e) => {
-                        // ое РІСЃРїР»С‹РІР°РµРј РґРѕ РєР°СЂС‚РѕС‡РєРё, РёРЅР°С‡Рµ РѕС‚РєСЂРѕРµС‚СЃСЏ С‚СЂРµРє
+                        // ое всплываем до карточки, иначе откроется трек
                         e.stopPropagation();
                         openNewVersion(t);
                       }}
                     >
-                      + РќРѕРІР°СЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р° РґР»СЏ «{t.title}»
+                      + Новая версия проекта для «{t.title}»
                     </button>
                   )}
                 </div>
@@ -726,28 +726,28 @@ export default function ProjectsView({
         <div className="modal-overlay" onClick={() => setModal(null)}>
           <div className="track-form-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{modal.editing ? 'Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ РІРµСЂСЃРёСЋ' : 'РќРѕРІР°СЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р°'}</h2>
+              <h2>{modal.editing ? 'Редактировать версию' : 'Новая версия проекта'}</h2>
               <button className="modal-close" onClick={() => setModal(null)}>Г—</button>
             </div>
 
             <div className="form-section">
               <div className="form-group">
-                <label>РќР°Р·РІР°РЅРёРµ РІРµСЂСЃРёРё</label>
+                <label>Название версии</label>
                 <input
                   type="text"
                   value={modal.name}
                   onChange={(e) => setModal({ ...modal, name: e.target.value })}
-                  placeholder="РќР°Р·РІР°РЅРёРµ, РЅР°РїСЂРёРјРµСЂ: РЅР°Р·РІР°РЅРёРµ СЂРµР»РёР·Р° или В«РћСЃРЅРѕРІР°В»"
+                  placeholder="Название, например: название релиза или «Основа»"
                 />
               </div>
 
               <div className="form-group">
-                <label>РўСЂРµРє, д РєРѕС‚РѕСЂРѕРјСѓ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р° *</label>
+                <label>Трек, д которому привязывается версия проекта *</label>
                 <input
                   type="text"
                   value={trackSearch}
                   onChange={(e) => setTrackSearch(e.target.value)}
-                  placeholder="РџРѕРёСЃРє С‚СЂРµРєР°: РЅР°Р·РІР°РЅРёРµ, Р°СЂС‚РёСЃС‚, СЃР±РѕСЂРЅРёРє, РЅРѕРјРµСЂвЂ¦"
+                  placeholder="Поиск трека: название, артист, сборник, номер…"
                   style={{ marginBottom: 8 }}
                 />
                 <div className="release-multiselect">
@@ -761,29 +761,29 @@ export default function ProjectsView({
                         <input type="radio" checked={checked} onChange={select} />
                         <span className={`release-option-title ${checked ? 'checked' : ''}`}>
                           {t.trackNumber ? `${t.trackNumber}. ` : ''}{t.title}
-                          {t.project ? <span className="beat-chip">СЃР±РѕСЂРЅРёРє: {t.project}</span> : null}
+                          {t.project ? <span className="beat-chip">сборник: {t.project}</span> : null}
                         </span>
                       </label>
                     );
                   })}
                   {visibleTrackOptions.length === 0 && tracks.length > 0 && (
                     <div className="project-card-empty">
-                      пе Р·Р°РїСЂРѕСЃСѓ «{trackSearch.trim()}» С‚СЂРµРєРё Хе РЅР°Р№РґРµРЅС‹.
+                      пе запросу «{trackSearch.trim()}» треки Хе найдены.
                     </div>
                   )}
                   {tracks.length === 0 && (
-                    <div className="project-card-empty">РЎРЅР°С‡Р°Р»Р° СЃРѕР·РґР°Р№С‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРёРЅ С‚СЂРµРє.</div>
+                    <div className="project-card-empty">Сначала создайте хотя бы один трек.</div>
                   )}
                 </div>
                 <div className="form-hint" style={{ marginTop: 4 }}>
-                  РћРґРёРЅ РїСЂРѕРµРєС‚ (.zip) вЂ” РѕРґРёРЅ С‚СЂРµРє. РўСЂРµРє из СЃР±РѕСЂРЅРёРєР° теже РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ СЃР°Рј д СЃРµР±Рµ.
+                  Один проект (.zip) вЂ” один трек. Трек из сборника теже привязывается только сам д себе.
                 </div>
               </div>
 
-              <h3>Р”РѕРї. РёРЅС„РѕСЂРјР°С†РёСЏ РїСЂРѕРµРєС‚Р°</h3>
+              <h3>Доп. информация проекта</h3>
               <div className="form-row">
                 <div className="form-group">
-                  <label>РЎС‚Р°С‚СѓСЃ</label>
+                  <label>Статус</label>
                   <select
                     value={modal.status}
                     onChange={(e) => setModal({ ...modal, status: e.target.value as TrackStatus })}
@@ -794,7 +794,7 @@ export default function ProjectsView({
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Р–Р°РЅСЂ</label>
+                  <label>Жанр</label>
                   <input
                     type="text"
                     value={modal.genre}
@@ -805,26 +805,26 @@ export default function ProjectsView({
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>РђСЂС‚РёСЃС‚С‹ (С‡РµСЂРµР· Р·Р°РїСЏС‚СѓСЋ)</label>
+                  <label>Артисты (через запятую)</label>
                   <input
                     type="text"
                     value={modal.artists}
                     onChange={(e) => setModal({ ...modal, artists: e.target.value })}
-                    placeholder="РћСЃРЅРѕРІРЅС‹Рµ РёСЃРїРѕР»РЅРёС‚РµР»Рё СЂРµР»РёР·Р°"
+                    placeholder="Основные исполнители релиза"
                   />
                 </div>
                 <div className="form-group">
-                  <label>РўРµРіРё (С‡РµСЂРµР· Р·Р°РїСЏС‚СѓСЋ)</label>
+                  <label>Теги (через запятую)</label>
                   <input
                     type="text"
                     value={modal.tags}
                     onChange={(e) => setModal({ ...modal, tags: e.target.value })}
-                    placeholder="dark, деХцезт, Р°Р»СЊР±РѕРј"
+                    placeholder="dark, деХцезт, альбом"
                   />
                 </div>
               </div>
               <div className="form-group">
-                <label>РћР±Р»РѕР¶РєР° (СЃСЃС‹Р»РєР°)</label>
+                <label>Обложка (ссылка)</label>
                 <input
                   type="url"
                   value={modal.coverUrl}
@@ -833,17 +833,17 @@ export default function ProjectsView({
                 />
               </div>
               <div className="form-group">
-                <label>РћРїРёСЃР°РЅРёРµ</label>
+                <label>Описание</label>
                 <textarea
                   value={modal.description}
                   onChange={(e) => setModal({ ...modal, description: e.target.value })}
-                  placeholder="РџР°СЂР° СЃР»РѕРІ е СЂРµР»РёР·Рµ: Р·Р°РґР°С‡Р°, РёРґРµСЏ, РґРµС‚Р°Р»Рё"
+                  placeholder="Пара слов е релизе: задача, идея, детали"
                 />
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Р’Р°СЂРёР°РЅС‚</label>
+                  <label>Вариант</label>
                   <select
                     value={modal.variant}
                     onChange={(e) => setModal({ ...modal, variant: e.target.value as ProjectVariant })}
@@ -853,7 +853,7 @@ export default function ProjectsView({
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Р’РѕРєР°Р» / РјР°С‚РµСЂРёР°Р»</label>
+                  <label>Вокал / материал</label>
                   <select
                     value={modal.vocalType}
                     onChange={(e) => setModal({ ...modal, vocalType: e.target.value as ProjectVocalType | '' })}
@@ -886,19 +886,19 @@ export default function ProjectsView({
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Р’РµСЂСЃРёСЏ DAW</label>
+                  <label>Версия DAW</label>
                   <input
                     type="text"
                     value={modal.dawVersion}
                     onChange={(e) => setModal({ ...modal, dawVersion: e.target.value })}
-                    placeholder={modal.daw === 'fl' ? DEFAULT_DLD_VERSION : 'РќР°РїСЂРёРјРµСЂ: 15, 21'}
+                    placeholder={modal.daw === 'fl' ? DEFAULT_DLD_VERSION : 'Например: 15, 21'}
                   />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Р­С‚Р°Рї</label>
+                  <label>Этап</label>
                   <select
                     value={modal.stage}
                     onChange={(e) => setModal({ ...modal, stage: e.target.value as ProjectStage })}
@@ -911,7 +911,7 @@ export default function ProjectsView({
               </div>
 
               <div className="form-group">
-                <label>РђСЂС…РёРІ РІРµСЂСЃРёРё (.zip, РґРѕ 1 Р“Р‘) вЂ” йежХе РїСЂРёРєСЂРµРїРёС‚СЊ зезже</label>
+                <label>Архив версии (.zip, до 1 ГБ) вЂ” йежХе прикрепить зезже</label>
                 <input
                   type="file"
                   accept=".zip"
@@ -919,15 +919,15 @@ export default function ProjectsView({
                 />
                 {modal.zipFile && (
                   <div className="form-hint" style={{ marginTop: 4 }}>
-                    РђСЂС…РёРІ «{modal.zipFile.name}» ({(modal.zipFile.size / 1024 / 1024).toFixed(1)} РњР‘)
-                    Р±СѓРґРµС‚ Р·Р°РіСЂСѓР¶РµРЅ Ц С…СЂР°РЅРёР»РёС‰Рµ РїРѕСЃР»Рµ СЃРѕС…СЂР°РЅРµРЅРёСЏ.
+                    Архив «{modal.zipFile.name}» ({(modal.zipFile.size / 1024 / 1024).toFixed(1)} МБ)
+                    будет загружен Ц хранилище после сохранения.
                   </div>
                 )}
               </div>
 
               <div className="form-hint">
-                РћРґРЅР° Р·Р°РїРёСЃСЊ = РѕРґРЅР° РІРµСЂСЃРёСЏ. Р’РµСЂСЃРёРё йежХе РЅР°Р·РЅР°С‡Р°С‚СЊ СЃСЂР°Р·Сѓ РЅРµСЃРєРѕР»СЊРєРёРј СЂРµР»РёР·Р°Рј,
-                С‡С‚РѕР±С‹ Хе РґСѓР±Р»РёСЂРѕРІР°С‚СЊ РѕРґРёРЅР°РєРѕРІСѓСЋ СЂР°Р±РѕС‚Сѓ Ц СЂР°Р·РЅС‹С… Р°Р»СЊР±РѕРјР°С….
+                Одна запись = одна версия. Версии йежХе назначать сразу нескольким релизам,
+                чтобы Хе дублировать одинаковую работу Ц разных альбомах.
               </div>
             </div>
 
@@ -937,13 +937,13 @@ export default function ProjectsView({
                   {renderZipSection(modal.editing)}
                 </span>
               )}
-              <button className="btn-secondary" onClick={() => setModal(null)}>РћС‚РјРµРЅР°</button>
+              <button className="btn-secondary" onClick={() => setModal(null)}>Отмена</button>
               <button
                 className="btn-primary"
                 disabled={savingVersion}
                 onClick={() => void saveVersion()}
               >
-                {savingVersion ? 'РЎРѕС…СЂР°РЅСЏРµРјвЂ¦' : modal.editing ? 'РЎРѕС…СЂР°РЅРёС‚СЊ' : 'РЎРѕР·РґР°С‚СЊ РІРµСЂСЃРёСЋ'}
+                {savingVersion ? 'Сохраняем…' : modal.editing ? 'Сохранить' : 'Создать версию'}
               </button>
             </div>
           </div>

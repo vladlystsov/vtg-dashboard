@@ -17,9 +17,9 @@ export interface ShippedTrackItem {
   url: string;
   platform?: 'soundcloud' | 'youtube' | 'audio';
   coverUrl?: string;
-  // РћС‚РіСЂСѓР¶РµРЅРЅС‹Р№ (Р·Р°РІРµСЂС€С‘РЅРЅС‹Р№) С‚СЂРµРє вЂ” РґР»СЏ С„РёР»СЊС‚СЂР° В«С‚РѕР»СЊРєРѕ РѕС‚РіСЂСѓР¶РµРЅРЅРѕРµВ»
+  // Отгруженный (завершённый) трек вЂ” для фильтра «только отгруженное»
   shipped?: boolean;
-  // РСЃС‚РѕС‡РЅРёРє: С‚СЂРµРє или Р±РёС‚
+  // �?сточник: трек или бит
   source?: 'track' | 'beat';
 }
 
@@ -162,16 +162,16 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const ytTimerRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeEngineRef = useRef<'sc' | 'yt' | 'audio'>('sc');
-  // Р¤Р»Р°РіРё "СЌС‚РѕС‚ РґРІРёР¶РѕРє СЃРµР№С‡Р°СЃ РЅСѓР¶РµРЅ, С‡С‚РѕР±С‹ Р·РІСѓС‡Р°Р»". РќСѓР¶РЅС‹, С‡С‚РѕР±С‹ РѕС‚РјРµРЅСЏС‚СЊ
-  // етлежеХХее Р°РІС‚РѕРІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРµ РґСЂСѓРіРѕРіРѕ РґРІРёР¶РєР° РїСЂРё Р±С‹СЃС‚СЂРѕРј РїРµСЂРµРєР»СЋС‡РµРЅРёРё
-  // (РЅР°РїСЂРёРјРµСЂ: РЅР°Р¶Р°Р»Рё СЃР°Р№С‚РѕРІС‹Р№ С‚СЂРµРє и, Хе РґРѕР¶РёРґР°СЏСЃСЊ РїСЂРѕРіСЂСѓР·РєРё, СѓС€Р»Рё РЅР° Р»РѕРєР°Р»СЊРЅС‹Р№ вЂ”
-  // СЃР°Р№С‚РѕРІС‹Р№ РїР»РµРµСЂ Хе РґРѕР»Р¶РµРЅ РЅР°С‡Р°С‚СЊ РёРіСЂР°С‚СЊ РїРѕСЃР»Рµ теже, РєР°Рє Р·Р°РёРіСЂР°Р» Р»РѕРєР°Р»СЊРЅС‹Р№).
+  // Флаги "этот движок сейчас нужен, чтобы звучал". Нужны, чтобы отменять
+  // етлежеХХее автовоспроизведение другого движка при быстром переключении
+  // (например: нажали сайтовый трек и, Хе дожидаясь прогрузки, ушли на локальный вЂ”
+  // сайтовый плеер Хе должен начать играть после теже, как заиграл локальный).
   const scWantedRef = useRef(false);
   const ytWantedRef = useRef(false);
   const lookupRef = useRef<Map<string, ShippedTrackItem>>(new Map());
   const objectUrlRef = useRef<Map<string, string>>(new Map());
-  // Р—Р°С‰РёС‚Р° ет С†РёРєР»Р°: РµСЃР»Рё и Р±Р»РѕР± из РєСЌС€Р° Хе Р·Р°РёРіСЂР°Р», РїРѕРІС‚РѕСЂРЅРѕ РЅР° РѕС€РёР±РєСѓ
-  // Хе РїРµСЂРµРєР»СЋС‡Р°РµРјСЃСЏ.
+  // Защита ет цикла: если и блоб из кэша Хе заиграл, повторно на ошибку
+  // Хе переключаемся.
   const audioBlobFallbackRef = useRef(false);
 
   const [order, setOrder] = useState<ShippedTrackItem[]>([]);
@@ -181,7 +181,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const [dur, setDur] = useState(0);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
-  // allOn: (All) вЂ” РёРіСЂР°С‚СЊ из РІСЃРµРіРѕ СЃРїРёСЃРєР° СЃР°Р№С‚Р°. Р’С‹РєР»СЋС‡РµРЅРѕ вЂ” С‚РѕР»СЊРєРѕ из С‚РµРєСѓС‰РµРіРѕ СЂР°Р·РґРµР»Р°.
+  // allOn: (All) вЂ” играть из всего списка сайта. Выключено вЂ” только из текущего раздела.
   const [allOn, setAllOn] = useState(false);
   const [scope, setScope] = useState<ShippedTrackItem[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -198,13 +198,13 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   scopeRef.current = scope;
   lookupRef.current = new Map(tracks.map((t) => [t.id, t]));
 
-  // РўСЂРµРєР»РёСЃС‚ оЕ РїРµСЂРµСЃРѕР±РёСЂР°РµС‚СЃСЏ ет СЃРјРµРЅС‹ СЂР°Р·РґРµР»РѕРІ/С„РёР»СЊС‚СЂРѕРІ: РїСЂРё РїРµСЂРµС…РѕРґРµ РјРµР¶РґСѓ
-  // СЂР°Р·РґРµР»Р°РјРё С‚РµРєСѓС‰Р°СЏ РѕС‡РµСЂРµРґСЊ РїСЂРѕРёРіСЂС‹РІР°РЅРёСЏ РѕСЃС‚Р°С‘С‚СЃСЏ РїСЂРµР¶РЅРµР№. РџРѕР»РЅС‹Р№ СЃРїРёСЃРѕРє
-  // РґРѕР±Р°РІР»СЏРµС‚СЃСЏ С‚РѕР»СЊРєРѕ РєРЅРѕРїРєРѕР№ (All), Р° РїРµСЂРµСЃР±РѕСЂРєР° РїРѕРґ В«РІС‹СЃС‚Р°РІР»РµРЅРЅС‹Р№ С„РёР»СЊС‚СЂВ»
-  // РїСЂРѕРёСЃС…РѕРґРёС‚ Ц йейеХт, РєРѕРіРґР° РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РІС‹Р±РёСЂР°РµС‚ Ц РЅС‘Рј РЅРѕРІС‹Р№ С‚СЂРµРє (playTrack).
+  // Треклист оЕ пересобирается ет смены разделов/фильтров: при переходе между
+  // разделами текущая очередь проигрывания остаётся прежней. Полный список
+  // добавляется только кнопкой (All), а пересборка под «выставленный фильтр»
+  // происходит Ц йейеХт, когда пользователь выбирает Ц нём новый трек (playTrack).
   useEffect(() => {
-    // Р’ РѕС‡РµСЂРµРґСЊ РїРѕРїР°РґР°СЋС‚ С‚РѕР»СЊРєРѕ РѕС‚РіСЂСѓР¶РµРЅРЅС‹Рµ (shipped) вЂ” РЅРµРѕС‚РіСЂСѓР¶РµРЅРЅС‹Рµ
-    // РєР°СЂС‚РѕС‡РєРё Ц РїР»РµР№Р»РёСЃС‚ Хе РѕС‚РѕР±СЂР°Р¶Р°СЋС‚СЃСЏ (Ц т.ч. Ц СЂРµР¶РёРјРµ (All)).
+    // В очередь попадают только отгруженные (shipped) вЂ” неотгруженные
+    // карточки Ц плейлист Хе отображаются (Ц т.ч. Ц режиме (All)).
     const base = (allOnRef.current ? tracks : scopeRef.current ?? tracks)
       .filter((t) => t.shipped !== false);
     setOrder((prev) => {
@@ -258,14 +258,14 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   }, []);
 
   /**
-   * Р—Р°РїСѓСЃРє Р»РѕРєР°Р»СЊРЅРѕРіРѕ mp3/Р°СѓРґРёРѕС„Р°Р№Р»Р°.
+   * Запуск локального mp3/аудиофайла.
    *
-   * Р’Р°Р¶РЅРѕ: play() РІС‹Р·С‹РІР°РµС‚СЃСЏ РЎРРќРҐР РћРќРќРћ Ц РѕР±СЂР°Р±РѕС‚С‡РёРєРµ РєР»РёРєР°. Р Р°РЅСЊС€Рµ РїРµСЂРµРґ Хий
-   * Р¶РґР°Р»Рё getCachedAudio() (IndexedDB), из-Р·Р° чеже Р±СЂР°СѓР·РµСЂ С‚РµСЂСЏР» РїРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№
-   * Р¶РµСЃС‚ и РЅРѕРІС‹Р№ С‚СЂРµРє (еже РµС‰С‘ Хет Ц РєСЌС€Рµ) РјРѕР»С‡Р° Хе Р·Р°РїСѓСЃРєР°Р»СЃСЏ РЅР° СЃР°Р№С‚Рµ.
-   * Р’ Android WebView РѕРіСЂР°РЅРёС‡РµРЅРёРµ РјСЏРіС‡Рµ, РїРѕСЌС‚РѕРјСѓ С‚Р°Рј РІСЃС‘ СЂР°Р±РѕС‚Р°Р»Рѕ.
-   * РР· РєСЌС€Р° Р±РµСЂС‘Рј С‚РѕР»СЊРєРѕ В«РіРѕСЂСЏС‡РёР№В» Р±Р»РѕР±; РµСЃР»Рё еже Хет вЂ” СЃСЂР°Р·Сѓ РёРіСЂР°РµРј зе СЃРµС‚Рё,
-   * Р° РєСЌС€РёСЂРѕРІР°РЅРёРµ и РѕС„Р»Р°Р№РЅ-РїРѕРґРјРµРЅСѓ РґРµР»Р°РµРј Ц феХе.
+   * Важно: play() вызывается С�?НХРОННО Ц обработчике клика. Раньше перед Хий
+   * ждали getCachedAudio() (IndexedDB), из-за чеже браузер терял пользовательский
+   * жест и новый трек (еже ещё Хет Ц кэше) молча Хе запускался на сайте.
+   * В Android WebView ограничение мягче, поэтому там всё работало.
+   * �?з кэша берём только «горячий» блоб; если еже Хет вЂ” сразу играем зе сети,
+   * а кэширование и офлайн-подмену делаем Ц феХе.
    */
   const startAudio = useCallback((item: ShippedTrackItem) => {
     const a = audioRef.current;
@@ -295,8 +295,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
     if (hot) return;
 
-    // РќРѕРІС‹Р№ С‚СЂРµРє РµС‰С‘ Хе Ц РєСЌС€Рµ: РєР°С‡Р°РµРј Ц феХ и, РµСЃР»Рё СЃРµС‚СЊ Хе РґР°Р»Р° СЃС‚Р°СЂС‚
-    // (РѕС„Р»Р°Р№РЅ/Р±РёС‚Р°СЏ СЃСЃС‹Р»РєР°), РїСЂРѕР±СѓРµРј Р·Р°РёРіСЂР°С‚СЊ из СѓР¶Рµ СЃРѕС…СЂР°РЅС‘РЅРЅРѕРіРѕ Р±Р»РѕР±Р°.
+    // Новый трек ещё Хе Ц кэше: качаем Ц феХ и, если сеть Хе дала старт
+    // (офлайн/битая ссылка), пробуем заиграть из уже сохранённого блоба.
     void cacheAudio({ id: item.id, url: item.url.trim(), title: item.title });
     void (async () => {
       const cached = await getCachedAudio(item.id);
@@ -314,12 +314,12 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     })();
   }, []);
 
-  // РџРµСЂРµСЃР±РѕСЂРєР° РѕС‡РµСЂРµРґРё РїРѕРґ С‚РµРєСѓС‰СѓСЋ РІС‹Р±РѕСЂРєСѓ (СЂР°Р·РґРµР»/С„РёР»СЊС‚СЂ) вЂ” С‚РѕР»СЊРєРѕ РєРѕРіРґР°
-  // РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЏРІРЅРѕ РІС‹Р±РёСЂР°РµС‚ С‚СЂРµРє. РЎРјРµРЅР° СЂР°Р·РґРµР»Р° СЃР°РјР° зе СЃРµР±Рµ РѕС‡РµСЂРµРґСЊ Хе С‚СЂРѕРіР°РµС‚.
+  // Пересборка очереди под текущую выборку (раздел/фильтр) вЂ” только когда
+  // пользователь явно выбирает трек. Смена раздела сама зе себе очередь Хе трогает.
   const ensureOrder = useCallback(
     (id: string) => {
-      // РўРѕР»СЊРєРѕ РѕС‚РіСЂСѓР¶РµРЅРЅС‹Рµ: РЅРµРѕС‚РіСЂСѓР¶РµРЅРЅС‹Рµ РєР°СЂС‚РѕС‡РєРё Хе РїРѕРєР°Р·С‹РІР°РµРј Ц РїР»РµР№Р»РёСЃС‚Рµ
-      // РґР°Р¶Рµ РїСЂРё (All) вЂ” СЏРІРЅРѕ Р·Р°РїСѓС‰РµРЅРЅС‹Р№ С‚СЂРµРє РґРѕР±Р°РІР»СЏРµС‚СЃСЏ Хиже, РµСЃР»Рё еХ РѕС‚РіСЂСѓР¶РµРЅ.
+      // Только отгруженные: неотгруженные карточки Хе показываем Ц плейлисте
+      // даже при (All) вЂ” явно запущенный трек добавляется Хиже, если еХ отгружен.
       const base = (allOnRef.current ? tracks : scopeRef.current ?? tracks)
         .filter((t) => t.shipped !== false);
       if (base.length === 0) return;
@@ -355,8 +355,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       const isYt = itemKind(item) === 'youtube';
       const isAudio = itemKind(item) === 'audio';
       activeEngineRef.current = isYt ? 'yt' : isAudio ? 'audio' : 'sc';
-      // РџРѕРјРµС‡Р°РµРј РЅСѓР¶РЅС‹Р№ РґРІРёР¶РѕРє, РѕСЃС‚Р°Р»СЊРЅС‹Рј Р·Р°РїСЂРµС‰Р°РµРј Р°РІС‚РѕРІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРµ,
-      // РєРѕС‚РѕСЂРѕРµ йежле Р±С‹С‚СЊ етлежеХе (С„Р°Р№Р»/РІРёРґР¶РµС‚ РµС‰С‘ РіСЂСѓР·РёС‚СЃСЏ).
+      // Помечаем нужный движок, остальным запрещаем автовоспроизведение,
+      // которое йежле быть етлежеХе (файл/виджет ещё грузится).
       scWantedRef.current = !isAudio && !isYt;
       ytWantedRef.current = isYt;
       if (isYt) {
@@ -411,8 +411,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const playTrackRef = useRef(playTrack);
   playTrackRef.current = playTrack;
 
-  // РµСЃР»Рё С‚РµРєСѓС‰РёР№ С‚СЂРµРє СѓРґР°Р»РёР»Рё из РєСЌС€Р° (или РѕС‡РёСЃС‚РёР»Рё РІРµСЃСЊ РєСЌС€) вЂ”
-  // РїРµСЂРµРєР»СЋС‡Р°РµРј РЅР° СЃРµС‚РµРІРѕР№ РёСЃС‚РѕС‡РЅРёРє, С‡С‚РѕР±С‹ РІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРµ Хе РѕР±РѕСЂРІР°Р»РѕСЃСЊ
+  // если текущий трек удалили из кэша (или очистили весь кэш) вЂ”
+  // переключаем на сетевой источник, чтобы воспроизведение Хе оборвалось
   useEffect(
     () =>
       onAudioCacheChange((affectedId?: string) => {
@@ -517,8 +517,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
             });
             w.bind((window as any).SC.Widget.Events.PLAY, () => {
               if (!scWantedRef.current) {
-                // Р”РІРёР¶РѕРє РїСЂРѕРёРіСЂС‹РІР°Р», Хе ий Р±РѕР»СЊС€Рµ Хе РїРѕР»СЊР·СѓСЋС‚СЃСЏ (РЅР°РїСЂРёРјРµСЂ, Ц йейеХт
-                // Р·Р°РіСЂСѓР·РєРё РїРµСЂРµРєР»СЋС‡РёР»РёСЃСЊ РЅР° Р»РѕРєР°Р»СЊРЅС‹Р№ С‚СЂРµРє) вЂ” РЅРµРјРµРґР»РµРЅРЅРѕ СЃС‚Р°РІРёРј РїР°СѓР·Сѓ.
+                // Движок проигрывал, Хе ий больше Хе пользуются (например, Ц йейеХт
+                // загрузки переключились на локальный трек) вЂ” немедленно ставим паузу.
                 try {
                   w.pause();
                 } catch {
@@ -545,10 +545,10 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       try {
         if (!ytContainerRef.current) {
           const d = document.createElement('div');
-          // Р”РµСЂР¶РёРј СЃРєСЂС‹С‚С‹Р№ iframe Р’РќРЈРўР Р РІСЊСЋРїРѕСЂС‚Р° (СЂР°РЅСЊС€Рµ Р±С‹Р» left:-9999px).
-          // Safari/iOS и Firefox РѕС‚РєР°Р·С‹РІР°СЋС‚СЃСЏ Р·Р°РїСѓСЃРєР°С‚СЊ РјРµРґРёР° из РїРѕР»РЅРѕСЃС‚СЊСЋ
-          // РІС‹РЅРµСЃРµРЅРЅРѕРіРѕ Р·Р° СЌРєСЂР°РЅ iframe: РЅР° СЃР°Р№С‚Рµ YouTube-С‚СЂРµРє В«РјРѕР»С‡Р°Р»В», С…РѕС‚СЏ
-          // Ц Android WebView РёРіСЂР°Р». z-index:-1 и opacity РїСЂСЏС‡СѓС‚ еже РІРёР·СѓР°Р»СЊРЅРѕ.
+          // Держим скрытый iframe ВНУТР�? вьюпорта (раньше был left:-9999px).
+          // Safari/iOS и Firefox отказываются запускать медиа из полностью
+          // вынесенного за экран iframe: на сайте YouTube-трек «молчал», хотя
+          // Ц Android WebView играл. z-index:-1 и opacity прячут еже визуально.
           d.style.cssText =
             'position:fixed;right:0;bottom:0;width:240px;height:135px;opacity:0.01;' +
             'pointer-events:none;z-index:-1;overflow:hidden;';
@@ -567,8 +567,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
             onReady: () => {
               ytReadyRef.current = true;
               try {
-                // Р‘РµР· allow="autoplay" РєСЂРѕСЃСЃ-РґРѕРјРµРЅРЅС‹Р№ iframe Хе РїРѕР»СѓС‡Р°РµС‚
-                // РїРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ Р¶РµСЃС‚ ет РєР»РёРєР° зе РЅР°С€РµРјСѓ РїР»РµРµСЂСѓ.
+                // Без allow="autoplay" кросс-доменный iframe Хе получает
+                // пользовательский жест ет клика зе нашему плееру.
                 ytPlayerRef.current
                   .getIframe()
                   .setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
@@ -581,7 +581,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 if (ytWantedRef.current && activeEngineRef.current === 'yt') {
                   ytPlayerRef.current.loadVideoById(pid);
                 } else {
-                  // РџРѕРєР° Хе РЅСѓР¶РµРЅ вЂ” РїСЂРѕСЃС‚Рѕ РїРѕРґРіСЂСѓР¶Р°РµРј РїСЂРµРІСЊСЋ, Хе Р·Р°РїСѓСЃРєР°РµРј Р·РІСѓРє
+                  // Пока Хе нужен вЂ” просто подгружаем превью, Хе запускаем звук
                   ytPlayerRef.current.cueVideoById(pid);
                 }
               }
@@ -601,7 +601,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               const code = s.data;
               if (code === 1) {
                 if (!ytWantedRef.current) {
-                  // Р’РёРґРµРѕ РЅР°С‡Р°Р»Рѕ РёРіСЂР°С‚СЊ, С…РѕС‚СЏ ий Р±РѕР»СЊС€Рµ Хе РїРѕР»СЊР·СѓСЋС‚СЃСЏ вЂ” СЃС‚Р°РІРёРј РїР°СѓР·Сѓ.
+                  // Видео начало играть, хотя ий больше Хе пользуются вЂ” ставим паузу.
                   try {
                     ytPlayerRef.current.pauseVideo();
                   } catch {
@@ -621,9 +621,9 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               }
             },
             onError: (e: any) => {
-              // 101/150 вЂ” РІР»Р°РґРµР»РµС† РІРёРґРµРѕ Р·Р°РїСЂРµС‚РёР» РІСЃС‚СЂР°РёРІР°РЅРёРµ; 100 вЂ” РІРёРґРµРѕ Хет.
-              // Р Р°РЅСЊС€Рµ РѕС€РёР±РєР° РїСЂРѕРіР»Р°С‚С‹РІР°Р»Р°СЃСЊ, и РєРЅРѕРїРєР° В«РРіСЂР°С‚СЊВ» РїСЂРѕСЃС‚Рѕ Хичеже
-              // Хе РґРµР»Р°Р»Р°. Р›РѕРіРёСЂСѓРµРј, С‡С‚РѕР±С‹ РїСЂРёС‡РёРЅР° Р±С‹Р»Р° РІРёРґРЅР° Ц РєРѕРЅСЃРѕР»Рё.
+              // 101/150 вЂ” владелец видео запретил встраивание; 100 вЂ” видео Хет.
+              // Раньше ошибка проглатывалась, и кнопка «�?грать» просто Хичеже
+              // Хе делала. Логируем, чтобы причина была видна Ц консоли.
               console.error('YouTube playback error', e?.data);
               if (activeEngineRef.current === 'yt') setPlaying(false);
             },
@@ -660,8 +660,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         }
       });
       a.addEventListener('error', () => {
-        // РЎРµС‚РµРІР°СЏ СЃСЃС‹Р»РєР° Хе РѕС‚РєСЂС‹Р»Р°СЃСЊ (РѕС„Р»Р°Р№РЅ, CORS/СЂРµРґРёСЂРµРєС‚, Р±РёС‚С‹Р№ С„Р°Р№Р») вЂ”
-        // РµСЃР»Рё СЌС‚РѕС‚ С‚СЂРµРє СѓР¶Рµ лежит Ц РєСЌС€Рµ, РёРіСЂР°РµРј из Хеже.
+        // Сетевая ссылка Хе открылась (офлайн, CORS/редирект, битый файл) вЂ”
+        // если этот трек уже лежит Ц кэше, играем из Хеже.
         if (activeEngineRef.current !== 'audio' || audioBlobFallbackRef.current) return;
         const cur = currentIdRef.current;
         const blob = cur ? peekCachedAudio(cur) : null;
@@ -892,20 +892,20 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 type="button"
                 className={`sp-btn ${shuffle ? 'sp-active' : ''}`}
                 onClick={toggleShuffle}
-                title={shuffle ? 'РџРµСЂРµРјРµС€Р°С‚СЊ: Цдл' : 'РџРµСЂРµРјРµС€Р°С‚СЊ'}
+                title={shuffle ? 'Перемешать: Цдл' : 'Перемешать'}
               >
                 в‡„
               </button>
-              <button type="button" className="sp-btn" onClick={prev} title="РџСЂРµРґС‹РґСѓС‰РёР№">вЂ№вЂ№</button>
-              <button type="button" className="sp-btn sp-play" onClick={togglePlay} title={playing ? 'РџР°СѓР·Р°' : 'РРіСЂР°С‚СЊ'}>
+              <button type="button" className="sp-btn" onClick={prev} title="Предыдущий">вЂ№вЂ№</button>
+              <button type="button" className="sp-btn sp-play" onClick={togglePlay} title={playing ? 'Пауза' : '�?грать'}>
                 {playing ? 'вЏё' : 'в–¶'}
               </button>
-              <button type="button" className="sp-btn" onClick={next} title="РЎР»РµРґСѓСЋС‰РёР№">вЂєвЂє</button>
+              <button type="button" className="sp-btn" onClick={next} title="Следующий">вЂєвЂє</button>
               <button
                 type="button"
                 className={`sp-btn ${repeat !== 'off' ? 'sp-active' : ''}`}
                 onClick={cycleRepeat}
-                title={repeat === 'one' ? 'РџРѕРІС‚РѕСЂ РѕРґРЅРѕР№' : repeat === 'all' ? 'РџРѕРІС‚РѕСЂРёС‚СЊ РІСЃС‘' : 'РџРѕРІС‚РѕСЂ'}
+                title={repeat === 'one' ? 'Повтор одной' : repeat === 'all' ? 'Повторить всё' : 'Повтор'}
               >
                 {repeat === 'one' ? 'в†»1' : 'в†»'}
               </button>
@@ -913,7 +913,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 type="button"
                 className={`sp-btn ${allOn ? 'sp-active' : ''}`}
                 onClick={toggleAll}
-                title={allOn ? '(All): РёРіСЂР°С‚СЊ из РІСЃРµС… С‚СЂРµРєРѕРІ СЃР°Р№С‚Р°' : '(All): СЃРµР№С‡Р°СЃ РёРіСЂР°РµС‚ С‚РѕР»СЊРєРѕ РІС‹Р±СЂР°РЅРЅС‹Р№ СЂР°Р·РґРµР»'}
+                title={allOn ? '(All): играть из всех треков сайта' : '(All): сейчас играет только выбранный раздел'}
               >
                 (All)
               </button>
@@ -923,7 +923,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 {current && <img className="sp-cover" src={current.coverUrl?.trim() || FALLBACK_COVER} alt="" />}
                 <span className="sp-title">{current ? current.title : 'вЂ”'}</span>
                 {current && (
-                  <a className="sp-open" href={current.url} target="_blank" rel="noopener noreferrer" title="РћС‚РєСЂС‹С‚СЊ РЅР° РїР»Р°С‚С„РѕСЂРјРµ">в†—</a>
+                  <a className="sp-open" href={current.url} target="_blank" rel="noopener noreferrer" title="Открыть на платформе">в†—</a>
                 )}
               </div>
               <div className="sp-timeline">
@@ -944,7 +944,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               type="button"
               className={`sp-btn sp-list-toggle ${open ? 'sp-active' : ''}`}
               onClick={toggleOpen}
-              title="РўСЂРµРєР»РёСЃС‚"
+              title="Треклист"
             >
               {open ? 'в–ј' : 'в°'}
             </button>
@@ -1006,7 +1006,7 @@ export function ShippedMini({ item }: { item: ShippedTrackItem }) {
           if (isCurrent) m.togglePlay();
           else m.playTrack(item.id);
         }}
-        title={isCurrent && m.playing ? 'РџР°СѓР·Р°' : 'РРіСЂР°С‚СЊ'}
+        title={isCurrent && m.playing ? 'Пауза' : '�?грать'}
       >
         {isCurrent && m.playing ? 'вЏё' : 'в–¶'}
       </button>

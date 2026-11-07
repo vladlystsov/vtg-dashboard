@@ -1,22 +1,22 @@
 ﻿/**
- * Serverless-С„СѓРЅРєС†РёСЏ В«РҐСЂР°РЅРёР»РёС‰Рµ РЅР° Backblaze B2» РґР»СЏ РґР°С€Р±РѕСЂРґР°.
+ * Serverless-функция «Хранилище на Backblaze B2» для дашборда.
  *
- * РљР»СЋС‡Рё B2 Р¶РёРІСѓС‚ С‚РѕР»СЊРєРѕ Р·РґРµСЃСЊ (Хе Ц Р±Р°РЅРґР»Рµ SPA). Serverless Хе йежет
- * РїСЂРѕРєСЃРёСЂРѕРІР°С‚СЊ РіРёРіР°Р±Р°Р№С‚РЅС‹Рµ С„Р°Р№Р»С‹ (лийит С‚РµР»Р° Р·Р°РїСЂРѕСЃР° ~4.5 РњР‘), РїРѕСЌС‚РѕРјСѓ:
- *   - op=upload-url в†’ РІС‹РґР°С‘С‚ presigned PUT URL; Р±СЂР°СѓР·РµСЂ Р»СЊС‘С‚ С„Р°Р№Р» Ц B2 РЅР°РїСЂСЏРјСѓСЋ;
- *   - op=delete     в†’ СѓРґР°Р»СЏРµС‚ РѕР±СЉРµРєС‚ (СЃРµСЂРІРµСЂРЅС‹Р№ ЦъзеЦ СЃ РєР»СЋС‡Р°РјРё);
- *   - op=list       в†’ СЃРїРёСЃРѕРє РѕР±СЉРµРєС‚РѕРІ Р±Р°РєРµС‚Р° (РґР»СЏ Р°РґРјРёРЅ-РїР°РЅРµР»Рё).
- * РђРІС‚РѕСЂРёР·Р°С†РёСЏ: Firebase ID-тедеХ из Р·Р°РіРѕР»РѕРІРєР° Authorization (РїСЂРѕРІРµСЂРєР° С‡РµСЂРµР·
- * accounts:lookup), СЂРѕР»СЊ вЂ” из Firestore REST (users/<uid>.role):
- *   Р·Р°РіСЂСѓР·РєР° вЂ” admin/owner/beatmaker; СѓРґР°Р»РµРЅРёРµ и СЃРїРёСЃРѕРє вЂ” admin/owner.
- * Р‘Р°РєРµС‚ РїСѓР±Р»РёС‡РЅС‹Р№: РїРѕСЃС‚РѕСЏРЅРЅС‹Рµ СЃСЃС‹Р»РєРё РІРёРґР°
+ * Ключи B2 живут только здесь (Хе Ц бандле SPA). Serverless Хе йежет
+ * проксировать гигабайтные файлы (лийит тела запроса ~4.5 МБ), поэтому:
+ *   - op=upload-url в†’ выдаёт presigned PUT URL; браузер льёт файл Ц B2 напрямую;
+ *   - op=delete     в†’ удаляет объект (серверный ЦъзеЦ с ключами);
+ *   - op=list       в†’ список объектов бакета (для админ-панели).
+ * Авторизация: Firebase ID-тедеХ из заголовка Authorization (проверка через
+ * accounts:lookup), роль вЂ” из Firestore REST (users/<uid>.role):
+ *   загрузка вЂ” admin/owner/beatmaker; удаление и список вЂ” admin/owner.
+ * Бакет публичный: постоянные ссылки вида
  *   https://fXXX.backblazeb2.com/file/<bucket>/<path>
- * вЂ” Хе РёРЅРґРµРєСЃРёСЂСѓСЋС‚СЃСЏ, РґРѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ тей, дте Р·РЅР°РµС‚ СЃСЃС‹Р»РєСѓ.
+ * вЂ” Хе индексируются, доступны только тей, дте знает ссылку.
  *
- * Env (Vercel в†’ Settings в†’ Environment Variables; и Ц .env.local РґР»СЏ vercel dev):
- *   B2_KEY_ID, B2_APP_KEY, B2_BUCKET_NAME, B2_REGION (РЅР°РїСЂ. eu-central-003),
- *   B2_PUBLIC_BASE (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ вЂ” СЃРІРѕСЏ Р±Р°Р·Р° РїСѓР±Р»РёС‡РЅС‹С… СЃСЃС‹Р»РѕРє),
- *   VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID вЂ” РїСЂРѕРІРµСЂРєР° тедеХеЦ и СЂРѕР»Рё.
+ * Env (Vercel в†’ Settings в†’ Environment Variables; и Ц .env.local для vercel dev):
+ *   B2_KEY_ID, B2_APP_KEY, B2_BUCKET_NAME, B2_REGION (напр. eu-central-003),
+ *   B2_PUBLIC_BASE (опционально вЂ” своя база публичных ссылок),
+ *   VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID вЂ” проверка тедеХеЦ и роли.
  */
 
 import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -25,7 +25,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const ROLE_UPLOAD = ['admin', 'owner', 'beatmaker'];
 const ROLE_ADMIN = ['admin', 'owner'];
 const PATH_RE = /^(beats|tracks|projects)\/[a-z0-9][a-z0-9._-]{0,240}$/;
-const PRESIGN_TTL_SECONDS = 6 * 60 * 60; // С…РІР°С‚РёС‚ РЅР° РјРµРґР»РµРЅРЅСѓСЋ Р·Р°Р»РёРІРєСѓ 1 Р“Р‘
+const PRESIGN_TTL_SECONDS = 6 * 60 * 60; // хватит на медленную заливку 1 ГБ
 
 
 function cors(res) {
@@ -60,9 +60,9 @@ function s3() {
   });
 }
 
-/** Firebase Web API key и Project ID: runtime-РїРµСЂРµРјРµРЅРЅС‹Рµ (Ц serverless-С„СѓРЅРєС†РёРё
- * VITE_* из РєР»РёРµРЅС‚СЃРєРѕР№ СЃР±РѕСЂРєРё РЅРµРґРѕСЃС‚СѓРїРЅС‹, РїРѕСЌС‚РѕРјСѓ РёСЃРїРѕР»СЊР·СѓРµРј FIREBASE_* РїСЂРё
- * РЅР°Р»РёС‡РёРё, РёРЅР°С‡Рµ РѕС‚РєР°С‚С‹РІР°РµРјСЃСЏ РЅР° VITE_*). */
+/** Firebase Web API key и Project ID: runtime-переменные (Ц serverless-функции
+ * VITE_* из клиентской сборки недоступны, поэтому используем FIREBASE_* при
+ * наличии, иначе откатываемся на VITE_*). */
 function firebaseEnv() {
   return {
     apiKey: (process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '').trim(),
@@ -71,10 +71,10 @@ function firebaseEnv() {
 }
 
 /**
- * РџРѕСЃС‚РѕСЏРЅРЅР°СЏ В«СЃСЃС‹Р»РєР° РЅР° С„Р°Р№Р»В» РґР»СЏ Firestore: СѓРєР°Р·С‹РІР°РµС‚ РЅР° СЌС‚Сѓ же С„СѓРЅРєС†РёСЋ,
- * РєРѕС‚РѕСЂР°СЏ 302-СЂРµРґРёСЂРµРєС‚РѕРј РѕС‚РґР°С‘С‚ presigned GET (Р¶РёРІС‘С‚ 15 РјРёРЅСѓС‚). Р‘Р°РєРµС‚ йежет
- * Р±С‹С‚СЊ РїСЂРёРІР°С‚РЅС‹Рј вЂ” РїСѓР±Р»РёС‡РЅРѕСЃС‚СЊ/РєР°СЂС‚Р° Хе РЅСѓР¶РЅС‹, Р°РґСЂРµСЃ СЃСЃС‹Р»РєРё Хе РјРµРЅСЏРµС‚СЃСЏ.
- * Р”Р»СЏ СЃРІРѕРµРіРѕ РґРѕРјРµРЅР° Р·Р°РґР°Р№С‚Рµ B2_LINK_BASE (РЅР°РїСЂ. https://app.example.com/api/b2-storage).
+ * Постоянная «ссылка на файл» для Firestore: указывает на эту же функцию,
+ * которая 302-редиректом отдаёт presigned GET (живёт 15 минут). Бакет йежет
+ * быть приватным вЂ” публичность/карта Хе нужны, адрес ссылки Хе меняется.
+ * Для своего домена задайте B2_LINK_BASE (напр. https://app.example.com/api/b2-storage).
  */
 function fileLink(req, path) {
   const base = (process.env.B2_LINK_BASE || '').trim().replace(/\/+$/, '');
@@ -110,7 +110,7 @@ async function verifyAuth(idToken) {
   return u ? { uid: u.localId, email: u.email || '' } : null;
 }
 
-/** Р РѕР»СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ из Firestore (РїСЂР°РІРёР»Р° СЂР°Р·СЂРµС€Р°СЋС‚ СѓС‡Р°СЃС‚РЅРёРєР°Рј С‡РёС‚Р°С‚СЊ РїСЂРѕС„РёР»Рё). */
+/** Роль пользователя из Firestore (правила разрешают участникам читать профили). */
 async function getRole(uid, idToken) {
   const { projectId } = firebaseEnv();
   if (!projectId) return null;
@@ -164,20 +164,20 @@ const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filte
     (k) => !process.env[k]
   );
   if (missing.length) {
-    send(res, 500, { error: `Р¤СѓРЅРєС†РёСЏ Хе РЅР°СЃС‚СЂРѕРµРЅР° РЅР° СЃРµСЂРІРµСЂРµ: Хет env ${missing.join(', ')}` });
+    send(res, 500, { error: `Функция Хе настроена на сервере: Хет env ${missing.join(', ')}` });
     return;
   }
 
   const client = s3();
   const bucket = process.env.B2_BUCKET_NAME;
 
-  // Р Р°Р·РґР°С‡Р° С„Р°Р№Р»РѕРІ: 302 РЅР° presigned GET (СЃСЃС‹Р»РєР° Р¶РёРІС‘С‚ 15 РјРёРЅСѓС‚).
-  // Р Р°Р±РѕС‚Р°РµС‚ СЃ РїСЂРёРІР°С‚РЅС‹Рј Р±Р°РєРµС‚РѕРј; СЃСЃС‹Р»РєСѓ Ц Firestore С…СЂР°РЅРёРј РЅР° СЌС‚Сѓ С„СѓРЅРєС†РёСЋ.
+  // Раздача файлов: 302 на presigned GET (ссылка живёт 15 минут).
+  // Работает с приватным бакетом; ссылку Ц Firestore храним на эту функцию.
   if (req.method === 'GET') {
     const url = new URL(req.url, `https://${req.headers['x-forwarded-host'] || req.headers.host || 'localhost'}`);
     const path = url.searchParams.get('path') || '';
     if (!PATH_RE.test(path)) {
-      send(res, 400, { error: 'РќРµРґРѕРїСѓСЃС‚РёРјС‹Р№ РїСѓС‚СЊ С„Р°Р№Р»Р°' });
+      send(res, 400, { error: 'Недопустимый путь файла' });
       return;
     }
     const target = await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: path }), { expiresIn: 900 });
@@ -189,7 +189,7 @@ const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filte
   }
 
   if (req.method !== 'POST') {
-    send(res, 405, { error: 'РўРѕР»СЊРєРѕ POST' });
+    send(res, 405, { error: 'Только POST' });
     return;
   }
 // Для POST (загрузка/удаление/список) нужен Firebase API key и Project ID.
@@ -205,23 +205,23 @@ const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filte
   const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   const user = await verifyAuth(idToken);
   if (!user) {
-    send(res, 401, { error: 'РўСЂРµР±СѓРµС‚СЃСЏ РІС…РѕРґ Ц Р°РєРєР°СѓРЅС‚' });
+    send(res, 401, { error: 'Требуется вход Ц аккаунт' });
     return;
   }
   const role = await getRole(user.uid, idToken);
   if (!role) {
-    send(res, 403, { error: 'ое СѓРґР°Р»РѕСЃСЊ РїРѕРґС‚РІРµСЂРґРёС‚СЊ СЂРѕР»СЊ (Firestore РЅРµРґРѕСЃС‚СѓРїРµРЅ или РїСЂРѕС„РёР»СЊ Хе РЅР°Р№РґРµРЅ)' });
+    send(res, 403, { error: 'ое удалось подтвердить роль (Firestore недоступен или профиль Хе найден)' });
     return;
   }
 
   if (op === 'upload-url') {
     if (!ROLE_UPLOAD.includes(role)) {
-      send(res, 403, { error: 'Р—Р°РіСЂСѓР·РєР° РґРѕСЃС‚СѓРїРЅР° Р°РґРјРёРЅР°Рј и Р±РёС‚РјРµР№РєРµСЂР°Рј' });
+      send(res, 403, { error: 'Загрузка доступна админам и битмейкерам' });
       return;
     }
     const path = typeof body.path === 'string' ? body.path : '';
     if (!PATH_RE.test(path)) {
-      send(res, 400, { error: 'РќРµРґРѕРїСѓСЃС‚РёРјС‹Р№ РїСѓС‚СЊ С„Р°Р№Р»Р°' });
+      send(res, 400, { error: 'Недопустимый путь файла' });
       return;
     }
     const url = await getSignedUrl(client, new PutObjectCommand({ Bucket: bucket, Key: path }), {
@@ -233,12 +233,12 @@ const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filte
 
   if (op === 'delete') {
     if (!ROLE_ADMIN.includes(role)) {
-      send(res, 403, { error: 'РЈРґР°Р»РµРЅРёРµ РґРѕСЃС‚СѓРїРЅРѕ С‚РѕР»СЊРєРѕ Р°РґРјРёРЅР°Рј' });
+      send(res, 403, { error: 'Удаление доступно только админам' });
       return;
     }
     const path = typeof body.path === 'string' ? body.path : '';
     if (!PATH_RE.test(path)) {
-      send(res, 400, { error: 'РќРµРґРѕРїСѓСЃС‚РёРјС‹Р№ РїСѓС‚СЊ С„Р°Р№Р»Р°' });
+      send(res, 400, { error: 'Недопустимый путь файла' });
       return;
     }
     await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: path }));
@@ -248,7 +248,7 @@ const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filte
 
   if (op === 'list') {
     if (!ROLE_ADMIN.includes(role)) {
-      send(res, 403, { error: 'РЎРїРёСЃРѕРє С„Р°Р№Р»РѕРІ РґРѕСЃС‚СѓРїРµРЅ С‚РѕР»СЊРєРѕ Р°РґРјРёРЅР°Рј' });
+      send(res, 403, { error: 'Список файлов доступен только админам' });
       return;
     }
     const items = await listAllObjects(client, req);
@@ -256,5 +256,5 @@ const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filte
     return;
   }
 
-  send(res, 400, { error: 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕРїРµСЂР°С†РёСЏ' });
+  send(res, 400, { error: 'Неизвестная операция' });
 }

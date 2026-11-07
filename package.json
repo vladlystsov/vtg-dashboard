@@ -33,6 +33,7 @@
     "date-fns": "^4.4.0",
     "firebase": "^12.19.0",
     "firebase-admin": "^14.3.0",
+    "iconv-lite": "^0.7.3",
     "idb": "^8.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
