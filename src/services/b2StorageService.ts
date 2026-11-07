@@ -99,6 +99,7 @@ async function callApi(
       pushDevLog({ op, url: API_URL, status: res.status, ok: res.ok });
       break;
     } catch (e) {
+      pushDevLog({ op, url: API_URL, ok: false, error: `${(e as Error)?.name || 'Error'}: ${(e as Error)?.message || String(e)}` });
       if (userSignal?.aborted) {
         throw new Error('Загрузка отменена');
       }

@@ -1,8 +1,8 @@
 {
-  "version": "2.4.11",
-  "build": 12,
+  "version": "2.4.12",
+  "build": 13,
   "notes": [
-    "Dev console: added floating dev terminal to track storage proxy requests (op, URL, HTTP status).",
+    "Dev console: added per-attempt storage proxy logging (network/timeout details).",
     "YouTube embed now sends allow and plays via playVideo.",
     "Fixed stuck uploads cleanup.",
     "Storage now uses Cloudflare Worker.",
