@@ -3,7 +3,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { soundCloudEmbedSrc, youtubeVideoId, detectPlatform } from '../types/track';
 import type { Track } from '../types/track';
-import { cacheAudio, getCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
+import { cacheAudio, getCachedAudio, onAudioCacheChange, peekCachedAudio } from '../services/audioCacheService';
 
 const SC_API_URL = 'https://w.soundcloud.com/player/api.js';
 const YT_API_URL = 'https://www.youtube.com/iframe_api';
@@ -170,6 +170,9 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const ytWantedRef = useRef(false);
   const lookupRef = useRef<Map<string, ShippedTrackItem>>(new Map());
   const objectUrlRef = useRef<Map<string, string>>(new Map());
+  // Защита от цикла: если и блоб из кэша не заиграл, повторно на ошибку
+  // не переключаемся.
+  const audioBlobFallbackRef = useRef(false);
 
   const [order, setOrder] = useState<ShippedTrackItem[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -254,6 +257,63 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     }
   }, []);
 
+  /**
+   * Запуск локального mp3/аудиофайла.
+   *
+   * Важно: play() вызывается СИНХРОННО в обработчике клика. Раньше перед ним
+   * ждали getCachedAudio() (IndexedDB), из-за чего браузер терял пользовательский
+   * жест и новый трек (его ещё нет в кэше) молча не запускался на сайте.
+   * В Android WebView ограничение мягче, поэтому там всё работало.
+   * Из кэша берём только «горячий» блоб; если его нет — сразу играем по сети,
+   * а кэширование и офлайн-подмену делаем в фоне.
+   */
+  const startAudio = useCallback((item: ShippedTrackItem) => {
+    const a = audioRef.current;
+    if (!a) return;
+    audioBlobFallbackRef.current = false;
+    try {
+      a.pause();
+      a.removeAttribute('src');
+      a.load();
+    } catch {
+      /* ignore */
+    }
+    const prev = objectUrlRef.current.get(item.id);
+    if (prev) {
+      URL.revokeObjectURL(prev);
+      objectUrlRef.current.delete(item.id);
+    }
+    const hot = peekCachedAudio(item.id);
+    if (hot) {
+      const objUrl = URL.createObjectURL(hot);
+      objectUrlRef.current.set(item.id, objUrl);
+      a.src = objUrl;
+    } else {
+      a.src = item.url.trim();
+    }
+    const p = a.play();
+    if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
+    if (hot) return;
+
+    // Новый трек ещё не в кэше: качаем в фон и, если сеть не дала старт
+    // (офлайн/битая ссылка), пробуем заиграть из уже сохранённого блоба.
+    void cacheAudio({ id: item.id, url: item.url.trim(), title: item.title });
+    void (async () => {
+      const cached = await getCachedAudio(item.id);
+      if (!cached || currentIdRef.current !== item.id) return;
+      if (a.readyState > 0 || !a.paused) return;
+      try {
+        const objUrl = URL.createObjectURL(cached.blob);
+        objectUrlRef.current.set(item.id, objUrl);
+        a.src = objUrl;
+        const q = a.play();
+        if (q && typeof q.catch === 'function') q.catch(() => { /* ignore */ });
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
   // Пересборка очереди под текущую выборку (раздел/фильтр) — только когда
   // пользователь явно выбирает трек. Смена раздела сама по себе очередь не трогает.
   const ensureOrder = useCallback(
@@ -283,7 +343,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   );
 
   const playTrack = useCallback(
-    async (id: string) => {
+    (id: string) => {
       const item = lookupRef.current.get(id);
       if (!item || !item.url || !item.url.trim()) return;
       ensureOrder(id);
@@ -309,9 +369,6 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         pauseYt();
         pauseAudio();
       }
-      // Микро-задержка: даём SC/YouTube iframe остановиться, иначе при быстром
-      // переключении на локальный трек сайтовый плеер продолжает играть в фоне.
-      await new Promise((r) => setTimeout(r, 60));
       if (currentIdRef.current !== id) return;
       if (isYt) {
         const vid = youtubeVideoId(item.url);
@@ -332,42 +389,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
           pendingYtIdRef.current = vid;
         }
       } else if (isAudio) {
-        void (async () => {
-          const a = audioRef.current;
-          if (!a) return;
-          try {
-            // Синхронная остановка перед переключением — иначе при быстром клике
-            // на соседний локальный трек предыдущий продолжает играть в фоне.
-            a.pause();
-            a.removeAttribute('src');
-            a.load();
-            const cached = await getCachedAudio(item.id);
-            if (currentIdRef.current !== item.id) return;
-            const prev = objectUrlRef.current.get(item.id);
-            if (prev) {
-              URL.revokeObjectURL(prev);
-              objectUrlRef.current.delete(item.id);
-            }
-            if (cached) {
-              const objUrl = URL.createObjectURL(cached.blob);
-              objectUrlRef.current.set(item.id, objUrl);
-              a.src = objUrl;
-            } else {
-              a.src = item.url.trim();
-              void cacheAudio({ id: item.id, url: item.url.trim(), title: item.title });
-            }
-            const p = a.play();
-            if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
-          } catch {
-            try {
-              a.src = item.url.trim();
-              const p = a.play();
-              if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
-            } catch {
-              /* ignore */
-            }
-          }
-        })();
+        startAudio(item);
       } else {
         const w = scWidgetRef.current;
         if (w && scReadyRef.current) {
@@ -378,7 +400,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         }
       }
     },
-    [pauseSc, pauseYt, pauseAudio, ensureOrder]
+    [pauseSc, pauseYt, pauseAudio, ensureOrder, startAudio]
   );
 
   const playTrackRef = useRef(playTrack);
@@ -518,7 +540,13 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
       try {
         if (!ytContainerRef.current) {
           const d = document.createElement('div');
-          d.style.cssText = 'position:fixed;left:-9999px;top:0;width:240px;height:135px;opacity:0.01;pointer-events:none;';
+          // Держим скрытый iframe ВНУТРИ вьюпорта (раньше был left:-9999px).
+          // Safari/iOS и Firefox отказываются запускать медиа из полностью
+          // вынесенного за экран iframe: на сайте YouTube-трек «молчал», хотя
+          // в Android WebView играл. z-index:-1 и opacity прячут его визуально.
+          d.style.cssText =
+            'position:fixed;right:0;bottom:0;width:240px;height:135px;opacity:0.01;' +
+            'pointer-events:none;z-index:-1;overflow:hidden;';
           d.innerHTML = '<div id="vtg-yt-player-host"></div>';
           document.body.appendChild(d);
           ytContainerRef.current = d;
@@ -533,6 +561,15 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
           events: {
             onReady: () => {
               ytReadyRef.current = true;
+              try {
+                // Без allow="autoplay" кросс-доменный iframe не получает
+                // пользовательский жест от клика по нашему плееру.
+                ytPlayerRef.current
+                  .getIframe()
+                  .setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+              } catch {
+                /* ignore */
+              }
               const pid = pendingYtIdRef.current;
               pendingYtIdRef.current = null;
               if (pid) {
@@ -578,6 +615,13 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 handleFinishRef.current();
               }
             },
+            onError: (e: any) => {
+              // 101/150 — владелец видео запретил встраивание; 100 — видео нет.
+              // Раньше ошибка проглатывалась, и кнопка «Играть» просто ничего
+              // не делала. Логируем, чтобы причина была видна в консоли.
+              console.error('YouTube playback error', e?.data);
+              if (activeEngineRef.current === 'yt') setPlaying(false);
+            },
           },
         });
       } catch (e) {
@@ -608,6 +652,26 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         if (activeEngineRef.current === 'audio') {
           setPlaying(false);
           handleFinishRef.current();
+        }
+      });
+      a.addEventListener('error', () => {
+        // Сетевая ссылка не открылась (офлайн, CORS/редирект, битый файл) —
+        // если этот трек уже лежит в кэше, играем из него.
+        if (activeEngineRef.current !== 'audio' || audioBlobFallbackRef.current) return;
+        const cur = currentIdRef.current;
+        const blob = cur ? peekCachedAudio(cur) : null;
+        if (!cur || !blob) return;
+        audioBlobFallbackRef.current = true;
+        try {
+          const prev = objectUrlRef.current.get(cur);
+          if (prev) URL.revokeObjectURL(prev);
+          const objUrl = URL.createObjectURL(blob);
+          objectUrlRef.current.set(cur, objUrl);
+          a.src = objUrl;
+          const p = a.play();
+          if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
+        } catch {
+          /* ignore */
         }
       });
       document.body.appendChild(a);

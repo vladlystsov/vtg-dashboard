@@ -38,6 +38,18 @@ function getDB(): Promise<IDBPDatabase<AudioCacheDB>> {
 type CacheListener = (affectedId?: string) => void;
 const listeners = new Set<CacheListener>();
 
+// Горячий кэш уже прочитанных блобов. Нужен, чтобы запуск трека по клику не
+// ждал асинхронного открытия IndexedDB: браузеры (особенно Safari/Firefox)
+// разрешают play() только синхронно внутри пользовательского жеста. Пока
+// проигрыватель ждал getCachedAudio(), жест «сгорал», и новый трек (которого
+// ещё нет в кэше) не запускался на сайте, хотя в приложении играл.
+const hotBlobs = new Map<string, Blob>();
+
+/** Блоб из горячего кэша без await (или null). */
+export function peekCachedAudio(id: string): Blob | null {
+  return hotBlobs.get(id) ?? null;
+}
+
 function notify(affectedId?: string) {
   for (const fn of listeners) {
     try {
@@ -59,7 +71,9 @@ export function onAudioCacheChange(fn: CacheListener): () => void {
 
 export async function getCachedAudio(id: string): Promise<CachedAudio | null> {
   const db = await getDB();
-  return (await db.get('files', id)) ?? null;
+  const item = (await db.get('files', id)) ?? null;
+  if (item) hotBlobs.set(id, item.blob);
+  return item;
 }
 
 // Скачивает файл и кладёт в кэш. Возвращает false, если скачать не удалось
@@ -74,7 +88,10 @@ export async function cacheAudio(params: {
     if (!url) return false;
     const db = await getDB();
     const existing = await db.get('files', params.id);
-    if (existing && existing.url === url) return true;
+    if (existing && existing.url === url) {
+      hotBlobs.set(params.id, existing.blob);
+      return true;
+    }
     const res = await fetch(url, { mode: 'cors' });
     if (!res.ok) return false;
     const blob = await res.blob();
@@ -87,6 +104,7 @@ export async function cacheAudio(params: {
       size: blob.size,
       cachedAt: new Date().toISOString(),
     });
+    hotBlobs.set(params.id, blob);
     notify(params.id);
     return true;
   } catch {
@@ -97,12 +115,14 @@ export async function cacheAudio(params: {
 export async function deleteCachedAudio(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('files', id);
+  hotBlobs.delete(id);
   notify(id);
 }
 
 export async function clearAudioCache(): Promise<void> {
   const db = await getDB();
   await db.clear('files');
+  hotBlobs.clear();
   notify();
 }
 
