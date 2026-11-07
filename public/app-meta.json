@@ -1,12 +1,12 @@
 {
-  "version": "2.4.10",
-  "build": 11,
+  "version": "2.4.11",
+  "build": 12,
   "notes": [
-    "Сервисный воркер PWA переведён на чистый кэш (vtg-v3) — раньше ассеты отдавались из старого кэша, что могло держать сломанную раскладку",
-    "YouTube-embed включает allow и запускает видео по playVideo",
-    "Устранён зависший статус загрузки архива проекта",
-    "Storage: секрет прокси-хранилища переведён на боевой Worker",
-    "Сохранение архивов и уведомление с «Открыть»/«В папку»"
+    "Dev console: added floating dev terminal to track storage proxy requests (op, URL, HTTP status).",
+    "YouTube embed now sends allow and plays via playVideo.",
+    "Fixed stuck uploads cleanup.",
+    "Storage now uses Cloudflare Worker.",
+    "Clean PWA cache."
   ],
   "apkUrl": "https://github.com/vladlystsov/vtg-dashboard/releases/latest/download/vtg-dashboard.apk"
 }

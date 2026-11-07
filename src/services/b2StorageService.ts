@@ -11,6 +11,7 @@
  */
 
 import { auth } from '../config/firebase';
+import { pushDevLog } from './devLog';
 
 // Валидаторы файлов общие (форматы и лимиты не менялись)
 import { checkBeatAudioFile, checkProjectZipFile } from './fileValidation';
@@ -95,6 +96,7 @@ async function callApi(
         body: JSON.stringify({ op, ...extra }),
         signal: requestSignal(userSignal),
       });
+      pushDevLog({ op, url: API_URL, status: res.status, ok: res.ok });
       break;
     } catch (e) {
       if (userSignal?.aborted) {
@@ -112,6 +114,7 @@ async function callApi(
     }
   }
   if (!res) {
+    pushDevLog({ op, url: API_URL, ok: false, error: 'network or timeout' });
     const total = (API_TIMEOUT_MS * (API_RETRIES + 1)) / 1000;
     throw new Error(
       timedOutAttempts > 0

@@ -9,6 +9,7 @@ import AdminPanel from './AdminPanel';
 import BeatsView from './BeatsView';
 import ProjectsView from './ProjectsView';
 import { SaveToast } from './SaveToast';
+import { DevConsole } from './DevConsole';
 import type { Track, UserProfile, ArtistRequest, KanbanColumn, Project } from '../types/track';
 import type { TrackFormData } from '../types/track';
 import { asArray, resolveNames } from '../types/track';
@@ -785,6 +786,7 @@ export default function App() {
 
         {toast && <div className="toast">{toast}</div>}
         <SaveToast />
+        <DevConsole />
 
         {showForm && canUseBoard && (
           <TrackForm
