@@ -1,13 +1,10 @@
 {
-  "version": "2.4.13",
-  "build": 14,
+  "version": "2.4.14",
+  "build": 15,
   "notes": [
-    "Исправлена кодировка текста на сайте (кракозябры в интерфейсе).",
-    "Хранилище работает через Cloudflare Worker.",
-    "Dev console: логирование запросов к хранилищу.",
-    "YouTube embed: allow и playVideo.",
-    "Исправлена очистка загрузок.",
-    "Кэш PWA очищен."
+    "Исправлена кодировка текста на сайте (кракозябры в интерфейсе, плеере и вкладке Проекты).",
+    "Хранение работает через Cloudflare Worker.",
+    "Dev console: логирование запросов к хранилищу."
   ],
   "apkUrl": "https://github.com/vladlystsov/vtg-dashboard/releases/latest/download/vtg-dashboard.apk"
 }
