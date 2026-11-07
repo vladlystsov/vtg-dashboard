@@ -1,22 +1,22 @@
 /**
- * Прокси хранилища Backblaze B2 — вариант для Cloudflare Workers.
+ * ������ ��������� Backblaze B2 — ������� ��� Cloudflare Workers.
  *
- * Зачем отдельная копия api/b2-storage.mjs: адреса Vercel (`*.vercel.app`)
- * недоступны из части сетей — DNS отдаёт диапазоны 64.29.17.0/24 и
- * 216.198.79.0/24, где соединение не устанавливается (проверено 17.10.2026,
- * успех 1 запрос из 20). Workers живут в сети Cloudflare и отвечают.
+ * ����� ��������� ����� api/b2-storage.mjs: ������ Vercel (`*.vercel.app`)
+ * ���������� �� ����� ����� — DNS ����� ��������� 64.29.17.0/24 и
+ * 216.198.79.0/24, ��� ���������� �� ��������������� (��������� 17.10.2026,
+ * ����� 1 ������ �� 20). Workers ����� в ���� Cloudflare и ��������.
  *
- * Логика ровно та же, что у версии для Vercel:
- *   - проверка Firebase ID-токена (accounts:lookup) и роли в users/<uid>;
- *   - op=upload-url → presigned PUT, файл льёт браузер напрямую в B2,
- *     поэтому гигабайтный zip не проходит через прокси и не упирается
- *     в лимит тела запроса (100 МБ у Workers);
- *   - op=delete, op=list — админам;
- *   - GET ?path=… → 302 на presigned GET (ссылка живёт 15 минут).
+ * ������ ����� �� ��, ��� у ������ ��� Vercel:
+ *   - �������� Firebase ID-������ (accounts:lookup) и ���� в users/<uid>;
+ *   - op=upload-url → presigned PUT, ���� ���� ������� �������� в B2,
+ *     ������� ����������� zip �� �������� ����� ������ и �� ���������
+ *     в ����� ���� ������� (100 �� у Workers);
+ *   - op=delete, op=list — �������;
+ *   - GET ?path=… → 302 �� presigned GET (������ ���� 15 �����).
  *
- * Секреты задаются через `wrangler secret put` (см. README), а не файлом:
- * ключи B2 не должны попадать в git. Публичный адрес прокси — либо из
- * `PUBLIC_BASE`, либо из origin запроса (см. publicBase()).
+ * ������� �������� ����� `wrangler secret put` (��. README), а �� ������:
+ * ����� B2 �� ������ �������� в git. ��������� ����� ������ — ���� ��
+ * `PUBLIC_BASE`, ���� �� origin ������� (��. publicBase()).
  */
 
 import {
@@ -47,7 +47,7 @@ function s3(env) {
   });
 }
 
-/** Firebase ID-токен → { uid, email } или null. */
+/** Firebase ID-����� → { uid, email } ��� null. */
 async function verifyAuth(idToken, env) {
   if (!idToken || !env.FIREBASE_API_KEY) return null;
   const res = await fetch(
@@ -64,7 +64,7 @@ async function verifyAuth(idToken, env) {
   return u ? { uid: u.localId, email: u.email || '' } : null;
 }
 
-/** Роль пользователя из Firestore REST — тем же ID-токеном. */
+/** ���� ������������ �� Firestore REST — ��� �� ID-�������. */
 async function getRole(uid, idToken, env) {
   if (!env.FIREBASE_PROJECT_ID) return null;
   const res = await fetch(
@@ -79,29 +79,29 @@ async function getRole(uid, idToken, env) {
 }
 
 /**
- * База постоянных ссылок на файлы.
+ * ���� ���������� ������ �� �����.
  *
- * Берём PUBLIC_BASE, если он задан (прокси на своём домене). Иначе — origin
- * текущего запроса: на workers.dev это и есть адрес прокси.
+ * ���� PUBLIC_BASE, ���� �� ����� (������ �� ���� ������). ����� — origin
+ * �������� �������: �� workers.dev ��� и ���� ����� ������.
  *
- * Абсолютный адрес здесь обязателен. Раньше при пустом PUBLIC_BASE отдавался
- * относительный `/api/b2-storage?path=…`, и он попадал в Firestore как ссылка
- * на файл. На сайте (GitHub Pages) такой путь ведёт в `vladlystsov.github.io`,
- * а в APK — в `https://localhost`: файлы переставали открываться сразу после
- * загрузки. Относительную ссылку отдавать нельзя.
+ * ���������� ����� ����� ����������. ������ ��� ������ PUBLIC_BASE ���������
+ * ������������� `/api/b2-storage?path=…`, и �� ������� в Firestore ��� ������
+ * �� ����. �� ����� (GitHub Pages) ����� ���� ���� в `vladlystsov.github.io`,
+ * а в APK — в `https://localhost`: ����� ����������� ����������� ����� �����
+ * ��������. ������������� ������ �������� ������.
  */
 function publicBase(env, request) {
   const configured = (env.PUBLIC_BASE || '').trim().replace(/\/+$/, '');
   if (configured) return configured;
 
   const url = new URL(request.url);
-  // Отбрасываем завершающие слэши и служебный /health: база должна указывать
-  // на сам прокси, а не на конкретную операцию.
+  // ����������� ����������� ����� и ��������� /health: ���� ������ ���������
+  // �� ��� ������, а �� �� ���������� ��������.
   const path = url.pathname.replace(/\/+$/, '').replace(/\/health$/, '');
   return `${url.origin}${path}`;
 }
 
-/** Постоянная ссылка на файл: <база>?path=… (не индексируется). */
+/** ���������� ������ �� ����: <����>?path=… (�� �������������). */
 function fileLink(env, path, request) {
   return `${publicBase(env, request)}?path=${encodeURIComponent(path)}`;
 }
@@ -134,7 +134,7 @@ async function listAllObjects(client, env, bucket, request) {
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
-  // authorization обязателен: клиент шлёт Firebase ID-токен
+  // authorization ����������: ������ ��� Firebase ID-�����
   'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
   'access-control-allow-headers': 'content-type, authorization, cache-control',
   'access-control-max-age': '86400',
@@ -153,9 +153,9 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
 
-    // Служебная проверка: открывается ли прокси вообще. Без токена.
-    // Путь сверяем «с хвостом», чтобы работало и в корне домена
-    // Workers (…workers.dev/health), и за любым префиксом (/api/b2-storage/health).
+    // ��������� ��������: ����������� �� ������ ������. ��� ������.
+    // ���� ������� �� �������, ����� �������� и в ����� ������
+    // Workers (…workers.dev/health), и �� ����� ��������� (/api/b2-storage/health).
     if (url.pathname.endsWith('/health') || url.pathname === '/healthz') {
       const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filter((k) => !env[k]);
       return json(missing.length ? 500 : 200, {
@@ -167,16 +167,16 @@ export default {
 
     const missing = ['B2_KEY_ID', 'B2_APP_KEY', 'B2_BUCKET_NAME', 'B2_REGION'].filter((k) => !env[k]);
     if (missing.length) {
-      return json(500, { error: `Функция не настроена: нет env ${missing.join(', ')}` });
+      return json(500, { error: `������� �� ���������: ��� env ${missing.join(', ')}` });
     }
 
     const client = s3(env);
     const bucket = env.B2_BUCKET_NAME;
 
-    // Отдача файла: 302 на presigned GET (сама ссылка живёт 15 минут).
+    // ������ �����: 302 �� presigned GET (���� ������ ���� 15 �����).
     if (request.method === 'GET') {
       const path = url.searchParams.get('path') || '';
-      if (!PATH_RE.test(path)) return json(400, { error: 'Недопустимый путь файла' });
+      if (!PATH_RE.test(path)) return json(400, { error: '������������ ���� �����' });
       const target = await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: path }), {
         expiresIn: GET_TTL_SECONDS,
       });
@@ -186,26 +186,26 @@ export default {
       });
     }
 
-    if (request.method !== 'POST') return json(405, { error: 'Только POST' });
+    if (request.method !== 'POST') return json(405, { error: '������ POST' });
 
     if (!env.FIREBASE_API_KEY || !env.FIREBASE_PROJECT_ID) {
-      return json(500, { error: 'Функция не настроена: нет FIREBASE_API_KEY / FIREBASE_PROJECT_ID' });
+      return json(500, { error: '������� �� ���������: ��� FIREBASE_API_KEY / FIREBASE_PROJECT_ID' });
     }
 
     const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const user = await verifyAuth(idToken, env);
-    if (!user) return json(401, { error: 'Требуется вход в аккаунт' });
+    if (!user) return json(401, { error: '��������� ���� в �������' });
 
     const role = await getRole(user.uid, idToken, env);
-    if (!role) return json(403, { error: 'Не удалось подтвердить роль (Firestore недоступен или профиль не найден)' });
+    if (!role) return json(403, { error: '�� ������� ����������� ���� (Firestore ���������� ��� ������� �� ������)' });
 
     const body = await request.json().catch(() => ({}));
     const op = body && body.op;
 
     if (op === 'upload-url') {
-      if (!ROLE_UPLOAD.includes(role)) return json(403, { error: 'Загрузка доступна админам и битмейкерам' });
+      if (!ROLE_UPLOAD.includes(role)) return json(403, { error: '�������� �������� ������� и �����������' });
       const path = typeof body.path === 'string' ? body.path : '';
-      if (!PATH_RE.test(path)) return json(400, { error: 'Недопустимый путь файла' });
+      if (!PATH_RE.test(path)) return json(400, { error: '������������ ���� �����' });
       const target = await getSignedUrl(client, new PutObjectCommand({ Bucket: bucket, Key: path }), {
         expiresIn: PRESIGN_TTL_SECONDS,
       });
@@ -213,15 +213,15 @@ export default {
     }
 
     if (op === 'delete') {
-      if (!ROLE_ADMIN.includes(role)) return json(403, { error: 'Удаление доступно только админам' });
+      if (!ROLE_ADMIN.includes(role)) return json(403, { error: '�������� �������� ������ �������' });
       const path = typeof body.path === 'string' ? body.path : '';
-      if (!PATH_RE.test(path)) return json(400, { error: 'Недопустимый путь файла' });
+      if (!PATH_RE.test(path)) return json(400, { error: '������������ ���� �����' });
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: path }));
       return json(200, { ok: true });
     }
 
     if (op === 'list') {
-      if (!ROLE_ADMIN.includes(role)) return json(403, { error: 'Список файлов доступен только админам' });
+      if (!ROLE_ADMIN.includes(role)) return json(403, { error: '������ ������ �������� ������ �������' });
       try {
         const items = await listAllObjects(client, env, bucket, request);
         return json(200, { items });
@@ -230,6 +230,6 @@ export default {
       }
     }
 
-    return json(400, { error: 'Неизвестная операция' });
+    return json(400, { error: '����������� ��������' });
   },
 };

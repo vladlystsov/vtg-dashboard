@@ -1,7 +1,7 @@
 ﻿/**
  * РўР•РЎРўРћР’РђРЇ РЎРўР РђРќРР¦Рђ Р”РР—РђР™Рќ-РЎРРЎРўР•РњР« (РїСЂРµРІСЊСЋ).
- * РР·РѕР»РёСЂРѕРІР°РЅР° РѕС‚ РїСЂРёР»РѕР¶РµРЅРёСЏ: РїРѕРґРєР»СЋС‡Р°РµС‚ С‚РѕР»СЊРєРѕ design/tokens.css + preview.css.
- * РћС‚РєСЂС‹РІР°РµС‚СЃСЏ РїРѕ /design.html РІ dev-СЂРµР¶РёРјРµ.
+ * РР·РѕР»РёСЂРѕРІР°РЅР° ет РїСЂРёР»РѕР¶РµРЅРёСЏ: РїРѕРґРєР»СЋС‡Р°РµС‚ С‚РѕР»СЊРєРѕ design/tokens.css + preview.css.
+ * РћС‚РєСЂС‹РІР°РµС‚СЃСЏ зе /design.html Ц dev-СЂРµР¶РёРјРµ.
  */
 import { useEffect, useState } from 'react';
 import './preview.css';
@@ -17,7 +17,7 @@ const SWATCHES: { name: string; v: string }[] = [
   { name: 'РљСЂР°СЃРЅС‹Р№ 500', v: 'var(--blue-500)' },
   { name: 'РљСЂР°СЃРЅС‹Р№ 600', v: 'var(--blue-600)' },
   { name: 'РљСЂР°СЃРЅС‹Р№ 700', v: 'var(--blue-700)' },
-  { name: 'Р—РѕР»РѕС‚Рѕ (РґРµРґР»Р°Р№РЅ)', v: 'var(--gold-400)' },
+  { name: 'Зелете (РґРµРґР»Р°Р№РЅ)', v: 'var(--gold-400)' },
   { name: 'Р§С‘СЂРЅС‹Р№ 900', v: 'var(--gray-900)' },
   { name: 'Р“СЂР°РЅРёС†С‹ 300', v: 'var(--gray-300)' },
   { name: 'РџРѕРІРµСЂС…РЅРѕСЃС‚СЊ', v: 'var(--surface)' },
@@ -37,7 +37,7 @@ export default function DesignPreview() {
     try {
       localStorage.setItem('vtg-theme', theme);
     } catch {
-      /* РїСЂРёРІР°С‚РЅС‹Р№ СЂРµР¶РёРј вЂ” РїСЂРѕСЃС‚Рѕ РЅРµ СЃРѕС…СЂР°РЅСЏРµРј */
+      /* РїСЂРёРІР°С‚РЅС‹Р№ СЂРµР¶РёРј вЂ” РїСЂРѕСЃС‚Рѕ Хе СЃРѕС…СЂР°РЅСЏРµРј */
     }
   }, [theme]);
 
@@ -45,12 +45,12 @@ export default function DesignPreview() {
 
   return (
     <div className="dv-page">
-      {/* ===== РџРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ С‚РµРјС‹ (РґР»СЏ РїСЂРѕРІРµСЂРєРё) ===== */}
+      {/* ===== РџРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ тейъ (РґР»СЏ РїСЂРѕРІРµСЂРєРё) ===== */}
       <div className="dv-topbar">
         <span className="dv-logo-img dv-logo-img-sm" role="img" aria-label="VTG" />
         <div>
           <div className="dv-topbar-title">РџСЂРµРІСЊСЋ РЅРѕРІРѕР№ РґРёР·Р°Р№РЅ-СЃРёСЃС‚РµРјС‹</div>
-          <div className="dv-topbar-sub">Р¤Р°Р·Р° 0-1 В· С‚РµРјР°, РїР°Р»РёС‚СЂР°, РёРєРѕРЅРєРё, СЃС‚СЂР°РЅРёС†Р° РІС…РѕРґР°</div>
+          <div className="dv-topbar-sub">Р¤Р°Р·Р° 0-1 · С‚РµРјР°, РїР°Р»РёС‚СЂР°, идеХди, СЃС‚СЂР°РЅРёС†Р° РІС…РѕРґР°</div>
         </div>
         <div className="dv-spacer" />
         <div className="dv-theme-switch">
@@ -106,8 +106,8 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">РџР°Р»РёС‚СЂР°</h2>
           <p className="dv-section-note">
-            Р§С‘СЂРЅС‹Р№, Р·РѕР»РѕС‚Рѕ Рё РєСЂР°СЃРЅС‹Р№. Р—РЅР°С‡РµРЅРёСЏ С‚РѕРєРµРЅРѕРІ РјРµРЅСЏСЋС‚СЃСЏ РІРјРµСЃС‚Рµ СЃ С‚РµРјРѕР№ вЂ”
-            РІСЃРµ СЌР»РµРјРµРЅС‚С‹ РЅРёР¶Рµ Р°РґР°РїС‚РёСЂСѓСЋС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.
+            Р§С‘СЂРЅС‹Р№, зелете и РєСЂР°СЃРЅС‹Р№. Р—РЅР°С‡РµРЅРёСЏ тедеХеЦ РјРµРЅСЏСЋС‚СЃСЏ РІРјРµСЃС‚Рµ СЃ С‚РµРјРѕР№ вЂ”
+            РІСЃРµ СЌР»РµРјРµРЅС‚С‹ Хиже Р°РґР°РїС‚РёСЂСѓСЋС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.
           </p>
           <div className="dv-swatches">
             {SWATCHES.map((s) => (
@@ -123,7 +123,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">РРєРѕРЅРєРё</h2>
           <p className="dv-section-note">
-            РЎРІРѕРё SVG РІРјРµСЃС‚Рѕ СЌРјРѕРґР·Рё вЂ” РµРґРёРЅС‹Р№ СЃС‚РёР»СЊ Рё РєРѕСЂСЂРµРєС‚РЅС‹Р№ С†РІРµС‚ РІ РѕР±РµРёС… С‚РµРјР°С….
+            РЎРІРѕРё SVG РІРјРµСЃС‚Рѕ СЌРјРѕРґР·Рё вЂ” РµРґРёРЅС‹Р№ СЃС‚РёР»СЊ и РєРѕСЂСЂРµРєС‚РЅС‹Р№ цЦет Ц РѕР±РµРёС… С‚РµРјР°С….
           </p>
           <div className="dv-card">
             <div className="dv-row">
@@ -151,9 +151,9 @@ export default function DesignPreview() {
           </div>
         </section>
 
-        {/* ---------- РљРЅРѕРїРєРё ---------- */}
+        {/* ---------- кХезди ---------- */}
         <section className="dv-section">
-          <h2 className="dv-section-title">РљРЅРѕРїРєРё</h2>
+          <h2 className="dv-section-title">кХезди</h2>
           <p className="dv-section-note">
             Р§С‘СЂРЅР°СЏ вЂ” РѕСЃРЅРѕРІРЅРѕРµ РґРµР№СЃС‚РІРёРµ, Р·РѕР»РѕС‚Р°СЏ вЂ” Р°РєС†РµРЅС‚, РєСЂР°СЃРЅР°СЏ вЂ” СЃРѕР·РґР°РЅРёРµ/РѕРїР°СЃРЅРѕСЃС‚СЊ.
           </p>
@@ -172,7 +172,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">РџР»Р°С€РєР° РЅРѕРІРѕСЃС‚РµР№</h2>
           <p className="dv-section-note">
-            РЎС‚РѕРёС‚ РЅР° РІРєР»Р°РґРєРµ В«Р”РѕСЃРєР°В» вЂ” РЅРёР¶Рµ РїР»РµРµСЂР° Рё РІС‹С€Рµ Р±Р»РѕРєР° В«Р¤РёР»СЊС‚СЂВ».
+            РЎС‚РѕРёС‚ РЅР° РІРєР»Р°РґРєРµ В«Р”РѕСЃРєР°В» вЂ” Хиже РїР»РµРµСЂР° и РІС‹С€Рµ Р±Р»РѕРєР° В«Р¤РёР»СЊС‚СЂВ».
             РџРµСЂРµРєР»СЋС‡РёС‚Рµ РІРёРґ, С‡С‚РѕР±С‹ СѓРІРёРґРµС‚СЊ РѕР±Р° СЃРѕСЃС‚РѕСЏРЅРёСЏ.
           </p>
           <div className="dv-row" style={{ marginBottom: 14 }}>
@@ -195,17 +195,17 @@ export default function DesignPreview() {
                   Р”РѕСЃС‚СѓРїРЅРѕ РѕР±РЅРѕРІР»РµРЅРёРµ<span className="dv-news-version">v2.4.0</span>
                 </div>
                 <div className="dv-news-text">
-                  РЈСЃС‚Р°РЅРѕРІР»РµРЅР° РІРµСЂСЃРёСЏ v2.3.1. Р§С‚Рѕ РёР·РјРµРЅРёС‚СЃСЏ РІ СЃР»РµРґСѓСЋС‰РµРј РѕР±РЅРѕРІР»РµРЅРёРё:
+                  РЈСЃС‚Р°РЅРѕРІР»РµРЅР° РІРµСЂСЃРёСЏ v2.3.1. Чте РёР·РјРµРЅРёС‚СЃСЏ Ц СЃР»РµРґСѓСЋС‰РµРј РѕР±РЅРѕРІР»РµРЅРёРё:
                 </div>
                 <ul className="dv-news-list">
-                  <li>РРјРїРѕСЂС‚ СЃ YouTube Рё SoundCloud вЂ” РІС‹Р±РѕСЂ В«РўСЂРµРєВ» РёР»Рё В«Р‘РёС‚В» РґР»СЏ РєР°Р¶РґРѕРіРѕ</li>
-                  <li>РўС‘РјРЅР°СЏ С‚РµРјР° Рё РЅРѕРІР°СЏ РїР°Р»РёС‚СЂР°: С‡С‘СЂРЅС‹Р№, Р·РѕР»РѕС‚Рѕ, РєСЂР°СЃРЅС‹Р№</li>
-                  <li>РўРµРіРё РґР°С‚ РЅР° Р·Р°РґР°С‡Р°С… Рё РЅР°РїРѕРјРёРЅР°РЅРёСЏ Рѕ СЃСЂРѕРєР°С… СЃРґР°С‡Рё</li>
-                  <li>Р§Р°С‚: Р»РёС‡РЅС‹Рµ РґРёР°Р»РѕРіРё Рё РіСЂСѓРїРїРѕРІС‹Рµ С‡Р°С‚С‹ РїРѕ Р·Р°РґР°С‡Р°Рј</li>
+                  <li>РРјРїРѕСЂС‚ СЃ YouTube и SoundCloud вЂ” РІС‹Р±РѕСЂ В«РўСЂРµРєВ» или В«Р‘РёС‚В» РґР»СЏ РєР°Р¶РґРѕРіРѕ</li>
+                  <li>РўС‘РјРЅР°СЏ С‚РµРјР° и РЅРѕРІР°СЏ РїР°Р»РёС‚СЂР°: С‡С‘СЂРЅС‹Р№, зелете, РєСЂР°СЃРЅС‹Р№</li>
+                  <li>РўРµРіРё РґР°С‚ РЅР° Р·Р°РґР°С‡Р°С… и РЅР°РїРѕРјРёРЅР°РЅРёСЏ е СЃСЂРѕРєР°С… СЃРґР°С‡Рё</li>
+                  <li>Р§Р°С‚: личХъе РґРёР°Р»РѕРіРё и РіСЂСѓРїРїРѕРІС‹Рµ С‡Р°С‚С‹ зе Р·Р°РґР°С‡Р°Рј</li>
                 </ul>
                 <div className="dv-news-actions">
                   <button className="dv-btn dv-btn-gold"><DownloadIcon size={16} /> РЎРєР°С‡Р°С‚СЊ APK</button>
-                  <button className="dv-btn dv-btn-secondary">РќР°РїРѕРјРЅРёС‚СЊ РїРѕР·Р¶Рµ</button>
+                  <button className="dv-btn dv-btn-secondary">РќР°РїРѕРјРЅРёС‚СЊ зезже</button>
                 </div>
               </div>
               <button className="dv-news-dismiss" title="РЎРєСЂС‹С‚СЊ"><CloseIcon size={16} /></button>
@@ -217,13 +217,13 @@ export default function DesignPreview() {
               <div className="dv-news-icon"><CheckIcon size={20} /></div>
               <div className="dv-news-body">
                 <div className="dv-news-title">
-                  РЈ РІР°СЃ РїРѕСЃР»РµРґРЅСЏСЏ РІРµСЂСЃРёСЏ<span className="dv-news-version">v2.4.0</span>
+                  Щ РІР°СЃ РїРѕСЃР»РµРґРЅСЏСЏ РІРµСЂСЃРёСЏ<span className="dv-news-version">v2.4.0</span>
                 </div>
-                <div className="dv-news-text">Р§С‚Рѕ РЅРѕРІРѕРіРѕ РІ СЌС‚РѕРј РѕР±РЅРѕРІР»РµРЅРёРё:</div>
+                <div className="dv-news-text">Чте ХеЦеже Ц СЌС‚РѕРј РѕР±РЅРѕРІР»РµРЅРёРё:</div>
                 <ul className="dv-news-list">
                   <li>РџРµСЂРµСЂР°Р±РѕС‚Р°РЅ РёРјРїРѕСЂС‚ СЃ РїР»РѕС‰Р°РґРѕРє: РєР°Р¶РґС‹Р№ С‚СЂРµРє РІС‹Р±РёСЂР°РµС‚СЃСЏ РІСЂСѓС‡РЅСѓСЋ</li>
-                  <li>РќРѕРІР°СЏ С†РІРµС‚РѕРІР°СЏ РіР°РјРјР° Рё РїРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ СЃРІРµС‚Р»РѕР№/С‚С‘РјРЅРѕР№ С‚РµРјС‹</li>
-                  <li>РќР° РґРѕСЃРєРµ РїРѕСЏРІРёР»РёСЃСЊ С‚РµРіРё РґР°С‚ Рё РїРѕРґСЃРєР°Р·РєРё РїРѕ СЃСЂРѕРєР°Рј СЃРґР°С‡Рё</li>
+                  <li>РќРѕРІР°СЏ С†РІРµС‚РѕРІР°СЏ РіР°РјРјР° и РїРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ СЃРІРµС‚Р»РѕР№/С‚С‘РјРЅРѕР№ тейъ</li>
+                  <li>РќР° РґРѕСЃРєРµ РїРѕСЏРІРёР»РёСЃСЊ тежи РґР°С‚ и РїРѕРґСЃРєР°Р·РєРё зе СЃСЂРѕРєР°Рј СЃРґР°С‡Рё</li>
                 </ul>
               </div>
               <button className="dv-news-dismiss" title="РЎРєСЂС‹С‚СЊ"><CloseIcon size={16} /></button>
@@ -231,16 +231,16 @@ export default function DesignPreview() {
           )}
         </section>
 
-        {/* ---------- РљР°СЂС‚РѕС‡РєРё Р·Р°РґР°С‡ + С‚РµРіРё РґР°С‚ (Р·Р°РґР°С‡Р° 2) ---------- */}
+        {/* ---------- РљР°СЂС‚РѕС‡РєРё Р·Р°РґР°С‡ + тежи РґР°С‚ (Р·Р°РґР°С‡Р° 2) ---------- */}
         <section className="dv-section">
-          <h2 className="dv-section-title">РљР°СЂС‚РѕС‡РєР° Р·Р°РґР°С‡Рё Рё С‚РµРі РґР°С‚С‹</h2>
+          <h2 className="dv-section-title">РљР°СЂС‚РѕС‡РєР° Р·Р°РґР°С‡Рё и теж РґР°С‚С‹</h2>
           <p className="dv-section-note">
-            Р¦РІРµС‚ С‚РµРіР° Р·Р°РІРёСЃРёС‚ РѕС‚ СЃСЂРѕС‡РЅРѕСЃС‚Рё: РїСЂРѕСЃСЂРѕС‡РµРЅРѕ вЂ” РєСЂР°СЃРЅС‹Р№, СЃРµРіРѕРґРЅСЏ вЂ” Р·РѕР»РѕС‚Рѕ, РїРѕР·Р¶Рµ вЂ” СЃРµСЂС‹Р№.
+            Р¦РІРµС‚ С‚РµРіР° Р·Р°РІРёСЃРёС‚ ет СЃСЂРѕС‡РЅРѕСЃС‚Рё: РїСЂРѕСЃСЂРѕС‡РµРЅРѕ вЂ” РєСЂР°СЃРЅС‹Р№, СЃРµРіРѕРґРЅСЏ вЂ” зелете, зезже вЂ” СЃРµСЂС‹Р№.
           </p>
           <div className="dv-grid dv-grid-3">
             <div className="dv-card-track is-overdue">
               <div className="dv-ct-head">
-                <span className="dv-ct-project">РђР»СЊР±РѕРј В«РЎРµРІРµСЂВ» В· 03</span>
+                <span className="dv-ct-project">РђР»СЊР±РѕРј В«РЎРµРІРµСЂВ» · 03</span>
                 <span className="dv-date dv-date-overdue"><CalendarIcon size={13} /> РїСЂРѕСЃСЂРѕС‡РµРЅРѕ 2 Рґ.</span>
               </div>
               <div className="dv-ct-title">РўС‘РјРЅС‹Р№ РґРѕР¶РґСЊ</div>
@@ -254,7 +254,7 @@ export default function DesignPreview() {
 
             <div className="dv-card-track">
               <div className="dv-ct-head">
-                <span className="dv-ct-project">РЎРёРЅРіР» В· 01</span>
+                <span className="dv-ct-project">РЎРёРЅРіР» · 01</span>
                 <span className="dv-date dv-date-today"><CalendarIcon size={13} /> СЃРµРіРѕРґРЅСЏ</span>
               </div>
               <div className="dv-ct-title">РќРµРѕРЅРѕРІС‹Р№ СЃРІРµС‚</div>
@@ -268,10 +268,10 @@ export default function DesignPreview() {
 
             <div className="dv-card-track">
               <div className="dv-ct-head">
-                <span className="dv-ct-project">РЎРёРЅРіР» В· 02</span>
+                <span className="dv-ct-project">РЎРёРЅРіР» · 02</span>
                 <span className="dv-date dv-date-soon"><CalendarIcon size={13} /> С‡РµСЂРµР· 2 Рґ.</span>
               </div>
-              <div className="dv-ct-title">Р“РѕСЂРѕРґ РЅРµ СЃРїРёС‚</div>
+              <div className="dv-ct-title">Р“РѕСЂРѕРґ Хе СЃРїРёС‚</div>
               <div className="dv-ct-meta"><span>Vlad</span><span>prod. РљРёСЂРёР»Р»</span></div>
               <div className="dv-progress"><div className="dv-progress-fill" style={{ width: '20%' }} /></div>
               <div className="dv-ct-foot">
@@ -285,7 +285,7 @@ export default function DesignPreview() {
           <div className="dv-datelist">
             <span className="dv-date dv-date-overdue"><CalendarIcon size={13} /> РїСЂРѕСЃСЂРѕС‡РµРЅРѕ 2 Рґ.</span>
             <span className="dv-date dv-date-today"><CalendarIcon size={13} /> СЃРµРіРѕРґРЅСЏ</span>
-            <span className="dv-date dv-date-today"><CalendarIcon size={13} /> С‡РµСЂРµР· 2 С‡.</span>
+            <span className="dv-date dv-date-today"><CalendarIcon size={13} /> С‡РµСЂРµР· 2 ч.</span>
             <span className="dv-date dv-date-soon"><CalendarIcon size={13} /> С‡РµСЂРµР· 2 Рґ.</span>
             <span className="dv-date dv-date-far"><CalendarIcon size={13} /> 30.11</span>
             <span className="dv-date dv-date-far">Р±РµР· СЃСЂРѕРєР°</span>
@@ -294,9 +294,9 @@ export default function DesignPreview() {
 
         {/* ---------- РќР°СЃС‚СЂРѕР№РєР° РЅР°РїРѕРјРёРЅР°РЅРёР№ (Р·Р°РґР°С‡Р° 2) ---------- */}
         <section className="dv-section">
-          <h2 className="dv-section-title">РќР°РїРѕРјРёРЅР°РЅРёСЏ Рѕ СЃСЂРѕРєРµ</h2>
+          <h2 className="dv-section-title">РќР°РїРѕРјРёРЅР°РЅРёСЏ е СЃСЂРѕРєРµ</h2>
           <p className="dv-section-note">
-            Р’С‹Р±РёСЂР°СЋС‚СЃСЏ РїСЂРё СЃРѕР·РґР°РЅРёРё/РїСЂР°РІРєРµ Р·Р°РґР°С‡Рё. РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ РІРєР»СЋС‡РµРЅС‹ В«Р·Р° С‡Р°СЃВ» Рё В«Р·Р° РґРµРЅСЊВ».
+            Р’С‹Р±РёСЂР°СЋС‚СЃСЏ РїСЂРё СЃРѕР·РґР°РЅРёРё/РїСЂР°РІРєРµ Р·Р°РґР°С‡Рё. пе СѓРјРѕР»С‡Р°РЅРёСЋ РІРєР»СЋС‡РµРЅС‹ В«Р·Р° С‡Р°СЃВ» и В«Р·Р° РґРµРЅСЊВ».
           </p>
           <div className="dv-card">
             <div className="dv-field">
@@ -322,7 +322,7 @@ export default function DesignPreview() {
               ))}
             </div>
             <p className="dv-hint dv-mt">
-              РЈРІРµРґРѕРјР»РµРЅРёРµ РїСЂРёРґС‘С‚ РІ РїСЂРёР»РѕР¶РµРЅРёРµ РЅР° С‚РµР»РµС„РѕРЅ, РґР°Р¶Рµ РµСЃР»Рё РѕРЅРѕ Р·Р°РєСЂС‹С‚Рѕ.
+              РЈРІРµРґРѕРјР»РµРЅРёРµ РїСЂРёРґС‘С‚ Ц РїСЂРёР»РѕР¶РµРЅРёРµ РЅР° телефеХ, РґР°Р¶Рµ РµСЃР»Рё еХе Р·Р°РєСЂС‹С‚Рѕ.
             </p>
           </div>
         </section>
@@ -331,20 +331,20 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">РЈРІРµРґРѕРјР»РµРЅРёСЏ</h2>
           <p className="dv-section-note">
-            РћС‚РґРµР»СЊРЅР°СЏ РІРєР»Р°РґРєР° СЃ С„РёР»СЊС‚СЂРѕРј РїРѕ С‚РёРїР°Рј. РЎСЋРґР° Р¶Рµ РїРѕРїР°РґР°СЋС‚ РЅРѕРІРѕСЃС‚Рё РѕР± РѕР±РЅРѕРІР»РµРЅРёСЏС….
+            РћС‚РґРµР»СЊРЅР°СЏ РІРєР»Р°РґРєР° СЃ С„РёР»СЊС‚СЂРѕРј зе С‚РёРїР°Рј. РЎСЋРґР° же РїРѕРїР°РґР°СЋС‚ РЅРѕРІРѕСЃС‚Рё РѕР± РѕР±РЅРѕРІР»РµРЅРёСЏС….
           </p>
           <div className="dv-card">
             <div className="dv-notif unread">
               <div className="dv-notif-icon"><CalendarIcon size={16} /></div>
               <div className="dv-notif-body">
                 <div className="dv-notif-text">РЎРєРѕСЂРѕ СЃСЂРѕРє СЃРґР°С‡Рё: В«РўС‘РјРЅС‹Р№ РґРѕР¶РґСЊВ» вЂ” РѕСЃС‚Р°Р»РѕСЃСЊ 2 РґРЅСЏ</div>
-                <div className="dv-notif-time">12 РјРёРЅ РЅР°Р·Р°Рґ</div>
+                <div className="dv-notif-time">12 йиХ РЅР°Р·Р°Рґ</div>
               </div>
             </div>
             <div className="dv-notif unread">
               <div className="dv-notif-icon"><SparkIcon size={16} /></div>
               <div className="dv-notif-body">
-                <div className="dv-notif-text">Р”РѕСЃС‚СѓРїРЅРѕ РѕР±РЅРѕРІР»РµРЅРёРµ v2.4.0: С‚С‘РјРЅР°СЏ С‚РµРјР°, С‡Р°С‚ Рё С‚РµРіРё РґР°С‚</div>
+                <div className="dv-notif-text">Р”РѕСЃС‚СѓРїРЅРѕ РѕР±РЅРѕРІР»РµРЅРёРµ v2.4.0: С‚С‘РјРЅР°СЏ С‚РµРјР°, С‡Р°С‚ и тежи РґР°С‚</div>
                 <div className="dv-notif-time">2 С‡Р°СЃР° РЅР°Р·Р°Рґ</div>
               </div>
             </div>
@@ -352,7 +352,7 @@ export default function DesignPreview() {
               <div className="dv-notif-icon"><GroupIcon size={16} /></div>
               <div className="dv-notif-body">
                 <div className="dv-notif-text">
-                  Р—Р°РґР°С‡Р° В«РќРµРѕРЅРѕРІС‹Р№ СЃРІРµС‚В» РїРµСЂРµРІРµРґРµРЅР° РІ В«Р“РѕС‚РѕРІРѕВ» вЂ” РєРѕРјР°РЅРґСѓ РЅСѓР¶РЅРѕ СЂР°СЃС„РѕСЂРјРёСЂРѕРІР°С‚СЊ
+                  Р—Р°РґР°С‡Р° В«РќРµРѕРЅРѕРІС‹Р№ СЃРІРµС‚В» РїРµСЂРµРІРµРґРµРЅР° Ц В«Р“РѕС‚РѕРІРѕВ» вЂ” РєРѕРјР°РЅРґСѓ РЅСѓР¶РЅРѕ СЂР°СЃС„РѕСЂРјРёСЂРѕРІР°С‚СЊ
                 </div>
                 <div className="dv-notif-time">РІС‡РµСЂР°</div>
               </div>
@@ -360,7 +360,7 @@ export default function DesignPreview() {
             <div className="dv-notif">
               <div className="dv-notif-icon"><ChatIcon size={16} /></div>
               <div className="dv-notif-body">
-                <div className="dv-notif-text">РљРёСЂРёР»Р»: Р‘РёС‚ РіРѕС‚РѕРІ, Р·Р°Р±РёСЂР°СЋ РІРѕ РІРєР»Р°РґРєСѓ В«Р’ СЂР°Р±РѕС‚РµВ»</div>
+                <div className="dv-notif-text">РљРёСЂРёР»Р»: Р‘РёС‚ жетеЦ, Р·Р°Р±РёСЂР°СЋ Це РІРєР»Р°РґРєСѓ В«Р’ СЂР°Р±РѕС‚РµВ»</div>
                 <div className="dv-notif-time">РІС‡РµСЂР°</div>
               </div>
             </div>
@@ -371,8 +371,8 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">Р§Р°С‚</h2>
           <p className="dv-section-note">
-            Р›РёС‡РЅС‹Рµ РґРёР°Р»РѕРіРё Рё РіСЂСѓРїРїС‹ Р·Р°РґР°С‡. Р“СЂСѓРїРїР° СЃРѕР·РґР°С‘С‚СЃСЏ РїСЂРё РїРѕСЃС‚Р°РЅРѕРІРєРµ Р·Р°РґР°С‡Рё вЂ” СЃРѕСЃС‚Р°РІ
-            СЃРѕР±РёСЂР°РµС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РёР· СѓС‡Р°СЃС‚РЅРёРєРѕРІ, Р»РёС€РЅРёС… РјРѕР¶РЅРѕ СЃРЅСЏС‚СЊ С‡РµРєР±РѕРєСЃР°РјРё.
+            Р›РёС‡РЅС‹Рµ РґРёР°Р»РѕРіРё и РіСЂСѓРїРїС‹ Р·Р°РґР°С‡. Р“СЂСѓРїРїР° СЃРѕР·РґР°С‘С‚СЃСЏ РїСЂРё РїРѕСЃС‚Р°РЅРѕРІРєРµ Р·Р°РґР°С‡Рё вЂ” СЃРѕСЃС‚Р°РІ
+            СЃРѕР±РёСЂР°РµС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё из СѓС‡Р°СЃС‚РЅРёРєРѕРІ, Р»РёС€РЅРёС… йежХе СЃРЅСЏС‚СЊ С‡РµРєР±РѕРєСЃР°РјРё.
           </p>
           <div className="dv-grid dv-grid-2">
             <div className="dv-chat">
@@ -385,15 +385,15 @@ export default function DesignPreview() {
               </div>
               <div className="dv-chat-body">
                 <div className="dv-msg dv-msg-in">
-                  РџСЂРёРІРµС‚! РЎРєРёРЅСЊ СЂРµС„РµСЂРµРЅСЃ РїРѕ Р±РёС‚Сѓ
+                  РџСЂРёРІРµС‚! РЎРєРёРЅСЊ СЂРµС„РµСЂРµРЅСЃ зе Р±РёС‚Сѓ
                   <span className="dv-msg-time">12:41</span>
                 </div>
                 <div className="dv-msg dv-msg-out">
-                  Р”РµСЂР¶Рё, Р·Р°РїРёСЃР°Р» РІ Р·Р°РґР°С‡Сѓ
+                  Р”РµСЂР¶Рё, Р·Р°РїРёСЃР°Р» Ц Р·Р°РґР°С‡Сѓ
                   <span className="dv-msg-time">12:44</span>
                 </div>
                 <div className="dv-msg dv-msg-in">
-                  РћРє, Р±РµСЂСѓ РІ СЂР°Р±РѕС‚Сѓ
+                  мд, Р±РµСЂСѓ Ц СЂР°Р±РѕС‚Сѓ
                   <span className="dv-msg-time">12:45</span>
                 </div>
               </div>
@@ -408,16 +408,16 @@ export default function DesignPreview() {
                 <span className="dv-iconbtn" style={{ width: 34, height: 34 }}><GroupIcon size={17} /></span>
                 <div>
                   <div className="dv-chat-title">РќРµРѕРЅРѕРІС‹Р№ СЃРІРµС‚</div>
-                  <div className="dv-chat-sub">Р“СЂСѓРїРїР° Р·Р°РґР°С‡Рё В· 4 СѓС‡Р°СЃС‚РЅРёРєР°</div>
+                  <div className="dv-chat-sub">Р“СЂСѓРїРїР° Р·Р°РґР°С‡Рё · 4 СѓС‡Р°СЃС‚РЅРёРєР°</div>
                 </div>
               </div>
               <div className="dv-chat-body">
                 <div className="dv-msg dv-msg-in">
-                  РЎСЂРѕРєРё СЃРґРІРёРЅСѓР»Рё РЅР° РїСЏС‚РЅРёС†Сѓ, РІСЃРµ РІ РєСѓСЂСЃРµ?
+                  РЎСЂРѕРєРё СЃРґРІРёРЅСѓР»Рё РЅР° РїСЏС‚РЅРёС†Сѓ, РІСЃРµ Ц РєСѓСЂСЃРµ?
                   <span className="dv-msg-time">10:02</span>
                 </div>
                 <div className="dv-msg dv-msg-out">
-                  Р”Р°, РѕР±РЅРѕРІРёР» РґРµРґР»Р°Р№РЅ РІ Р·Р°РґР°С‡Рµ
+                  Р”Р°, РѕР±РЅРѕРІРёР» РґРµРґР»Р°Р№РЅ Ц Р·Р°РґР°С‡Рµ
                   <span className="dv-msg-time">10:05</span>
                 </div>
                 <div className="dv-msg dv-msg-in">
@@ -426,7 +426,7 @@ export default function DesignPreview() {
                 </div>
               </div>
               <div className="dv-chat-input">
-                <input className="dv-input" placeholder="РЎРѕРѕР±С‰РµРЅРёРµ РІ РіСЂСѓРїРїСѓвЂ¦" />
+                <input className="dv-input" placeholder="РЎРѕРѕР±С‰РµРЅРёРµ Ц РіСЂСѓРїРїСѓвЂ¦" />
                 <button className="dv-btn dv-btn-gold"><PlusIcon size={16} /></button>
               </div>
             </div>
@@ -435,9 +435,9 @@ export default function DesignPreview() {
 
         {/* ---------- РЎС‚СЂР°РЅРёС†Р° РІС…РѕРґР° ---------- */}
         <section className="dv-section">
-          <h2 className="dv-section-title">РЎС‚СЂР°РЅРёС†Р° РІС…РѕРґР° Рё СЂРµРіРёСЃС‚СЂР°С†РёРё</h2>
+          <h2 className="dv-section-title">РЎС‚СЂР°РЅРёС†Р° РІС…РѕРґР° и СЂРµРіРёСЃС‚СЂР°С†РёРё</h2>
           <p className="dv-section-note">
-            Р§С‘СЂРЅС‹Р№ С„РѕРЅ, Р·РѕР»РѕС‚Р°СЏ РѕР±РІРѕРґРєР° РєР°СЂС‚РѕС‡РєРё. РџРµСЂРµРєР»СЋС‡РёС‚Рµ С‚РµРјСѓ РІРІРµСЂС…Сѓ вЂ” РѕС†РµРЅРёС‚Рµ РѕР±Рµ.
+            Р§С‘СЂРЅС‹Р№ феХ, Р·РѕР»РѕС‚Р°СЏ РѕР±РІРѕРґРєР° РєР°СЂС‚РѕС‡РєРё. РџРµСЂРµРєР»СЋС‡РёС‚Рµ С‚РµРјСѓ РІРІРµСЂС…Сѓ вЂ” ецеХите РѕР±Рµ.
           </p>
           <div className="dv-login">
             <div className="dv-login-card">
@@ -453,11 +453,11 @@ export default function DesignPreview() {
                 <label className="dv-label">РџР°СЂРѕР»СЊ</label>
                 <input className="dv-input" type="password" placeholder="РњРёРЅРёРјСѓРј 6 СЃРёРјРІРѕР»РѕРІ" defaultValue="secret123" />
               </div>
-              <div className="dv-error">РќРµ СѓРґР°Р»РѕСЃСЊ РІРѕР№С‚Рё. РџСЂРѕРІРµСЂСЊС‚Рµ РїР°СЂРѕР»СЊ.</div>
+              <div className="dv-error">ое СѓРґР°Р»РѕСЃСЊ РІРѕР№С‚Рё. РџСЂРѕРІРµСЂСЊС‚Рµ РїР°СЂРѕР»СЊ.</div>
               <button className="dv-btn dv-btn-primary" style={{ width: '100%', marginTop: 14 }}>
                 Р’РѕР№С‚Рё
               </button>
-              <button className="dv-login-toggle">РќРµС‚ Р°РєРєР°СѓРЅС‚Р°? Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ</button>
+              <button className="dv-login-toggle">оет Р°РєРєР°СѓРЅС‚Р°? Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ</button>
             </div>
           </div>
         </section>

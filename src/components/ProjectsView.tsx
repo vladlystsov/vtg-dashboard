@@ -25,7 +25,7 @@ interface ProjectsViewProps {
   ) => Promise<string | undefined>;
   onDelete: (id: string) => Promise<void>;
   onUpdateTrack: (id: string, patch: Partial<Track>) => Promise<void>;
-  /** РћС‡РёСЃС‚РєР° РїРѕР»РµР№ РїСЂРѕРµРєС‚Р° (undefined = СѓРґР°Р»РёС‚СЊ РїРѕР»Рµ): РЅСѓР¶РЅР°, С‡С‚РѕР±С‹ СЃРЅСЏС‚СЊ Р·Р°РІРёСЃС€РёР№ СЃС‚Р°С‚СѓСЃ Р·Р°РіСЂСѓР·РєРё. */
+  /** РћС‡РёСЃС‚РєР° РїРѕР»РµР№ РїСЂРѕРµРєС‚Р° (undefined = СѓРґР°Р»РёС‚СЊ зеле): РЅСѓР¶РЅР°, С‡С‚РѕР±С‹ СЃРЅСЏС‚СЊ Р·Р°РІРёСЃС€РёР№ СЃС‚Р°С‚СѓСЃ Р·Р°РіСЂСѓР·РєРё. */
   onUpdateProjectFields?: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onOpenTrack?: (track: Track) => void;
 }
@@ -106,8 +106,8 @@ export default function ProjectsView({
 
   /**
    * РЎРЅРёРјР°РµС‚ СЃС‚Р°С‚СѓСЃ В«Р·Р°РіСЂСѓР¶Р°РµС‚СЃСЏВ» Сѓ РІРµСЂСЃРёРё: Сѓ Р·Р°РїРёСЃРё РїСЂРѕРµРєС‚Р°, Сѓ Р°СЂС…РёРІР° С‚СЂРµРєР°
-   * (projectZips) РёР»Рё Сѓ СЃС‚Р°СЂРѕРіРѕ РѕРґРёРЅРѕС‡РЅРѕРіРѕ РїРѕР»СЏ projectZip*. РРЅР°С‡Рµ РїРѕСЃР»Рµ
-   * РїСЂРµСЂРІР°РЅРЅРѕР№ Р·Р°Р»РёРІРєРё СЃРїРёРЅРЅРµСЂ РѕСЃС‚Р°С‘С‚СЃСЏ РЅР°РІСЃРµРіРґР° вЂ” Рё В«РћС‚РјРµРЅР°В» РµРіРѕ РЅРµ СѓР±РёСЂР°РµС‚.
+   * (projectZips) или Сѓ СЃС‚Р°СЂРѕРіРѕ РѕРґРёРЅРѕС‡РЅРѕРіРѕ РїРѕР»СЏ projectZip*. РРЅР°С‡Рµ РїРѕСЃР»Рµ
+   * РїСЂРµСЂРІР°РЅРЅРѕР№ Р·Р°Р»РёРІРєРё СЃРїРёРЅРЅРµСЂ РѕСЃС‚Р°С‘С‚СЃСЏ РЅР°РІСЃРµРіРґР° вЂ” и В«РћС‚РјРµРЅР°В» еже Хе СѓР±РёСЂР°РµС‚.
    */
   const clearZipStatus = (projectId: string) => {
     if (!projectId.startsWith('zip:')) {
@@ -127,8 +127,8 @@ export default function ProjectsView({
     void onUpdateTrack(trackId, { projectZips: zips.length ? zips : undefined });
   };
 
-  // Р§РёСЃС‚РёРј Р±СЂРѕС€РµРЅРЅС‹Рµ Р·Р°РіСЂСѓР·РєРё: РёС… РЅРµРєРѕРјСѓ Р·Р°РІРµСЂС€РёС‚СЊ, Рё Р±РµР· СЌС‚РѕРіРѕ РєР°СЂС‚РѕС‡РєР°
-  // Р±РµСЃРєРѕРЅРµС‡РЅРѕ РїРѕРєР°Р·С‹РІР°РµС‚ В«Р—Р°РіСЂСѓР¶Р°РµРј Р°СЂС…РёРІ РІРµСЂСЃРёРё РІ С…СЂР°РЅРёР»РёС‰РµвЂ¦В».
+  // Р§РёСЃС‚РёРј Р±СЂРѕС€РµРЅРЅС‹Рµ Р·Р°РіСЂСѓР·РєРё: их РЅРµРєРѕРјСѓ Р·Р°РІРµСЂС€РёС‚СЊ, и Р±РµР· СЌС‚РѕРіРѕ РєР°СЂС‚РѕС‡РєР°
+  // Р±РµСЃРєРѕРЅРµС‡РЅРѕ РїРѕРєР°Р·С‹РІР°РµС‚ В«Р—Р°РіСЂСѓР¶Р°РµРј Р°СЂС…РёРІ РІРµСЂСЃРёРё Ц С…СЂР°РЅРёР»РёС‰РµвЂ¦В».
   const healedUploads = useRef(new Set<string>());
   useEffect(() => {
     const now = Date.now();
@@ -164,13 +164,13 @@ export default function ProjectsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, tracks]);
 
-  // РџСЂРѕРµРєС‚ РїСЂРёРІСЏР·Р°РЅ СЃС‚СЂРѕРіРѕ Рє РѕРґРЅРѕРјСѓ С‚СЂРµРєСѓ. Р’РµСЂСЃРёРё (Р·Р°РїРёСЃРё Project) РёС‰СѓС‚СЃСЏ
-  // РїРѕ РєРѕРЅРєСЂРµС‚РЅРѕРјСѓ id С‚СЂРµРєР°, Р° РЅРµ РїРѕ РІСЃРµРјСѓ СЃР±РѕСЂРЅРёРєСѓ.
+  // Архив РїСЂРёРІСЏР·Р°РЅ СЃС‚СЂРѕРіРѕ д РѕРґРЅРѕРјСѓ С‚СЂРµРєСѓ. Р’РµСЂСЃРёРё (Р·Р°РїРёСЃРё Project) РёС‰СѓС‚СЃСЏ
+  // зе РєРѕРЅРєСЂРµС‚РЅРѕРјСѓ id С‚СЂРµРєР°, Р° Хе зе РІСЃРµРјСѓ СЃР±РѕСЂРЅРёРєСѓ.
   const projectTrackIdsOf = (p: Project): string[] => projectTrackIds(p);
 
-  // Р’РёСЂС‚СѓР°Р»СЊРЅС‹Рµ РІРµСЂСЃРёРё: РїСЂРѕРµРєС‚С‹, РїСЂРёРєСЂРµРїР»С‘РЅРЅС‹Рµ Рє С‚СЂРµРєСѓ С‡РµСЂРµР· С„РѕСЂРјСѓ С‚СЂРµРєР°
-  // (projectZipUrl / projectZips), РґР»СЏ РєРѕС‚РѕСЂС‹С… РµС‰С‘ РЅРµС‚
-  // РѕС‚РґРµР»СЊРЅРѕР№ Р·Р°РїРёСЃРё РІ РєРѕР»Р»РµРєС†РёРё projects. РћС‚РѕР±СЂР°Р¶Р°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РґР»СЏ С‡С‚РµРЅРёСЏ.
+  // Р’РёСЂС‚СѓР°Р»СЊРЅС‹Рµ РІРµСЂСЃРёРё: РїСЂРѕРµРєС‚С‹, РїСЂРёРєСЂРµРїР»С‘РЅРЅС‹Рµ д С‚СЂРµРєСѓ С‡РµСЂРµР· С„РѕСЂРјСѓ С‚СЂРµРєР°
+  // (projectZipUrl / projectZips), РґР»СЏ РєРѕС‚РѕСЂС‹С… РµС‰С‘ Хет
+  // РѕС‚РґРµР»СЊРЅРѕР№ Р·Р°РїРёСЃРё Ц делледции projects. РћС‚РѕР±СЂР°Р¶Р°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РґР»СЏ С‡С‚РµРЅРёСЏ.
   const virtualProjectsForTrack = (t: Track): Project[] => {
     const docIds = new Set(projects.map((p) => p.id));
     const out: Project[] = [];
@@ -180,7 +180,7 @@ export default function ProjectsView({
       if (!z.zipUrl && z.zipStatus !== 'uploading' && z.zipStatus !== 'error') continue;
       out.push({
         id: `zip:${t.id}:${z.projectId}`,
-        name: z.projectName || 'РџСЂРѕРµРєС‚',
+        name: z.projectName || 'Архив',
         trackIds: [t.id],
         zipUrl: z.zipUrl,
         zipStatus: z.zipStatus,
@@ -197,7 +197,7 @@ export default function ProjectsView({
       const stamp = t.updatedAt || t.createdAt || '';
       out.push({
         id: `zip:${t.id}:legacy`,
-        name: 'РџСЂРѕРµРєС‚ С‚СЂРµРєР°',
+        name: 'Архив проекта',
         trackIds: [t.id],
         zipUrl: t.projectZipUrl,
         zipStatus: t.projectZipStatus,
@@ -243,7 +243,7 @@ export default function ProjectsView({
     userMap.get(t.artistUids?.[0] || '')?.artistName ||
     '';
 
-  // Р¤РёР»СЊС‚СЂР°С†РёСЏ РєР°СЂС‚РѕС‡РµРє РїРѕ РїРѕРёСЃРєРѕРІРѕРјСѓ Р·Р°РїСЂРѕСЃСѓ: РЅР°Р·РІР°РЅРёРµ С‚СЂРµРєР°, Р°СЂС‚РёСЃС‚,
+  // Р¤РёР»СЊС‚СЂР°С†РёСЏ РєР°СЂС‚РѕС‡РµРє зе РїРѕРёСЃРєРѕРІРѕРјСѓ Р·Р°РїСЂРѕСЃСѓ: РЅР°Р·РІР°РЅРёРµ С‚СЂРµРєР°, Р°СЂС‚РёСЃС‚,
   // СЃР±РѕСЂРЅРёРє, РЅР°Р·РІР°РЅРёСЏ РІРµСЂСЃРёР№ РїСЂРѕРµРєС‚Р°.
   const visibleProjectTracks = useMemo<Track[]>(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -315,7 +315,7 @@ export default function ProjectsView({
     publishProjectZipInBackground({
       file,
       title: `VTG ${savedProject.name}`,
-      description: `РџСЂРѕРµРєС‚ ${savedProject.name}`,
+      description: `Архив ${savedProject.name}`,
       creator: 'VTG',
       signal: controller.signal,
       callbacks: {
@@ -338,9 +338,9 @@ export default function ProjectsView({
   const cancelUpload = (projectId: string) => {
     const controller = uploadControllers.current.get(projectId);
     if (!controller) {
-      // Р—Р°РіСЂСѓР·РєРё СѓР¶Рµ РЅРµС‚ (СѓСЃРїРµР»Р° Р·Р°РІРµСЂС€РёС‚СЊСЃСЏ, РѕС‚РјРµРЅРёС‚СЊСЃСЏ РёР»Рё РµС‘ Р±СЂРѕСЃРёР»Рё),
-      // Р° СЃРїРёРЅРЅРµСЂ РµС‰С‘ РІРёСЃРёС‚ вЂ” СЃРЅРёРјР°РµРј Рё Р»РѕРєР°Р»СЊРЅРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ, Рё СЃС‚Р°С‚СѓСЃ РІ Р±Р°Р·Рµ:
-      // РёРЅР°С‡Рµ РїРѕСЃР»Рµ РїРµСЂРµСЂРёСЃРѕРІРєРё РѕРЅ РІРµСЂРЅС‘С‚СЃСЏ РёР· Firestore.
+      // Р—Р°РіСЂСѓР·РєРё СѓР¶Рµ Хет (СѓСЃРїРµР»Р° Р·Р°РІРµСЂС€РёС‚СЊСЃСЏ, РѕС‚РјРµРЅРёС‚СЊСЃСЏ или РµС‘ Р±СЂРѕСЃРёР»Рё),
+      // Р° СЃРїРёРЅРЅРµСЂ РµС‰С‘ РІРёСЃРёС‚ вЂ” СЃРЅРёРјР°РµРј и Р»РѕРєР°Р»СЊРЅРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ, и СЃС‚Р°С‚СѓСЃ Ц Р±Р°Р·Рµ:
+      // РёРЅР°С‡Рµ РїРѕСЃР»Рµ РїРµСЂРµСЂРёСЃРѕРІРєРё еХ РІРµСЂРЅС‘С‚СЃСЏ из Firestore.
       setUploadingId((id) => (id === projectId ? null : id));
       setCancellingId((id) => (id === projectId ? null : id));
       clearZipStatus(projectId);
@@ -353,7 +353,7 @@ export default function ProjectsView({
   const saveVersion = async () => {
     if (!modal) return;
     if (modal.trackIds.length === 0) {
-      setZipError('Р’С‹Р±РµСЂРёС‚Рµ РѕРґРёРЅ С‚СЂРµРє, Рє РєРѕС‚РѕСЂРѕРјСѓ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р°.');
+      setZipError('Р’С‹Р±РµСЂРёС‚Рµ РѕРґРёРЅ С‚СЂРµРє, д РєРѕС‚РѕСЂРѕРјСѓ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р°.');
       setTimeout(() => setZipError(null), 4000);
       return;
     }
@@ -365,7 +365,7 @@ export default function ProjectsView({
         return;
       }
     }
-    const name = modal.name.trim() || 'Р‘РµР· РЅР°Р·РІР°РЅРёСЏ';
+    const name = modal.name.trim() || 'Новый проект';
     const payload: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
       name,
       trackIds: modal.trackIds,
@@ -410,9 +410,9 @@ export default function ProjectsView({
     }
   };
 
-  // Р—Р°РіСЂСѓР·РєР° СЃС‡РёС‚Р°РµС‚СЃСЏ В«Р¶РёРІРѕР№В», РµСЃР»Рё РѕРЅР° РµСЃС‚СЊ РІ РїР°РјСЏС‚Рё СЌС‚РѕРіРѕ СЌРєСЂР°РЅР° Р»РёР±Рѕ
-  // Р·Р°РїРёСЃСЊ РѕР± В«uploadingВ» СЃРІРµР¶Р°СЏ. РРЅР°С‡Рµ СЌС‚Рѕ СЃР»РµРґ РїСЂРµСЂРІР°РЅРЅРѕР№ Р·Р°РіСЂСѓР·РєРё (Р·Р°РєСЂС‹Р»Рё
-  // СЃС‚СЂР°РЅРёС†Сѓ/РїСЂРёР»РѕР¶РµРЅРёРµ): С„Р°Р№Р»Р° СѓР¶Рµ РЅРµС‚, Рё СЃРїРёРЅРЅРµСЂ РЅРµ РґРѕР»Р¶РµРЅ РєСЂСѓС‚РёС‚СЊСЃСЏ РІРµС‡РЅРѕ.
+  // Р—Р°РіСЂСѓР·РєР° СЃС‡РёС‚Р°РµС‚СЃСЏ В«Р¶РёРІРѕР№В», РµСЃР»Рё РѕРЅР° РµСЃС‚СЊ Ц РїР°РјСЏС‚Рё СЌС‚РѕРіРѕ СЌРєСЂР°РЅР° Р»РёР±Рѕ
+  // Р·Р°РїРёСЃСЊ РѕР± «uploading» СЃРІРµР¶Р°СЏ. РРЅР°С‡Рµ СЌС‚Рѕ СЃР»РµРґ РїСЂРµСЂРІР°РЅРЅРѕР№ Р·Р°РіСЂСѓР·РєРё (Р·Р°РєСЂС‹Р»Рё
+  // СЃС‚СЂР°РЅРёС†Сѓ/РїСЂРёР»РѕР¶РµРЅРёРµ): С„Р°Р№Р»Р° СѓР¶Рµ Хет, и СЃРїРёРЅРЅРµСЂ Хе РґРѕР»Р¶РµРЅ РєСЂСѓС‚РёС‚СЊСЃСЏ ЦечХе.
   const STALE_UPLOAD_MS = 15 * 60 * 1000;
   const isStaleUploading = (p: Project): boolean => {
     if (p.zipStatus !== 'uploading') return false;
@@ -436,7 +436,7 @@ export default function ProjectsView({
         <div className="project-zip project-zip-uploading">
           <span className="project-zip-spinner" />
           <span className="project-zip-cancel-label">
-            {cancellingId === p.id ? 'РћС‚РјРµРЅСЏРµРјвЂ¦' : 'Р—Р°РіСЂСѓР¶Р°РµРј Р°СЂС…РёРІ РІРµСЂСЃРёРё РІ С…СЂР°РЅРёР»РёС‰РµвЂ¦'}
+            {cancellingId === p.id ? 'РћС‚РјРµРЅСЏРµРјвЂ¦' : 'Р—Р°РіСЂСѓР¶Р°РµРј Р°СЂС…РёРІ РІРµСЂСЃРёРё Ц С…СЂР°РЅРёР»РёС‰РµвЂ¦'}
           </span>
           {canEdit && (
             <button
@@ -445,7 +445,7 @@ export default function ProjectsView({
               title="РћС‚РјРµРЅРёС‚СЊ Р·Р°РіСЂСѓР·РєСѓ"
               disabled={cancellingId === p.id}
               onClick={(e) => {
-                // Р“Р°СЃРёРј РІСЃРїР»С‹С‚РёРµ: РёРЅР°С‡Рµ РєР»РёРє РѕС‚РєСЂРѕРµС‚ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІРµСЂСЃРёРё.
+                // Р“Р°СЃРёРј РІСЃРїР»С‹С‚РёРµ: РёРЅР°С‡Рµ длид РѕС‚РєСЂРѕРµС‚ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІРµСЂСЃРёРё.
                 e.stopPropagation();
                 cancelUpload(p.id);
               }}
@@ -505,7 +505,7 @@ export default function ProjectsView({
     });
   };
 
-  // РЎРїРёСЃРѕРє С‚СЂРµРєРѕРІ РґР»СЏ СЃРµР»РµРєС‚РѕСЂР° РІ РјРѕРґР°Р»РєРµ РІРµСЂСЃРёРё (СЃ РїРѕРёСЃРєРѕРј)
+  // РЎРїРёСЃРѕРє С‚СЂРµРєРѕРІ РґР»СЏ СЃРµР»РµРєС‚РѕСЂР° Ц РјРѕРґР°Р»РєРµ РІРµСЂСЃРёРё (СЃ РїРѕРёСЃРєРѕРј)
   const trackSearchQuery = trackSearch.trim().toLowerCase();
   const visibleTrackOptions = trackSearchQuery
     ? tracks.filter((t) => {
@@ -525,13 +525,13 @@ export default function ProjectsView({
   return (
     <div className="projects-view">
       <div className="beats-head">
-        <h2>РџСЂРѕРµРєС‚С‹</h2>
+        <h2>АрхивС‹</h2>
         <input
           className="beats-search"
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="РџРѕРёСЃРє РїРѕ РЅР°Р·РІР°РЅРёСЋ С‚СЂРµРєР°, Р°СЂС‚РёСЃС‚Сѓ, СЃР±РѕСЂРЅРёРєСѓ, РІРµСЂСЃРёРёвЂ¦"
+          placeholder="РџРѕРёСЃРє зе РЅР°Р·РІР°РЅРёСЋ С‚СЂРµРєР°, Р°СЂС‚РёСЃС‚Сѓ, СЃР±РѕСЂРЅРёРєСѓ, РІРµСЂСЃРёРёвЂ¦"
         />
         <div className="projects-head-actions">
           <button className="btn-primary" onClick={() => openNewVersion()}>
@@ -544,12 +544,12 @@ export default function ProjectsView({
 
       {projectTracks.length === 0 ? (
         <div className="beats-empty">
-          РџСЂРѕРµРєС‚РѕРІ РїРѕРєР° РЅРµС‚. РљР°Р¶РґС‹Р№ РїСЂРѕРµРєС‚ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ Рє РѕРґРЅРѕРјСѓ РєРѕРЅРєСЂРµС‚РЅРѕРјСѓ С‚СЂРµРєСѓ
-          (СЃРёРЅРіР» РёР»Рё С‚СЂРµРє РёР· СЃР±РѕСЂРЅРёРєР°). РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІСѓСЋ РІРµСЂСЃРёСЋ РїСЂРѕРµРєС‚Р° вЂ” Рё РєР°СЂС‚РѕС‡РєР° С‚СЂРµРєР° РїРѕСЏРІРёС‚СЃСЏ Р·РґРµСЃСЊ.
+          АрхивРѕРІ РїРѕРєР° Хет. РљР°Р¶РґС‹Р№ РїСЂРѕРµРєС‚ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ д РѕРґРЅРѕРјСѓ РєРѕРЅРєСЂРµС‚РЅРѕРјСѓ С‚СЂРµРєСѓ
+          (СЃРёРЅРіР» или С‚СЂРµРє из СЃР±РѕСЂРЅРёРєР°). РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІСѓСЋ РІРµСЂСЃРёСЋ РїСЂРѕРµРєС‚Р° вЂ” и РєР°СЂС‚РѕС‡РєР° С‚СЂРµРєР° РїРѕСЏРІРёС‚СЃСЏ Р·РґРµСЃСЊ.
         </div>
       ) : visibleProjectTracks.length === 0 ? (
         <div className="beats-empty">
-          РџРѕ Р·Р°РїСЂРѕСЃСѓ В«{searchQuery.trim()}В» РЅРёС‡РµРіРѕ РЅРµ РЅР°Р№РґРµРЅРѕ.
+          пе Р·Р°РїСЂРѕСЃСѓ «{searchQuery.trim()}» Хичеже Хе РЅР°Р№РґРµРЅРѕ.
         </div>
       ) : (
         <div className="projects-grid">
@@ -580,11 +580,11 @@ export default function ProjectsView({
                       <button
                         type="button"
                         className="at-delete release-card-delete"
-                        title="РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ РїСЂРѕРµРєС‚Р° Рё РІСЃРµ РµС‘ РІРµСЂСЃРёРё"
+                        title="РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ РїСЂРѕРµРєС‚Р° и РІСЃРµ РµС‘ РІРµСЂСЃРёРё"
                         disabled={deletingCardTrackId === t.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ РїСЂРѕРµРєС‚Р° В«${t.title}В» РІРјРµСЃС‚Рµ СЃРѕ РІСЃРµРјРё РІРµСЂСЃРёСЏРјРё (${versions.length})?`)) return;
+                          if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РєР°СЂС‚РѕС‡РєСѓ РїСЂРѕРµРєС‚Р° «${t.title}» РІРјРµСЃС‚Рµ СЃРѕ РІСЃРµРјРё РІРµСЂСЃРёСЏРјРё (${versions.length})?`)) return;
                           setDeletingCardTrackId(t.id);
                           void (async () => {
                             for (const p of versions) {
@@ -592,7 +592,7 @@ export default function ProjectsView({
                               await onDelete(p.id);
                             }
                             // РЈР±РёСЂР°РµРј РІРёСЂС‚СѓР°Р»СЊРЅС‹Рµ РІРµСЂСЃРёРё (Р°СЂС…РёРІС‹, РїСЂРёРєСЂРµРїР»С‘РЅРЅС‹Рµ
-                            // Рє С‚СЂРµРєСѓ РЅР°РїСЂСЏРјСѓСЋ), С‡С‚РѕР±С‹ РєР°СЂС‚РѕС‡РєР° РёСЃС‡РµР·Р»Р° СЃРѕРІСЃРµРј.
+                            // д С‚СЂРµРєСѓ РЅР°РїСЂСЏРјСѓСЋ), С‡С‚РѕР±С‹ РєР°СЂС‚РѕС‡РєР° РёСЃС‡РµР·Р»Р° СЃРѕРІСЃРµРј.
                             await onUpdateTrack(t.id, {
                               projectZips: [],
                               projectZipUrl: '',
@@ -615,10 +615,10 @@ export default function ProjectsView({
                     </div>
                   )}
 
-                  <div className="project-card-section-title">РџСЂРѕРµРєС‚С‹ ({versions.length})</div>
+                  <div className="project-card-section-title">АрхивС‹ ({versions.length})</div>
                   {versions.length === 0 ? (
                     <div className="project-card-empty">
-                      Р’РµСЂСЃРёР№ РїРѕРєР° РЅРµС‚. РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІСѓСЋ, С‡С‚РѕР±С‹ СЃРІРѕРґРёС‚СЊ/РјР°СЃС‚РµСЂРёС‚СЊ СЌС‚РѕС‚ С‚СЂРµРє.
+                      Р’РµСЂСЃРёР№ РїРѕРєР° Хет. РЎРѕР·РґР°Р№С‚Рµ РїРµСЂРІСѓСЋ, С‡С‚РѕР±С‹ СЃРІРѕРґРёС‚СЊ/РјР°СЃС‚РµСЂРёС‚СЊ СЌС‚РѕС‚ С‚СЂРµРє.
                     </div>
                   ) : (
                     <div className="release-versions">
@@ -637,13 +637,13 @@ export default function ProjectsView({
                             title={canEdit && !isVirtualProject(p) ? 'РР·РјРµРЅРёС‚СЊ РІРµСЂСЃРёСЋ' : undefined}
                             onClick={(e) => {
                               if (!canEdit || isVirtualProject(p)) return;
-                              // РљР»РёРє РїРѕ РєРЅРѕРїРєР°Рј/СЃСЃС‹Р»РєР°Рј РІРЅСѓС‚СЂРё Р±Р»РѕРєР° РЅРµ РѕС‚РєСЂС‹РІР°РµС‚
-                              // СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Рё РЅРµ РІСЃРїР»С‹РІР°РµС‚ РґРѕ РєР°СЂС‚РѕС‡РєРё С‚СЂРµРєР°.
-                              // .project-zip РІ СЃРїРёСЃРєРµ вЂ” РѕР±СЏР·Р°С‚РµР»РµРЅ: РєРѕРіРґР° РєРЅРѕРїРєР°
-                              // РѕС‚РјРµРЅС‹ СѓР¶Рµ disabled, Р±СЂР°СѓР·РµСЂ РЅРµ РѕС‚РїСЂР°РІР»СЏРµС‚ РїРѕ РЅРµР№
-                              // click, Рё С†РµР»СЊСЋ СЃРѕР±С‹С‚РёСЏ СЃС‚Р°РЅРѕРІРёС‚СЃСЏ СЂРѕРґРёС‚РµР»СЊСЃРєРёР№ div.
+                              // клид зе РєРЅРѕРїРєР°Рј/СЃСЃС‹Р»РєР°Рј РІРЅСѓС‚СЂРё Р±Р»РѕРєР° Хе РѕС‚РєСЂС‹РІР°РµС‚
+                              // СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ и Хе РІСЃРїР»С‹РІР°РµС‚ РґРѕ РєР°СЂС‚РѕС‡РєРё С‚СЂРµРєР°.
+                              // .project-zip Ц СЃРїРёСЃРєРµ вЂ” РѕР±СЏР·Р°С‚РµР»РµРЅ: РєРѕРіРґР° РєРЅРѕРїРєР°
+                              // етйеХъ СѓР¶Рµ disabled, Р±СЂР°СѓР·РµСЂ Хе РѕС‚РїСЂР°РІР»СЏРµС‚ зе РЅРµР№
+                              // click, и С†РµР»СЊСЋ СЃРѕР±С‹С‚РёСЏ СЃС‚Р°РЅРѕРІРёС‚СЃСЏ СЂРѕРґРёС‚РµР»СЊСЃРєРёР№ div.
                               // Р‘РµР· СЌС‚РѕР№ РїСЂРѕРІРµСЂРєРё РїРѕРІС‚РѕСЂРЅРѕРµ РЅР°Р¶Р°С‚РёРµ В«Г—В» РѕС‚РєСЂС‹РІР°Р»Рѕ
-                              // СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІРµСЂСЃРёРё РІРјРµСЃС‚Рѕ РѕС‚РјРµРЅС‹ Р·Р°РіСЂСѓР·РєРё.
+                              // СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РІРµСЂСЃРёРё РІРјРµСЃС‚Рѕ етйеХъ Р·Р°РіСЂСѓР·РєРё.
                               if ((e.target as HTMLElement).closest('button, a, .project-zip')) {
                                 e.stopPropagation();
                                 return;
@@ -662,7 +662,7 @@ export default function ProjectsView({
                                     title="РЈРґР°Р»РёС‚СЊ РІРµСЂСЃРёСЋ"
                                     disabled={deletingId === p.id}
                                     onClick={() => {
-                                      if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РІРµСЂСЃРёСЋ В«${p.name}В»?`)) return;
+                                      if (!window.confirm(`РЈРґР°Р»РёС‚СЊ РІРµСЂСЃРёСЋ «${p.name}»?`)) return;
                                       setDeletingId(p.id);
                                       void onDelete(p.id).finally(() => setDeletingId(null));
                                     }}
@@ -707,12 +707,12 @@ export default function ProjectsView({
                       type="button"
                       className="btn-add-inline"
                       onClick={(e) => {
-                        // РќРµ РІСЃРїР»С‹РІР°РµРј РґРѕ РєР°СЂС‚РѕС‡РєРё, РёРЅР°С‡Рµ РѕС‚РєСЂРѕРµС‚СЃСЏ С‚СЂРµРє
+                        // ое РІСЃРїР»С‹РІР°РµРј РґРѕ РєР°СЂС‚РѕС‡РєРё, РёРЅР°С‡Рµ РѕС‚РєСЂРѕРµС‚СЃСЏ С‚СЂРµРє
                         e.stopPropagation();
                         openNewVersion(t);
                       }}
                     >
-                      + РќРѕРІР°СЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р° РґР»СЏ В«{t.title}В»
+                      + РќРѕРІР°СЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р° РґР»СЏ «{t.title}»
                     </button>
                   )}
                 </div>
@@ -737,12 +737,12 @@ export default function ProjectsView({
                   type="text"
                   value={modal.name}
                   onChange={(e) => setModal({ ...modal, name: e.target.value })}
-                  placeholder="РќР°Р·РІР°РЅРёРµ, РЅР°РїСЂРёРјРµСЂ: РЅР°Р·РІР°РЅРёРµ СЂРµР»РёР·Р° РёР»Рё В«РћСЃРЅРѕРІР°В»"
+                  placeholder="РќР°Р·РІР°РЅРёРµ, РЅР°РїСЂРёРјРµСЂ: РЅР°Р·РІР°РЅРёРµ СЂРµР»РёР·Р° или В«РћСЃРЅРѕРІР°В»"
                 />
               </div>
 
               <div className="form-group">
-                <label>РўСЂРµРє, Рє РєРѕС‚РѕСЂРѕРјСѓ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р° *</label>
+                <label>РўСЂРµРє, д РєРѕС‚РѕСЂРѕРјСѓ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ РІРµСЂСЃРёСЏ РїСЂРѕРµРєС‚Р° *</label>
                 <input
                   type="text"
                   value={trackSearch}
@@ -768,7 +768,7 @@ export default function ProjectsView({
                   })}
                   {visibleTrackOptions.length === 0 && tracks.length > 0 && (
                     <div className="project-card-empty">
-                      РџРѕ Р·Р°РїСЂРѕСЃСѓ В«{trackSearch.trim()}В» С‚СЂРµРєРё РЅРµ РЅР°Р№РґРµРЅС‹.
+                      пе Р·Р°РїСЂРѕСЃСѓ «{trackSearch.trim()}» С‚СЂРµРєРё Хе РЅР°Р№РґРµРЅС‹.
                     </div>
                   )}
                   {tracks.length === 0 && (
@@ -776,7 +776,7 @@ export default function ProjectsView({
                   )}
                 </div>
                 <div className="form-hint" style={{ marginTop: 4 }}>
-                  РћРґРёРЅ РїСЂРѕРµРєС‚ (.zip) вЂ” РѕРґРёРЅ С‚СЂРµРє. РўСЂРµРє РёР· СЃР±РѕСЂРЅРёРєР° С‚РѕР¶Рµ РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ СЃР°Рј Рє СЃРµР±Рµ.
+                  РћРґРёРЅ РїСЂРѕРµРєС‚ (.zip) вЂ” РѕРґРёРЅ С‚СЂРµРє. РўСЂРµРє из СЃР±РѕСЂРЅРёРєР° теже РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ СЃР°Рј д СЃРµР±Рµ.
                 </div>
               </div>
 
@@ -819,7 +819,7 @@ export default function ProjectsView({
                     type="text"
                     value={modal.tags}
                     onChange={(e) => setModal({ ...modal, tags: e.target.value })}
-                    placeholder="dark, РєРѕРЅС†РµРїС‚, Р°Р»СЊР±РѕРј"
+                    placeholder="dark, деХцезт, Р°Р»СЊР±РѕРј"
                   />
                 </div>
               </div>
@@ -837,7 +837,7 @@ export default function ProjectsView({
                 <textarea
                   value={modal.description}
                   onChange={(e) => setModal({ ...modal, description: e.target.value })}
-                  placeholder="РџР°СЂР° СЃР»РѕРІ Рѕ СЂРµР»РёР·Рµ: Р·Р°РґР°С‡Р°, РёРґРµСЏ, РґРµС‚Р°Р»Рё"
+                  placeholder="РџР°СЂР° СЃР»РѕРІ е СЂРµР»РёР·Рµ: Р·Р°РґР°С‡Р°, РёРґРµСЏ, РґРµС‚Р°Р»Рё"
                 />
               </div>
 
@@ -911,7 +911,7 @@ export default function ProjectsView({
               </div>
 
               <div className="form-group">
-                <label>РђСЂС…РёРІ РІРµСЂСЃРёРё (.zip, РґРѕ 1 Р“Р‘) вЂ” РјРѕР¶РЅРѕ РїСЂРёРєСЂРµРїРёС‚СЊ РїРѕР·Р¶Рµ</label>
+                <label>РђСЂС…РёРІ РІРµСЂСЃРёРё (.zip, РґРѕ 1 Р“Р‘) вЂ” йежХе РїСЂРёРєСЂРµРїРёС‚СЊ зезже</label>
                 <input
                   type="file"
                   accept=".zip"
@@ -919,15 +919,15 @@ export default function ProjectsView({
                 />
                 {modal.zipFile && (
                   <div className="form-hint" style={{ marginTop: 4 }}>
-                    РђСЂС…РёРІ В«{modal.zipFile.name}В» ({(modal.zipFile.size / 1024 / 1024).toFixed(1)} РњР‘)
-                    Р±СѓРґРµС‚ Р·Р°РіСЂСѓР¶РµРЅ РІ С…СЂР°РЅРёР»РёС‰Рµ РїРѕСЃР»Рµ СЃРѕС…СЂР°РЅРµРЅРёСЏ.
+                    РђСЂС…РёРІ «{modal.zipFile.name}» ({(modal.zipFile.size / 1024 / 1024).toFixed(1)} РњР‘)
+                    Р±СѓРґРµС‚ Р·Р°РіСЂСѓР¶РµРЅ Ц С…СЂР°РЅРёР»РёС‰Рµ РїРѕСЃР»Рµ СЃРѕС…СЂР°РЅРµРЅРёСЏ.
                   </div>
                 )}
               </div>
 
               <div className="form-hint">
-                РћРґРЅР° Р·Р°РїРёСЃСЊ = РѕРґРЅР° РІРµСЂСЃРёСЏ. Р’РµСЂСЃРёРё РјРѕР¶РЅРѕ РЅР°Р·РЅР°С‡Р°С‚СЊ СЃСЂР°Р·Сѓ РЅРµСЃРєРѕР»СЊРєРёРј СЂРµР»РёР·Р°Рј,
-                С‡С‚РѕР±С‹ РЅРµ РґСѓР±Р»РёСЂРѕРІР°С‚СЊ РѕРґРёРЅР°РєРѕРІСѓСЋ СЂР°Р±РѕС‚Сѓ РІ СЂР°Р·РЅС‹С… Р°Р»СЊР±РѕРјР°С….
+                РћРґРЅР° Р·Р°РїРёСЃСЊ = РѕРґРЅР° РІРµСЂСЃРёСЏ. Р’РµСЂСЃРёРё йежХе РЅР°Р·РЅР°С‡Р°С‚СЊ СЃСЂР°Р·Сѓ РЅРµСЃРєРѕР»СЊРєРёРј СЂРµР»РёР·Р°Рј,
+                С‡С‚РѕР±С‹ Хе РґСѓР±Р»РёСЂРѕРІР°С‚СЊ РѕРґРёРЅР°РєРѕРІСѓСЋ СЂР°Р±РѕС‚Сѓ Ц СЂР°Р·РЅС‹С… Р°Р»СЊР±РѕРјР°С….
               </div>
             </div>
 
