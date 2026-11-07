@@ -525,7 +525,7 @@ export default function ProjectsView({
   return (
     <div className="projects-view">
       <div className="beats-head">
-        <h2>АрхивС‹</h2>
+        <h2>Проекты</h2>
         <input
           className="beats-search"
           type="text"
@@ -615,7 +615,7 @@ export default function ProjectsView({
                     </div>
                   )}
 
-                  <div className="project-card-section-title">АрхивС‹ ({versions.length})</div>
+                  <div className="project-card-section-title">Проекты ({versions.length})</div>
                   {versions.length === 0 ? (
                     <div className="project-card-empty">
                       Версий пока Хет. Создайте первую, чтобы сводить/мастерить этот трек.
