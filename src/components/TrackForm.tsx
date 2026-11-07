@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadCover } from '../services/fileService';
 import { checkBeatAudioFile, checkProjectZipFile, publishProjectZipInBackground } from '../services/b2StorageService';
+import { ChevronUpIcon, ChevronDownIcon, XIcon } from '../design/icons';
 
 interface TrackFormProps {
   initialTrack?: Track;
@@ -142,7 +143,7 @@ function PersonSelector({ label, options, value, valueUids, onChange, placeholde
           {value.map((v, i) => (
             <span className="person-tag" key={`${v}-${i}`}>
               {v}
-              <button type="button" className="person-tag-x" onClick={() => remove(i)}>×</button>
+              <button type="button" className="person-tag-x" onClick={() => remove(i)}><XIcon size={14} /></button>
             </span>
           ))}
         </div>
@@ -498,7 +499,7 @@ export default function TrackForm({
       <div className="track-form-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{initialTrack ? 'Редактировать трек' : 'Новый трек'}</h2>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={onClose}><XIcon size={14} /></button>
         </div>
 
         <div className="form-section">
@@ -548,7 +549,7 @@ export default function TrackForm({
                 {featList.map((v, i) => (
                   <span className="person-tag" key={`${v}-${i}`}>
                     {v}
-                    <button type="button" className="person-tag-x" onClick={() => removeFeat(i)}>×</button>
+                    <button type="button" className="person-tag-x" onClick={() => removeFeat(i)}><XIcon size={14} /></button>
                   </span>
                 ))}
               </div>
@@ -756,7 +757,7 @@ export default function TrackForm({
                       if (input) input.value = '';
                     }}
                   >
-                    ×
+                    <XIcon size={14} />
                   </button>
                 </span>
               )}
@@ -999,7 +1000,7 @@ export default function TrackForm({
                   </button>
                   <span className="checklist-label">{item.label}</span>
                   <button className="checklist-toggle" onClick={() => toggleExpand(item.id)}>
-                    {expanded.has(item.id) ? '▲' : '▼'}
+                    {expanded.has(item.id) ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
                   </button>
                 </div>
 

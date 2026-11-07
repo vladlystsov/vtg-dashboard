@@ -142,3 +142,143 @@ export function SettingsIcon({ size = 18, ...rest }: P) {
     </svg>
   );
 }
+
+/** Перемешать треки. */
+export function ShuffleIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M2 16.1A4 4 0 0 1 5 10.4V6M18 14v3.8a4 4 0 0 0-.1-.2M3 15l4.6-4.3M14.1 14l4.6 4.3M17 10l-4.9 4.6" />
+    </svg>
+  );
+}
+
+/** Предыдущий трек. */
+export function SkipBackIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M18.7 5.4l-12 6.8c-1.1.6-1.1 2.1 0 2.8l12 6.8c1.1.6 2.6-.3 2.6-1.4v-8c0-1.1-1.5-2-2.6-1.4Z" />
+    </svg>
+  );
+}
+
+/** Воспроизвести (треугольник). */
+export function PlayIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M5 3L19 12L5 21V3Z" />
+    </svg>
+  );
+}
+
+/** Пауза (две вертикальные полоски). */
+export function PauseIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M7 4h4v16H7ZM13 4h4v16h-4Z" />
+    </svg>
+  );
+}
+
+/** Следующий трек. */
+export function SkipForwardIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M5.3 5.4l12 6.8c1.1.6 1.1 2.1 0 2.8l-12 6.8c-1.1.6-2.6-.3-2.6-1.4v-8c0-1.1 1.5-2 2.6-1.4Z" />
+    </svg>
+  );
+}
+
+/** Повтор одного трека. */
+export function RepeatOneIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M1 12c0-2.2.9-4.3 2.4-5.8L4 7v4c0 .6.4 1 1 1h4M22 12c0-2.2-.9-4.3-2.4-5.8L20 7v4c0 .6-.4 1-1 1h-4M3.9 9.8l1.3-1.3a1 1 0 0 1 1.4 0l2.1 2.1c.4.4.4 1 0 1.4l-2.1 2.1a1 1 0 0 1-1.4-1.4l1.3-1.3H2c-.6 0-1-.4-1-1v-4c0-.6.4-1 1-1h4c.6 0 1 .4 1 1v4c0 .6-.4 1-1 1Z" />
+    </svg>
+  );
+}
+
+/** Повтор всего плейлиста. */
+export function RepeatIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M17 2v4a3 3 0 0 0-3 3H7a4 4 0 0 0-4 4v3a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3v-3a4 4 0 0 0-4-4H7a3 3 0 0 1-3-3V2c0-1.7 1.3-3 3-3h4a3 3 0 0 1 3 3Z" />
+      <path d="M13 12l3 3M16 9l3 3M13 22l3-3M16 15l3-3" />
+    </svg>
+  );
+}
+
+/** Меню (гамбургер). */
+export function MenuIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+/** Закрыть / крестик. */
+export function XIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
+/** Внешняя ссылка (стрелка вверх-вправо). */
+export function ExternalLinkIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a2.82 2.82 0 1 0-4-4l-3 3A2.82 2.82 0 0 0 3 10.54l3 3A4 4 0 0 0 10 13Z" />
+      <path d="M14 9h6M14 15h6" />
+    </svg>
+  );
+}
+
+/** Маркер перетаскивания (три точки по вертикали). */
+export function DragHandleIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </svg>
+  );
+}
+
+/** Каретка вверх / вниз. */
+export function ChevronUpIcon({ size = 14, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M5 12l7-7 7 7" />
+    </svg>
+  );
+}
+
+export function ChevronDownIcon({ size = 14, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <path d="M19 12l-7 7-7-7" />
+    </svg>
+  );
+}
+
+/** Загрузка (часы / песочные часы). */
+export function LoadingIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <circle cx="12" cy="12" r="5" strokeDasharray="10 10" strokeDashoffset="2" />
+    </svg>
+  );
+}
+
+/** Изображение / картинка. */
+export function ImageIcon({ size = 16, ...rest }: P) {
+  return (
+    <svg {...base(size)} {...rest}>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="12" cy="10" r="2" />
+      <path d="M8 18h8" />
+    </svg>
+  );
+}

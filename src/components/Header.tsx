@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetwork } from '../hooks/useNetwork';
 import { useTheme } from '../hooks/useTheme';
 import type { AppNotification } from '../services/notificationService';
+import { ChevronUpIcon, ChevronDownIcon } from '../design/icons';
 import {
   BellIcon, SunIcon, MoonIcon, PlusIcon, TrashIcon,
 } from '../design/icons';
@@ -166,7 +167,7 @@ export default function Header({
           <button className="user-info" onClick={() => setMenuOpen((o) => !o)}>
             <span className="user-avatar">{(profile?.artistName || profile?.displayName || 'У')[0]}</span>
             <span className="user-name">{profile?.artistName || profile?.displayName || 'Участник'}</span>
-            <span className="user-chevron">{menuOpen ? '▲' : '▼'}</span>
+            <span className="user-chevron">{menuOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}</span>
           </button>
 
           {menuOpen && (

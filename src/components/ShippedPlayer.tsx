@@ -4,6 +4,11 @@ import type { DropResult } from '@hello-pangea/dnd';
 import { soundCloudEmbedSrc, youtubeVideoId, detectPlatform } from '../types/track';
 import type { Track } from '../types/track';
 import { cacheAudio, getCachedAudio, onAudioCacheChange, peekCachedAudio } from '../services/audioCacheService';
+import {
+  SkipBackIcon, SkipForwardIcon, PlayIcon, PauseIcon, ShuffleIcon,
+  RepeatIcon, RepeatOneIcon, MenuIcon, XIcon, ExternalLinkIcon,
+  DragHandleIcon,
+} from '../design/icons';
 
 const SC_API_URL = 'https://w.soundcloud.com/player/api.js';
 const YT_API_URL = 'https://www.youtube.com/iframe_api';
@@ -894,20 +899,20 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 onClick={toggleShuffle}
                 title={shuffle ? 'Перемешать: Цдл' : 'Перемешать'}
               >
-                🔀
+                <ShuffleIcon />
               </button>
-              <button type="button" className="sp-btn" onClick={prev} title="Предыдущий">⏮</button>
+              <button type="button" className="sp-btn" onClick={prev} title="Предыдущий"><SkipBackIcon /></button>
               <button type="button" className="sp-btn sp-play" onClick={togglePlay} title={playing ? 'Пауза' : 'Играть'}>
-                {playing ? '⏸' : '▶'}
+                {playing ? <PauseIcon /> : <PlayIcon />}
               </button>
-              <button type="button" className="sp-btn" onClick={next} title="Следующий">⏭</button>
+              <button type="button" className="sp-btn" onClick={next} title="Следующий"><SkipForwardIcon /></button>
               <button
                 type="button"
                 className={`sp-btn ${repeat !== 'off' ? 'sp-active' : ''}`}
                 onClick={cycleRepeat}
                 title={repeat === 'one' ? 'Повтор одной' : repeat === 'all' ? 'Повторить всё' : 'Повтор'}
               >
-                {repeat === 'one' ? '🔂' : '🔁'}
+                {repeat === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
               </button>
               <button
                 type="button"
@@ -923,7 +928,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 {current && <img className="sp-cover" src={current.coverUrl?.trim() || FALLBACK_COVER} alt="" />}
                 <span className="sp-title">{current ? current.title : '—'}</span>
                 {current && (
-                  <a className="sp-open" href={current.url} target="_blank" rel="noopener noreferrer" title="Открыть на платформе">↗</a>
+                  <a className="sp-open" href={current.url} target="_blank" rel="noopener noreferrer" title="Открыть на платформе"><ExternalLinkIcon /></a>
                 )}
               </div>
               <div className="sp-timeline">
@@ -946,7 +951,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               onClick={toggleOpen}
               title="Треклист"
             >
-              {open ? '☰' : '✕'}
+              {open ? <MenuIcon /> : <XIcon />}
             </button>
           </div>
           {open && (
@@ -966,11 +971,11 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                                 playTrack(item.id);
                               }}
                             >
-                              <span className="sp-grip" {...p.dragHandleProps}>в ї</span>
+                              <span className="sp-grip" {...p.dragHandleProps}><DragHandleIcon /></span>
                               <span className="sp-row-num">{idx + 1}</span>
                               <img className="sp-row-cover" src={item.coverUrl?.trim() || FALLBACK_COVER} alt="" />
                               <span className="sp-row-title">{item.title}</span>
-                              {item.id === currentId && <span className="sp-row-state">{playing ? '▶' : '⏸'}</span>}
+                              {item.id === currentId && <span className="sp-row-state">{playing ? <PlayIcon /> : <PauseIcon />}</span>}
                             </div>
                           )}
                         </Draggable>
@@ -1008,7 +1013,7 @@ export function ShippedMini({ item }: { item: ShippedTrackItem }) {
         }}
         title={isCurrent && m.playing ? 'Пауза' : 'Играть'}
       >
-        {isCurrent && m.playing ? '⏸' : '▶'}
+        {isCurrent && m.playing ? <PauseIcon /> : <PlayIcon />}
       </button>
       <input
         className="sp-range"

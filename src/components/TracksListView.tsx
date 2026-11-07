@@ -9,6 +9,7 @@ import { uploadCover } from '../services/fileService';
 import { listCachedAudio, onAudioCacheChange } from '../services/audioCacheService';
 import { canSaveNatively, cancelSave, openSavedFile, revealSavedFile, saveToDownloads, SaveCancelledError } from '../services/fileSaveService';
 import { showSaveToast } from '../services/saveToastService';
+import { PlayIcon, XIcon, ChevronUpIcon, ChevronDownIcon, LoadingIcon, ImageIcon } from '../design/icons';
 
 interface TracksListViewProps {
   tracks: Track[];
@@ -331,7 +332,7 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false, track,
     if (!vid) {
       return (
         <a className="listen-btn" href={trimmed} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-          ▶ Слушать на YouTube
+          <PlayIcon size={14} /> Слушать на YouTube
         </a>
       );
     }
@@ -356,7 +357,7 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false, track,
     }
     return (
       <a className="listen-btn" href={trimmed} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-        ▶ Слушать аудио
+        <PlayIcon size={14} /> Слушать аудио
       </a>
     );
   }
@@ -368,7 +369,7 @@ export function PlatformPlayer({ url, compact = false, hideEmbed = false, track,
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
     >
-      ▶ Слушать на платформе
+      <PlayIcon size={14} /> Слушать на платформе
     </a>
   );
 }
@@ -556,7 +557,7 @@ export function DownloadButton({
         {downloading ? (
           <span className="at-download-cancel-wrap">
             <span className="at-download-spinner" />
-            <span className="at-download-cancel-icon">✕</span>
+            <span className="at-download-cancel-icon"><XIcon size={14} /></span>
           </span>
         ) : (children || '⬇')}
       </a>
@@ -873,7 +874,7 @@ function AlbumCard({
           className="album-tracklist-toggle"
           onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
         >
-          {expanded ? '▲ Скрыть треклист' : `▼ Треклист (${totalTracks})`}
+          {expanded ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}{expanded ? ' Скрыть треклист' : ` Треклист (${totalTracks})`}
         </button>
         {expanded && (
           <div className="album-tracklist">
@@ -968,7 +969,7 @@ function AlbumTrackRow({
             title="Слушать на платформе"
             onClick={(e) => e.stopPropagation()}
           >
-            ▶
+            <PlayIcon size={14} />
           </a>
         )}
         {(isArtist || isOwnerOrAdmin) && (
@@ -1312,7 +1313,7 @@ function AlbumEditTrackRow({
               title="Сменить обложку трека (персонально в альбоме)"
               onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
             >
-              {uploading ? '⏳' : '🖼'}
+              {uploading ? <LoadingIcon size={14} /> : <ImageIcon size={14} />}
             </button>
             {track.personalCoverUrl && (
               <button
@@ -1323,7 +1324,7 @@ function AlbumEditTrackRow({
                   if (onUpdateTrack) void onUpdateTrack(track.id, { personalCoverUrl: undefined });
                 }}
               >
-                ✕
+                <XIcon size={14} />
               </button>
             )}
             <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: 'none' }} />

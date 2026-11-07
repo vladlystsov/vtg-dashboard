@@ -4,6 +4,7 @@ import type { DropResult } from '@hello-pangea/dnd';
 import type { Track, KanbanColumn, UserProfile } from '../types/track';
 import { KANBAN_COLUMNS, resolveNames } from '../types/track';
 import TrackCard from './TrackCard';
+import { ChevronDownIcon, PlayIcon } from '../design/icons';
 
 type BoardFilter = 'mine_all' | 'mine_artist' | 'participant' | 'all';
 
@@ -110,7 +111,7 @@ export default function KanbanBoard({ tracks, onOpenTrack, onMove, onArchive, us
               >
                 <div className="column-header" style={{ borderBottomColor: '#6b7280' }}>
                   <span className="column-dot" style={{ backgroundColor: '#6b7280' }} />
-                  <span className="column-title">Архив {archiveOpen ? '▼' : '▶'}</span>
+                  <span className="column-title">Архив {archiveOpen ? <ChevronDownIcon size={14} /> : <PlayIcon size={14} />}</span>
                   <span className="column-count">{archivedTracks.length}</span>
                 </div>
                 <div className="column-body">
