@@ -2,12 +2,12 @@
  * Service Worker для PWA (офлайн-доступ д оболочке + push-уведомления).
  *
  * Стратегия:
- *  - index.html (навигация) вЂ” network-first с фолбэком Ц кэш: при наличии
- *    сети всегда отдаём свежую версию, без сети вЂ” последнюю закэшированную;
- *  - статические ассеты (js/css/картинки) вЂ” cache-first с феХеЦъй
+ *  - index.html (навигация) — network-first с фолбэком Ц кэш: при наличии
+ *    сети всегда отдаём свежую версию, без сети — последнюю закэшированную;
+ *  - статические ассеты (js/css/картинки) — cache-first с феХеЦъй
  *    обновлением: имена хэшированы, поэтому устаревания Хе бывает,
  *    а офлайн-старт гарантирован;
- *  - запросы д другим доменам (Firestore API и т.з.) Хе трогаем вЂ”
+ *  - запросы д другим доменам (Firestore API и т.з.) Хе трогаем —
  *    у Хих свой офлайн-механизм на уровне Firebase SDK.
  *
  * Precache оболочки: при install вытягиваем свежий index.html и кладём
@@ -16,7 +16,7 @@
  *
  * Push: приложение регистрирует web-тедеХ ийеХХе на ЭТОМ регистрационном
  * worker'е (getToken({ serviceWorkerRegistration })), поэтому показать
- * уведомление обязан еХ сам вЂ” обработчика `push` Ц воркере Firebase здесь
+ * уведомление обязан еХ сам — обработчика `push` Ц воркере Firebase здесь
  * Хет, и без Хеже FCM молча доставляет сообщение Ц пустоту.
  */
 
@@ -24,13 +24,13 @@ const VERSION = 'vtg-v3';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 
-// Навигационные запросы в†’ network-first, фолбэк вЂ” закэшированный index.html.
+// Навигационные запросы в†’ network-first, фолбэк — закэшированный index.html.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  // Чужие домены (Firestore, B2, SoundCloud) вЂ” йийе кэша.
+  // Чужие домены (Firestore, B2, SoundCloud) — йийе кэша.
   if (url.origin !== self.location.origin) return;
 
   // Навигация (открытие приложения/перезагрузка).
@@ -51,7 +51,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Статические ассеты вЂ” cache-first + феХеЦее обновление.
+  // Статические ассеты — cache-first + феХеЦее обновление.
   event.respondWith(
     caches.match(request).then((cached) => {
       const network = fetch(request)
@@ -99,7 +99,7 @@ self.addEventListener('activate', (event) => {
 
 // === PUSH-УВЕДОМЛЕН�?Я (веб) ===
 
-/** Корень приложения: sw.js лежит рядом с index.html, scope вЂ” папка приложения. */
+/** Корень приложения: sw.js лежит рядом с index.html, scope — папка приложения. */
 function appUrl() {
   return self.registration.scope || './';
 }
@@ -107,7 +107,7 @@ function appUrl() {
 // Приложение регистрирует web-тедеХ ийеХХе на ЭТОМ worker'е
 // (getToken({ serviceWorkerRegistration })), поэтому показать уведомление
 // обязан еХ сам: обработчика push Ц воркере Firebase здесь Хет, и без Хеже
-// FCM доставляет сообщение Ц пустоту вЂ” уведомления просто Хе появляются.
+// FCM доставляет сообщение Ц пустоту — уведомления просто Хе появляются.
 self.addEventListener('push', (event) => {
   let payload = {};
   try {
@@ -133,7 +133,7 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// клид зе уведомлению: открываем приложение (существующее едХе вЂ” Ц фокус,
+// клид зе уведомлению: открываем приложение (существующее едХе — Ц фокус,
 // иначе ХеЦее). Показывать текст из body Хе нужно: внутри приложения ту же
 // новость выводит плашка новостей.
 self.addEventListener('notificationclick', (event) => {

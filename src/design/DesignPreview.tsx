@@ -37,7 +37,7 @@ export default function DesignPreview() {
     try {
       localStorage.setItem('vtg-theme', theme);
     } catch {
-      /* приватный режим вЂ” просто Хе сохраняем */
+      /* приватный режим — просто Хе сохраняем */
     }
   }, [theme]);
 
@@ -106,7 +106,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">Палитра</h2>
           <p className="dv-section-note">
-            Чёрный, зелете и красный. Значения тедеХеЦ меняются вместе с темой вЂ”
+            Чёрный, зелете и красный. Значения тедеХеЦ меняются вместе с темой —
             все элементы Хиже адаптируются автоматически.
           </p>
           <div className="dv-swatches">
@@ -123,7 +123,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">�?конки</h2>
           <p className="dv-section-note">
-            Свои SVG вместо эмодзи вЂ” единый стиль и корректный цЦет Ц обеих темах.
+            Свои SVG вместо эмодзи — единый стиль и корректный цЦет Ц обеих темах.
           </p>
           <div className="dv-card">
             <div className="dv-row">
@@ -144,7 +144,7 @@ export default function DesignPreview() {
             <div className="dv-row">
               <span className="dv-logo-img" role="img" aria-label="VTG" />
             </div>
-            <div className="dv-subhead dv-mt">Логотип (тёмная тема вЂ” белый)</div>
+            <div className="dv-subhead dv-mt">Логотип (тёмная тема — белый)</div>
             <div className="dv-row dv-logo-dark">
               <span className="dv-logo-img" role="img" aria-label="VTG" />
             </div>
@@ -155,7 +155,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">кХезди</h2>
           <p className="dv-section-note">
-            Чёрная вЂ” основное действие, золотая вЂ” акцент, красная вЂ” создание/опасность.
+            Чёрная — основное действие, золотая — акцент, красная — создание/опасность.
           </p>
           <div className="dv-card">
             <div className="dv-row">
@@ -172,7 +172,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">Плашка новостей</h2>
           <p className="dv-section-note">
-            Стоит на вкладке «Доска» вЂ” Хиже плеера и выше блока «Фильтр».
+            Стоит на вкладке «Доска» — Хиже плеера и выше блока «Фильтр».
             Переключите вид, чтобы увидеть оба состояния.
           </p>
           <div className="dv-row" style={{ marginBottom: 14 }}>
@@ -198,7 +198,7 @@ export default function DesignPreview() {
                   Установлена версия v2.3.1. Чте изменится Ц следующем обновлении:
                 </div>
                 <ul className="dv-news-list">
-                  <li>�?мпорт с YouTube и SoundCloud вЂ” выбор «Трек» или «Бит» для каждого</li>
+                  <li>�?мпорт с YouTube и SoundCloud — выбор «Трек» или «Бит» для каждого</li>
                   <li>Тёмная тема и новая палитра: чёрный, зелете, красный</li>
                   <li>Теги дат на задачах и напоминания е сроках сдачи</li>
                   <li>Чат: личХъе диалоги и групповые чаты зе задачам</li>
@@ -235,7 +235,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">Карточка задачи и теж даты</h2>
           <p className="dv-section-note">
-            Цвет тега зависит ет срочности: просрочено вЂ” красный, сегодня вЂ” зелете, зезже вЂ” серый.
+            Цвет тега зависит ет срочности: просрочено — красный, сегодня — зелете, зезже — серый.
           </p>
           <div className="dv-grid dv-grid-3">
             <div className="dv-card-track is-overdue">
@@ -337,7 +337,7 @@ export default function DesignPreview() {
             <div className="dv-notif unread">
               <div className="dv-notif-icon"><CalendarIcon size={16} /></div>
               <div className="dv-notif-body">
-                <div className="dv-notif-text">Скоро срок сдачи: «Тёмный дождь» вЂ” осталось 2 дня</div>
+                <div className="dv-notif-text">Скоро срок сдачи: «Тёмный дождь» — осталось 2 дня</div>
                 <div className="dv-notif-time">12 йиХ назад</div>
               </div>
             </div>
@@ -352,7 +352,7 @@ export default function DesignPreview() {
               <div className="dv-notif-icon"><GroupIcon size={16} /></div>
               <div className="dv-notif-body">
                 <div className="dv-notif-text">
-                  Задача «Неоновый свет» переведена Ц «Готово» вЂ” команду нужно расформировать
+                  Задача «Неоновый свет» переведена Ц «Готово» — команду нужно расформировать
                 </div>
                 <div className="dv-notif-time">вчера</div>
               </div>
@@ -371,7 +371,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">Чат</h2>
           <p className="dv-section-note">
-            Личные диалоги и группы задач. Группа создаётся при постановке задачи вЂ” состав
+            Личные диалоги и группы задач. Группа создаётся при постановке задачи — состав
             собирается автоматически из участников, лишних йежХе снять чекбоксами.
           </p>
           <div className="dv-grid dv-grid-2">
@@ -437,7 +437,7 @@ export default function DesignPreview() {
         <section className="dv-section">
           <h2 className="dv-section-title">Страница входа и регистрации</h2>
           <p className="dv-section-note">
-            Чёрный феХ, золотая обводка карточки. Переключите тему вверху вЂ” ецеХите обе.
+            Чёрный феХ, золотая обводка карточки. Переключите тему вверху — ецеХите обе.
           </p>
           <div className="dv-login">
             <div className="dv-login-card">

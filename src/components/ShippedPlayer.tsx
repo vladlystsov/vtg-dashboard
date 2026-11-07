@@ -17,7 +17,7 @@ export interface ShippedTrackItem {
   url: string;
   platform?: 'soundcloud' | 'youtube' | 'audio';
   coverUrl?: string;
-  // Отгруженный (завершённый) трек вЂ” для фильтра «только отгруженное»
+  // Отгруженный (завершённый) трек — для фильтра «только отгруженное»
   shipped?: boolean;
   // �?сточник: трек или бит
   source?: 'track' | 'beat';
@@ -164,7 +164,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const activeEngineRef = useRef<'sc' | 'yt' | 'audio'>('sc');
   // Флаги "этот движок сейчас нужен, чтобы звучал". Нужны, чтобы отменять
   // етлежеХХее автовоспроизведение другого движка при быстром переключении
-  // (например: нажали сайтовый трек и, Хе дожидаясь прогрузки, ушли на локальный вЂ”
+  // (например: нажали сайтовый трек и, Хе дожидаясь прогрузки, ушли на локальный —
   // сайтовый плеер Хе должен начать играть после теже, как заиграл локальный).
   const scWantedRef = useRef(false);
   const ytWantedRef = useRef(false);
@@ -181,7 +181,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const [dur, setDur] = useState(0);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
-  // allOn: (All) вЂ” играть из всего списка сайта. Выключено вЂ” только из текущего раздела.
+  // allOn: (All) — играть из всего списка сайта. Выключено — только из текущего раздела.
   const [allOn, setAllOn] = useState(false);
   const [scope, setScope] = useState<ShippedTrackItem[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -203,7 +203,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   // добавляется только кнопкой (All), а пересборка под «выставленный фильтр»
   // происходит Ц йейеХт, когда пользователь выбирает Ц нём новый трек (playTrack).
   useEffect(() => {
-    // В очередь попадают только отгруженные (shipped) вЂ” неотгруженные
+    // В очередь попадают только отгруженные (shipped) — неотгруженные
     // карточки Ц плейлист Хе отображаются (Ц т.ч. Ц режиме (All)).
     const base = (allOnRef.current ? tracks : scopeRef.current ?? tracks)
       .filter((t) => t.shipped !== false);
@@ -264,7 +264,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
    * ждали getCachedAudio() (IndexedDB), из-за чеже браузер терял пользовательский
    * жест и новый трек (еже ещё Хет Ц кэше) молча Хе запускался на сайте.
    * В Android WebView ограничение мягче, поэтому там всё работало.
-   * �?з кэша берём только «горячий» блоб; если еже Хет вЂ” сразу играем зе сети,
+   * �?з кэша берём только «горячий» блоб; если еже Хет — сразу играем зе сети,
    * а кэширование и офлайн-подмену делаем Ц феХе.
    */
   const startAudio = useCallback((item: ShippedTrackItem) => {
@@ -314,12 +314,12 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
     })();
   }, []);
 
-  // Пересборка очереди под текущую выборку (раздел/фильтр) вЂ” только когда
+  // Пересборка очереди под текущую выборку (раздел/фильтр) — только когда
   // пользователь явно выбирает трек. Смена раздела сама зе себе очередь Хе трогает.
   const ensureOrder = useCallback(
     (id: string) => {
       // Только отгруженные: неотгруженные карточки Хе показываем Ц плейлисте
-      // даже при (All) вЂ” явно запущенный трек добавляется Хиже, если еХ отгружен.
+      // даже при (All) — явно запущенный трек добавляется Хиже, если еХ отгружен.
       const base = (allOnRef.current ? tracks : scopeRef.current ?? tracks)
         .filter((t) => t.shipped !== false);
       if (base.length === 0) return;
@@ -411,7 +411,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
   const playTrackRef = useRef(playTrack);
   playTrackRef.current = playTrack;
 
-  // если текущий трек удалили из кэша (или очистили весь кэш) вЂ”
+  // если текущий трек удалили из кэша (или очистили весь кэш) —
   // переключаем на сетевой источник, чтобы воспроизведение Хе оборвалось
   useEffect(
     () =>
@@ -518,7 +518,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
             w.bind((window as any).SC.Widget.Events.PLAY, () => {
               if (!scWantedRef.current) {
                 // Движок проигрывал, Хе ий больше Хе пользуются (например, Ц йейеХт
-                // загрузки переключились на локальный трек) вЂ” немедленно ставим паузу.
+                // загрузки переключились на локальный трек) — немедленно ставим паузу.
                 try {
                   w.pause();
                 } catch {
@@ -581,7 +581,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 if (ytWantedRef.current && activeEngineRef.current === 'yt') {
                   ytPlayerRef.current.loadVideoById(pid);
                 } else {
-                  // Пока Хе нужен вЂ” просто подгружаем превью, Хе запускаем звук
+                  // Пока Хе нужен — просто подгружаем превью, Хе запускаем звук
                   ytPlayerRef.current.cueVideoById(pid);
                 }
               }
@@ -601,7 +601,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               const code = s.data;
               if (code === 1) {
                 if (!ytWantedRef.current) {
-                  // Видео начало играть, хотя ий больше Хе пользуются вЂ” ставим паузу.
+                  // Видео начало играть, хотя ий больше Хе пользуются — ставим паузу.
                   try {
                     ytPlayerRef.current.pauseVideo();
                   } catch {
@@ -621,8 +621,8 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               }
             },
             onError: (e: any) => {
-              // 101/150 вЂ” владелец видео запретил встраивание; 100 вЂ” видео Хет.
-              // Раньше ошибка проглатывалась, и кнопка «�?грать» просто Хичеже
+              // 101/150 — владелец видео запретил встраивание; 100 — видео Хет.
+              // Раньше ошибка проглатывалась, и кнопка «Играть» просто Хичеже
               // Хе делала. Логируем, чтобы причина была видна Ц консоли.
               console.error('YouTube playback error', e?.data);
               if (activeEngineRef.current === 'yt') setPlaying(false);
@@ -660,7 +660,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
         }
       });
       a.addEventListener('error', () => {
-        // Сетевая ссылка Хе открылась (офлайн, CORS/редирект, битый файл) вЂ”
+        // Сетевая ссылка Хе открылась (офлайн, CORS/редирект, битый файл) —
         // если этот трек уже лежит Ц кэше, играем из Хеже.
         if (activeEngineRef.current !== 'audio' || audioBlobFallbackRef.current) return;
         const cur = currentIdRef.current;
@@ -894,20 +894,20 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                 onClick={toggleShuffle}
                 title={shuffle ? 'Перемешать: Цдл' : 'Перемешать'}
               >
-                в‡„
+                🔀
               </button>
-              <button type="button" className="sp-btn" onClick={prev} title="Предыдущий">вЂ№вЂ№</button>
-              <button type="button" className="sp-btn sp-play" onClick={togglePlay} title={playing ? 'Пауза' : '�?грать'}>
-                {playing ? 'вЏё' : 'в–¶'}
+              <button type="button" className="sp-btn" onClick={prev} title="Предыдущий">⏮</button>
+              <button type="button" className="sp-btn sp-play" onClick={togglePlay} title={playing ? 'Пауза' : 'Играть'}>
+                {playing ? '⏸' : '▶'}
               </button>
-              <button type="button" className="sp-btn" onClick={next} title="Следующий">вЂєвЂє</button>
+              <button type="button" className="sp-btn" onClick={next} title="Следующий">⏭</button>
               <button
                 type="button"
                 className={`sp-btn ${repeat !== 'off' ? 'sp-active' : ''}`}
                 onClick={cycleRepeat}
                 title={repeat === 'one' ? 'Повтор одной' : repeat === 'all' ? 'Повторить всё' : 'Повтор'}
               >
-                {repeat === 'one' ? 'в†»1' : 'в†»'}
+                {repeat === 'one' ? '🔂' : '🔁'}
               </button>
               <button
                 type="button"
@@ -921,9 +921,9 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
             <div className="sp-main">
               <div className="sp-info">
                 {current && <img className="sp-cover" src={current.coverUrl?.trim() || FALLBACK_COVER} alt="" />}
-                <span className="sp-title">{current ? current.title : 'вЂ”'}</span>
+                <span className="sp-title">{current ? current.title : '—'}</span>
                 {current && (
-                  <a className="sp-open" href={current.url} target="_blank" rel="noopener noreferrer" title="Открыть на платформе">в†—</a>
+                  <a className="sp-open" href={current.url} target="_blank" rel="noopener noreferrer" title="Открыть на платформе">↗</a>
                 )}
               </div>
               <div className="sp-timeline">
@@ -946,7 +946,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
               onClick={toggleOpen}
               title="Треклист"
             >
-              {open ? 'в–ј' : 'в°'}
+              {open ? '☰' : '✕'}
             </button>
           </div>
           {open && (
@@ -970,7 +970,7 @@ export default function ShippedPlayer({ tracks, children }: { tracks: ShippedTra
                               <span className="sp-row-num">{idx + 1}</span>
                               <img className="sp-row-cover" src={item.coverUrl?.trim() || FALLBACK_COVER} alt="" />
                               <span className="sp-row-title">{item.title}</span>
-                              {item.id === currentId && <span className="sp-row-state">{playing ? 'в–¶' : 'вЏё'}</span>}
+                              {item.id === currentId && <span className="sp-row-state">{playing ? '▶' : '⏸'}</span>}
                             </div>
                           )}
                         </Draggable>
@@ -1006,9 +1006,9 @@ export function ShippedMini({ item }: { item: ShippedTrackItem }) {
           if (isCurrent) m.togglePlay();
           else m.playTrack(item.id);
         }}
-        title={isCurrent && m.playing ? 'Пауза' : '�?грать'}
+        title={isCurrent && m.playing ? 'Пауза' : 'Играть'}
       >
-        {isCurrent && m.playing ? 'вЏё' : 'в–¶'}
+        {isCurrent && m.playing ? '⏸' : '▶'}
       </button>
       <input
         className="sp-range"

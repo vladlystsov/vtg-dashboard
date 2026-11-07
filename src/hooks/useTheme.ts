@@ -5,18 +5,18 @@ export type Theme = 'light' | 'dark';
 const STORAGE_KEY = 'vtg-theme';
 
 /**
- * Переключатель тейъ. Применяет data-theme д <html> вЂ” CSS-переменные
+ * Переключатель тейъ. Применяет data-theme д <html> — CSS-переменные
  * Ц index.css сами перекрашивают все элементы.
  *
  * Тема ставится ДО первой отрисовки инлайн-скриптом Ц index.html,
- * здесь вЂ” только для последующих переключений и сохранения выбора.
+ * здесь — только для последующих переключений и сохранения выбора.
  */
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved === 'dark' || saved === 'light') return saved;
-      // пе умолчанию вЂ” тёмная: чёрный с зелетей и красным выглядит
+      // пе умолчанию — тёмная: чёрный с зелетей и красным выглядит
       // выразительнее и ближе д тематике.
       return 'dark';
     } catch {
@@ -29,7 +29,7 @@ export function useTheme() {
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {
-      /* приватный режим вЂ” просто Хе сохраняем */
+      /* приватный режим — просто Хе сохраняем */
     }
   }, [theme]);
 

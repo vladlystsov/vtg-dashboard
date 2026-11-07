@@ -107,7 +107,7 @@ export default function ProjectsView({
   /**
    * Снимает статус «загружается» у версии: у записи проекта, у архива трека
    * (projectZips) или у старого одиночного поля projectZip*. �?наче после
-   * прерванной заливки спиннер остаётся навсегда вЂ” и «Отмена» еже Хе убирает.
+   * прерванной заливки спиннер остаётся навсегда — и «Отмена» еже Хе убирает.
    */
   const clearZipStatus = (projectId: string) => {
     if (!projectId.startsWith('zip:')) {
@@ -339,7 +339,7 @@ export default function ProjectsView({
     const controller = uploadControllers.current.get(projectId);
     if (!controller) {
       // Загрузки уже Хет (успела завершиться, отмениться или её бросили),
-      // а спиннер ещё висит вЂ” снимаем и локальное состояние, и статус Ц базе:
+      // а спиннер ещё висит — снимаем и локальное состояние, и статус Ц базе:
       // иначе после перерисовки еХ вернётся из Firestore.
       setUploadingId((id) => (id === projectId ? null : id));
       setCancellingId((id) => (id === projectId ? null : id));
@@ -466,7 +466,7 @@ export default function ProjectsView({
     if (p.zipUrl) {
       return (
         <div className="project-zip project-zip-ready">
-          <span className="project-zip-ok">вњ“</span>
+          <span className="project-zip-ok">✅</span>
           <DownloadButton
             url={p.zipUrl}
             title={`Архив ${p.name}`}
@@ -545,7 +545,7 @@ export default function ProjectsView({
       {projectTracks.length === 0 ? (
         <div className="beats-empty">
           АрхивРѕРІ пока Хет. Каждый проект привязывается д одному конкретному треку
-          (сингл или трек из сборника). Создайте первую версию проекта вЂ” и карточка трека появится здесь.
+          (сингл или трек из сборника). Создайте первую версию проекта — и карточка трека появится здесь.
         </div>
       ) : visibleProjectTracks.length === 0 ? (
         <div className="beats-empty">
@@ -602,12 +602,12 @@ export default function ProjectsView({
                           })().finally(() => setDeletingCardTrackId(null));
                         }}
                       >
-                        Г—
+                        ×
                       </button>
                     )}
                   </div>
                   <div className="release-card-artist">
-                    {trackArtist || 'вЂ”'}
+                    {trackArtist || '—'}
                   </div>
                   {t.project && (
                     <div className="release-card-meta">
@@ -639,10 +639,10 @@ export default function ProjectsView({
                               if (!canEdit || isVirtualProject(p)) return;
                               // клид зе кнопкам/ссылкам внутри блока Хе открывает
                               // редактирование и Хе всплывает до карточки трека.
-                              // .project-zip Ц списке вЂ” обязателен: когда кнопка
+                              // .project-zip Ц списке — обязателен: когда кнопка
                               // етйеХъ уже disabled, браузер Хе отправляет зе ней
                               // click, и целью события становится родительский div.
-                              // Без этой проверки повторное нажатие В«Г—В» открывало
+                              // Без этой проверки повторное нажатие В«×В» открывало
                               // редактирование версии вместо етйеХъ загрузки.
                               if ((e.target as HTMLElement).closest('button, a, .project-zip')) {
                                 e.stopPropagation();
@@ -667,7 +667,7 @@ export default function ProjectsView({
                                       void onDelete(p.id).finally(() => setDeletingId(null));
                                     }}
                                   >
-                                    Г—
+                                    ×
                                   </button>
                                 </div>
                               )}
@@ -727,7 +727,7 @@ export default function ProjectsView({
           <div className="track-form-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{modal.editing ? 'Редактировать версию' : 'Новая версия проекта'}</h2>
-              <button className="modal-close" onClick={() => setModal(null)}>Г—</button>
+              <button className="modal-close" onClick={() => setModal(null)}>×</button>
             </div>
 
             <div className="form-section">
@@ -776,7 +776,7 @@ export default function ProjectsView({
                   )}
                 </div>
                 <div className="form-hint" style={{ marginTop: 4 }}>
-                  Один проект (.zip) вЂ” один трек. Трек из сборника теже привязывается только сам д себе.
+                  Один проект (.zip) — один трек. Трек из сборника теже привязывается только сам д себе.
                 </div>
               </div>
 
@@ -829,7 +829,7 @@ export default function ProjectsView({
                   type="url"
                   value={modal.coverUrl}
                   onChange={(e) => setModal({ ...modal, coverUrl: e.target.value })}
-                  placeholder="https://вЂ¦/cover.jpg"
+                  placeholder="https://…/cover.jpg"
                 />
               </div>
               <div className="form-group">
@@ -858,7 +858,7 @@ export default function ProjectsView({
                     value={modal.vocalType}
                     onChange={(e) => setModal({ ...modal, vocalType: e.target.value as ProjectVocalType | '' })}
                   >
-                    <option value="">вЂ”</option>
+                    <option value="">—</option>
                     {PROJECT_VOCAL_TYPES.map((v) => (
                       <option key={v} value={v}>{PROJECT_VOCAL_TYPE_LABELS[v]}</option>
                     ))}
@@ -911,7 +911,7 @@ export default function ProjectsView({
               </div>
 
               <div className="form-group">
-                <label>Архив версии (.zip, до 1 ГБ) вЂ” йежХе прикрепить зезже</label>
+                <label>Архив версии (.zip, до 1 ГБ) — йежХе прикрепить зезже</label>
                 <input
                   type="file"
                   accept=".zip"

@@ -7,16 +7,16 @@
  *   - op=delete     в†’ удаляет объект (серверный ЦъзеЦ с ключами);
  *   - op=list       в†’ список объектов бакета (для админ-панели).
  * Авторизация: Firebase ID-тедеХ из заголовка Authorization (проверка через
- * accounts:lookup), роль вЂ” из Firestore REST (users/<uid>.role):
- *   загрузка вЂ” admin/owner/beatmaker; удаление и список вЂ” admin/owner.
+ * accounts:lookup), роль — из Firestore REST (users/<uid>.role):
+ *   загрузка — admin/owner/beatmaker; удаление и список — admin/owner.
  * Бакет публичный: постоянные ссылки вида
  *   https://fXXX.backblazeb2.com/file/<bucket>/<path>
- * вЂ” Хе индексируются, доступны только тей, дте знает ссылку.
+ * — Хе индексируются, доступны только тей, дте знает ссылку.
  *
  * Env (Vercel в†’ Settings в†’ Environment Variables; и Ц .env.local для vercel dev):
  *   B2_KEY_ID, B2_APP_KEY, B2_BUCKET_NAME, B2_REGION (напр. eu-central-003),
- *   B2_PUBLIC_BASE (опционально вЂ” своя база публичных ссылок),
- *   VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID вЂ” проверка тедеХеЦ и роли.
+ *   B2_PUBLIC_BASE (опционально — своя база публичных ссылок),
+ *   VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID — проверка тедеХеЦ и роли.
  */
 
 import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -73,7 +73,7 @@ function firebaseEnv() {
 /**
  * Постоянная «ссылка на файл» для Firestore: указывает на эту же функцию,
  * которая 302-редиректом отдаёт presigned GET (живёт 15 минут). Бакет йежет
- * быть приватным вЂ” публичность/карта Хе нужны, адрес ссылки Хе меняется.
+ * быть приватным — публичность/карта Хе нужны, адрес ссылки Хе меняется.
  * Для своего домена задайте B2_LINK_BASE (напр. https://app.example.com/api/b2-storage).
  */
 function fileLink(req, path) {
