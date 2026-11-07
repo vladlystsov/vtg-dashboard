@@ -741,6 +741,7 @@ export default function App() {
             onSave={handleSaveProject}
             onDelete={handleDeleteProject}
             onUpdateTrack={updateTrack as any}
+            onUpdateProjectFields={updateProjectFields}
             onOpenTrack={handleOpenTrack}
           />
         )}

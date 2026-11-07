@@ -44,7 +44,7 @@ export type SaveProgress = { percent: number };
 interface FileSaverApi {
   saveToDownloads(options: SaveToDownloadsOptions): Promise<SaveToDownloadsResult>;
   openFile(options: { uri: string; mimeType: string }): Promise<void>;
-  revealFile(options: { location: string; uri: string }): Promise<void>;
+  revealFile(options: { location: string; uri: string; mimeType: string }): Promise<void>;
   cancel(): Promise<void>;
   addListener(
     eventName: string,
@@ -132,7 +132,7 @@ export async function openSavedFile(result: SaveToDownloadsResult): Promise<void
 /** Открывает папку «Загрузки» — файл уже лежит там. */
 export async function revealSavedFile(result: SaveToDownloadsResult): Promise<void> {
   if (!canSaveNatively() || !result.uri) return;
-  await getSaver().revealFile({ location: result.location, uri: result.uri });
+  await getSaver().revealFile({ location: result.location, uri: result.uri, mimeType: result.mimeType });
 }
 
 /**

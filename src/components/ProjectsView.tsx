@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project, Track, TrackProjectZip, TrackStatus, UserProfile } from '../types/track';
 import {
   PROJECT_DAW_LABELS,
@@ -25,6 +25,8 @@ interface ProjectsViewProps {
   ) => Promise<string | undefined>;
   onDelete: (id: string) => Promise<void>;
   onUpdateTrack: (id: string, patch: Partial<Track>) => Promise<void>;
+  /** Очистка полей проекта (undefined = удалить поле): нужна, чтобы снять зависший статус загрузки. */
+  onUpdateProjectFields?: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onOpenTrack?: (track: Track) => void;
 }
 
@@ -54,6 +56,16 @@ interface VersionFormState {
 
 const DEFAULT_DLD_VERSION = '25';
 
+/**
+ * Через сколько брошенная загрузка архива считается прерванной.
+ *
+ * Статус `uploading` пишется в Firestore до начала заливки и снимается только
+ * по её завершении. Если вкладку закрыли на середине, статус остаётся навсегда,
+ * и карточка вечно крутит «Загружаем архив версии…». Десяти минут хватает
+ * любому реальному архиву, а живая загрузка всё равно перезапишет статус.
+ */
+const STALE_UPLOAD_MS = 10 * 60 * 1000;
+
 function emptyForm(preselectedTrackIds: string[] = [], preselectedTitle = ''): VersionFormState {
   return {
     trackIds: preselectedTrackIds,
@@ -81,6 +93,7 @@ export default function ProjectsView({
   onSave,
   onDelete,
   onUpdateTrack,
+  onUpdateProjectFields,
   onOpenTrack,
 }: ProjectsViewProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -100,6 +113,66 @@ export default function ProjectsView({
     for (const t of tracks) m.set(t.id, t);
     return m;
   }, [tracks]);
+
+  /**
+   * Снимает статус «загружается» у версии: у записи проекта, у архива трека
+   * (projectZips) или у старого одиночного поля projectZip*. Иначе после
+   * прерванной заливки спиннер остаётся навсегда — и «Отмена» его не убирает.
+   */
+  const clearZipStatus = (projectId: string) => {
+    if (!projectId.startsWith('zip:')) {
+      void onUpdateProjectFields?.(projectId, { zipStatus: undefined, zipError: undefined });
+      return;
+    }
+    const [, trackId, zipKey] = projectId.split(':');
+    const track = trackById.get(trackId);
+    if (!track) return;
+    if (zipKey === 'legacy') {
+      void onUpdateTrack(trackId, { projectZipStatus: undefined, projectZipError: undefined });
+      return;
+    }
+    const zips = (track.projectZips || []).map((z) =>
+      z.projectId === zipKey ? { ...z, zipStatus: undefined, zipError: undefined } : z
+    );
+    void onUpdateTrack(trackId, { projectZips: zips.length ? zips : undefined });
+  };
+
+  // Чистим брошенные загрузки: их некому завершить, и без этого карточка
+  // бесконечно показывает «Загружаем архив версии в хранилище…».
+  const healedUploads = useRef(new Set<string>());
+  useEffect(() => {
+    const now = Date.now();
+    const stale = (stamp?: string) => {
+      const time = Date.parse(stamp || '');
+      return Number.isFinite(time) && now - time > STALE_UPLOAD_MS;
+    };
+
+    for (const p of projects) {
+      if (p.zipStatus !== 'uploading') continue;
+      if (uploadControllers.current.has(p.id) || healedUploads.current.has(p.id)) continue;
+      if (!stale(p.updatedAt || p.createdAt)) continue;
+      healedUploads.current.add(p.id);
+      void onUpdateProjectFields?.(p.id, { zipStatus: undefined, zipError: undefined });
+    }
+
+    for (const t of tracks) {
+      const patch: Record<string, unknown> = {};
+      if (t.projectZipStatus === 'uploading' && stale(t.updatedAt || t.createdAt)) {
+        patch.projectZipStatus = undefined;
+        patch.projectZipError = undefined;
+      }
+      const zips = t.projectZips || [];
+      if (zips.some((z) => z.zipStatus === 'uploading' && stale(z.uploadedAt))) {
+        patch.projectZips = zips.map((z) =>
+          z.zipStatus === 'uploading' && stale(z.uploadedAt)
+            ? { ...z, zipStatus: undefined, zipError: undefined }
+            : z
+        );
+      }
+      if (Object.keys(patch).length) void onUpdateTrack(t.id, patch as Partial<Track>);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, tracks]);
 
   // Проект привязан строго к одному треку. Версии (записи Project) ищутся
   // по конкретному id трека, а не по всему сборнику.
@@ -275,10 +348,12 @@ export default function ProjectsView({
   const cancelUpload = (projectId: string) => {
     const controller = uploadControllers.current.get(projectId);
     if (!controller) {
-      // Загрузки уже нет (успела завершиться или отмениться), а спиннер ещё
-      // висит — снимаем его руками, иначе кнопка «Отмена» ничего не делает.
+      // Загрузки уже нет (успела завершиться, отмениться или её бросили),
+      // а спиннер ещё висит — снимаем и локальное состояние, и статус в базе:
+      // иначе после перерисовки он вернётся из Firestore.
       setUploadingId((id) => (id === projectId ? null : id));
       setCancellingId((id) => (id === projectId ? null : id));
+      clearZipStatus(projectId);
       return;
     }
     setCancellingId(projectId);

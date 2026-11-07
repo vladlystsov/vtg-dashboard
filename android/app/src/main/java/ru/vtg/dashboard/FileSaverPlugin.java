@@ -146,11 +146,16 @@ public class FileSaverPlugin extends Plugin {
      * Показывает папку, в которой лежит файл. Открываем её через провайдер
      * «Внешнее хранилище»: у стандартного проводника нет способа открыть
      * произвольную папку по файловому пути, а document-URI он понимает.
+     *
+     * Если проводник не умеет открывать папки, открываем сам файл — но строго
+     * с его MIME-типом. Без типа Android показывает выбор приложения из десятка
+     * программ, и кнопка «В папку» превращается в угадайку.
      */
     @PluginMethod
     public void revealFile(PluginCall call) {
         String location = call.getString("location", "");
         String fallbackUri = call.getString("uri");
+        String mimeType = call.getString("mimeType", "application/octet-stream");
         try {
             Uri folder = DocumentsContract.buildDocumentUri(
                     "com.android.externalstorage.documents",
@@ -165,7 +170,7 @@ public class FileSaverPlugin extends Plugin {
             if (fallbackUri != null && !fallbackUri.isEmpty()) {
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW);
-                    intent.setDataAndType(Uri.parse(fallbackUri), "*/*");
+                    intent.setDataAndType(Uri.parse(fallbackUri), mimeType);
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
                     getContext().startActivity(intent);
                     call.resolve();
