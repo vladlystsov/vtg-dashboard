@@ -1,12 +1,13 @@
 {
-  "version": "2.4.12",
-  "build": 13,
+  "version": "2.4.13",
+  "build": 14,
   "notes": [
-    "Dev console: added per-attempt storage proxy logging (network/timeout details).",
-    "YouTube embed now sends allow and plays via playVideo.",
-    "Fixed stuck uploads cleanup.",
-    "Storage now uses Cloudflare Worker.",
-    "Clean PWA cache."
+    "Исправлена кодировка текста на сайте (кракозябры в интерфейсе).",
+    "Хранилище работает через Cloudflare Worker.",
+    "Dev console: логирование запросов к хранилищу.",
+    "YouTube embed: allow и playVideo.",
+    "Исправлена очистка загрузок.",
+    "Кэш PWA очищен."
   ],
   "apkUrl": "https://github.com/vladlystsov/vtg-dashboard/releases/latest/download/vtg-dashboard.apk"
 }
